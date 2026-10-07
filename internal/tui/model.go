@@ -115,6 +115,9 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 	case *tcell.EventMouse:
 		x, y := e.Position()
 		buttons := e.Buttons()
+		if buttons&(tcell.WheelDown|tcell.WheelUp|tcell.WheelLeft|tcell.WheelRight) != 0 {
+			m.Focus = ""
+		}
 		if buttons&tcell.WheelDown != 0 {
 			m.scroll(3)
 			return nil

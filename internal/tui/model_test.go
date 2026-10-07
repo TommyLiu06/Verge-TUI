@@ -139,6 +139,46 @@ func TestNarrowTerminalScrollAndUnicode(t *testing.T) {
 	}
 }
 
+func TestMouseWheelClearsFocus(t *testing.T) {
+	for _, wheel := range []tcell.ButtonMask{tcell.WheelDown, tcell.WheelUp, tcell.WheelLeft, tcell.WheelRight} {
+		for _, dialog := range []bool{false, true} {
+			m := New(fixture())
+			m.Tab = 2
+			m.URL = "https://example.com/profile"
+			id := "url"
+			if dialog {
+				m.Activate(app.Action{Kind: "new"})
+				id = "name"
+			}
+			m.Activate(app.Action{Kind: "input", ID: id})
+			m.Render(120, 42)
+			input := m.Input()
+			if input == nil {
+				t.Fatal("input did not receive focus")
+			}
+			before := *input
+			m.Handle(tcell.NewEventMouse(40, 10, wheel, tcell.ModNone))
+			f := m.Render(120, 42)
+			if m.Focus != "" || m.Input() != nil {
+				t.Fatal("wheel retained input focus, including at a scroll boundary")
+			}
+			for _, cell := range f.Cells {
+				if cell.Style.HasReverse() {
+					t.Fatal("wheel retained a focus highlight")
+				}
+			}
+			m.Handle(tcell.NewEventKey(tcell.KeyRune, "x", tcell.ModNone))
+			if *input != before {
+				t.Fatal("typing after scrolling edited the old input")
+			}
+			m.Handle(tcell.NewEventKey(tcell.KeyTab, "", tcell.ModNone))
+			if m.Focus == "" {
+				t.Fatal("Tab could not restore keyboard focus")
+			}
+		}
+	}
+}
+
 func TestDirectAndGlobalProxyModes(t *testing.T) {
 	m := New(fixture())
 	m.View.Snapshot.Config.Mode = "direct"
