@@ -12,15 +12,15 @@ import (
 )
 
 var (
-	background = color.NewHexColor(0x10131c)
-	panel      = color.NewHexColor(0x191e2c)
-	border     = color.NewHexColor(0x31394c)
-	accent     = color.NewHexColor(0xa997ff)
-	text       = color.NewHexColor(0xe3e7f1)
-	muted      = color.NewHexColor(0x8c96aa)
-	green      = color.NewHexColor(0x70d6a3)
-	baseStyle  = tcell.StyleDefault.Foreground(text).Background(background)
-	cardStyle  = tcell.StyleDefault.Foreground(text).Background(panel)
+	// Leave normal text and every background to the terminal's own theme.
+	// ANSI accents use the user's palette instead of fixed RGB colors.
+	border    = color.Default
+	accent    = color.PaletteColor(5)
+	text      = color.Default
+	muted     = color.Default
+	green     = color.PaletteColor(2)
+	baseStyle = tcell.StyleDefault
+	cardStyle = tcell.StyleDefault
 )
 
 type Rect struct{ X, Y, W, H int }
@@ -116,7 +116,7 @@ func (f *Frame) Button(r Rect, label string, a app.Action, selected bool) {
 		s = s.Foreground(accent).Bold(true)
 	}
 	if f.Focus == Key(a) {
-		s = s.Background(border).Foreground(text)
+		s = cardStyle.Reverse(true).Bold(true)
 	}
 	f.Fill(r, s)
 	f.Line(r.X+1, r.Y+(r.H-1)/2, r.W-2, "["+label+"]", s)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/clipperhouse/displaywidth"
 	"github.com/gdamore/tcell/v3"
+	"github.com/gdamore/tcell/v3/color"
 	"mihomo-tui/internal/app"
 	"mihomo-tui/internal/controller"
 	"mihomo-tui/internal/state"
@@ -150,5 +151,33 @@ func TestDirectAndGlobalProxyModes(t *testing.T) {
 	groups := app.Groups(m.View)
 	if len(groups) != 1 || groups[0].Name != "GLOBAL" {
 		t.Fatal("global mode displays rule groups")
+	}
+}
+
+func TestPagesAndFocusInheritTerminalTheme(t *testing.T) {
+	m := New(fixture())
+	for page := range 3 {
+		m.Tab = page
+		m.Render(120, 42)
+		m.FocusNext(1)
+		f := m.Render(120, 42)
+		reverse := false
+		for _, cell := range f.Cells {
+			if cell.Style.GetBackground() != color.Default || cell.Style.GetForeground().IsRGB() {
+				t.Fatal("page forces a theme-specific background or RGB foreground")
+			}
+			reverse = reverse || cell.Style.HasReverse()
+		}
+		if !reverse {
+			t.Fatal("keyboard focus is not visible through terminal reverse video")
+		}
+	}
+	m.Activate(app.Action{Kind: "new"})
+	m.Render(120, 42)
+	m.FocusNext(1)
+	for _, cell := range m.Render(120, 42).Cells {
+		if cell.Style.GetBackground() != color.Default {
+			t.Fatal("dialog overrides the terminal's background")
+		}
 	}
 }

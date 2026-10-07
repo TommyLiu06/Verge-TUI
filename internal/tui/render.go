@@ -413,7 +413,7 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 func (m *Model) input(f *Frame, r Rect, placeholder, value, id string) {
 	s := cardStyle.Foreground(text)
 	if f.Focus == Key(app.Action{Kind: "input", ID: id}) {
-		s = s.Background(border).Foreground(accent)
+		s = cardStyle.Reverse(true)
 	}
 	f.Fill(r, s)
 	if value == "" {
