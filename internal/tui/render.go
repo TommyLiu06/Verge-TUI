@@ -1,0 +1,480 @@
+package tui
+
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/clipperhouse/displaywidth"
+	"mihomo-tui/internal/app"
+	"mihomo-tui/internal/controller"
+	"mihomo-tui/internal/state"
+)
+
+func (m *Model) Render(w, h int) *Frame {
+	f := NewFrame(max(1, w), max(1, h))
+	f.Focus = m.Focus
+	m.Frame = f
+	if w < 60 || h < 18 {
+		f.Line(1, 1, w-2, "Please resize the terminal to at least 60 x 18.", baseStyle)
+		return f
+	}
+	side := 20
+	if w < 90 {
+		side = 16
+	}
+	f.Fill(Rect{0, 0, side, h - 1}, cardStyle)
+	f.Line(2, 1, side-4, "MIHOMO TUI", cardStyle.Foreground(accent).Bold(true))
+	f.Line(2, 2, side-4, "v"+m.View.Version, cardStyle.Foreground(muted))
+	for i, name := range []string{"Home", "Proxies", "Profiles"} {
+		f.Button(Rect{1, 5 + i*3, side - 2, 2}, name, app.Action{Kind: "navigate", ID: strconv.Itoa(i)}, m.Tab == i)
+	}
+	stateText := "Core Not Running"
+	if m.View.Online {
+		stateText = "Core Running"
+	}
+	f.Line(2, h-7, side-4, stateText, cardStyle.Foreground(muted))
+	f.Line(2, h-6, side-4, m.View.Settings.Core, cardStyle.Foreground(muted))
+	label, kind := "Start Core", "start"
+	if m.View.Online {
+		label, kind = "Stop Core", "stop"
+	}
+	f.Button(Rect{1, h - 4, side - 2, 2}, label, app.Action{Kind: kind}, false)
+	x, width := side+2, w-side-4
+	title := []string{"Home", "Proxy Groups", "Profiles"}[m.Tab]
+	f.Line(x, 1, width-27, title, baseStyle.Bold(true))
+	f.Button(Rect{w - 27, 1, 14, 1}, "Refresh", app.Action{Kind: "refresh"}, false)
+	f.Button(Rect{w - 13, 1, 11, 1}, "Core", app.Action{Kind: "cores"}, false)
+	f.Line(x, 3, width, strings.Repeat("─", width), baseStyle.Foreground(border))
+	f.Clip = Rect{x, 4, width, h - 6}
+	bottom := 4
+	switch m.Tab {
+	case 0:
+		bottom = m.home(f, x, 5, width)
+	case 1:
+		bottom = m.proxies(f, x, 5, width)
+	case 2:
+		bottom = m.profiles(f, x, 5, width)
+	}
+	m.MaxScroll = max(0, bottom+m.Scroll[m.Tab]-(h-2))
+	if m.Scroll[m.Tab] > m.MaxScroll {
+		m.Scroll[m.Tab] = m.MaxScroll
+		return m.Render(w, h)
+	}
+	f.Clip = Rect{0, 0, w, h}
+	status := m.Message
+	if m.Busy {
+		status = "Working…  " + status
+	}
+	f.Fill(Rect{0, h - 1, w, 1}, cardStyle)
+	f.Line(1, h-1, max(0, w-45), status, cardStyle.Foreground(muted))
+	f.Line(max(1, w-43), h-1, 42, "1 Home  2 Proxies  3 Profiles  Tab  q Quit", cardStyle.Foreground(muted))
+	if m.Modal != nil {
+		m.modal(f)
+	}
+	return f
+}
+func (m *Model) home(f *Frame, x, y, width int) int {
+	cols := 1
+	if width >= 78 {
+		cols = 2
+	}
+	cw := (width - (cols-1)*2) / cols
+	y -= m.Scroll[0]
+	renders := []func(*Frame, Rect){m.homeProfile, m.homeNode, m.homeNetwork, m.homeMode, m.homeClash, m.homeSystem}
+	heights := []int{12, 12, 10, 10, 11, 11}
+	for i, draw := range renders {
+		row, col := i/cols, i%cols
+		offset := 0
+		for r := 0; r < row; r++ {
+			offset += heights[r*cols] + 1
+		}
+		draw(f, Rect{x + col*(cw+2), y + offset, cw, heights[i]})
+	}
+	total := 0
+	for i := 0; i < len(renders); i += cols {
+		total += heights[i] + 1
+	}
+	return y + total - 1
+}
+func (m *Model) homeProfile(f *Frame, r Rect) {
+	p, found := state.Find(m.View.Settings, m.View.Settings.Current)
+	title := "Profiles"
+	if found {
+		title = p.Name
+	}
+	f.Box(r, title)
+	if !found {
+		f.Line(r.X+2, r.Y+4, r.W-4, "No active subscription", cardStyle.Foreground(muted))
+		f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, "Go to Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
+		return
+	}
+	source := "local"
+	if u, err := url.Parse(p.URL); err == nil && u.Host != "" {
+		source = u.Host
+	}
+	lines := []string{"From: " + source, "Update Time: " + p.Updated.Local().Format("2006-01-02 15:04")}
+	if p.Usage != nil {
+		used := p.Usage.Upload + p.Usage.Download
+		lines = append(lines, "Used / Total: "+bytesString(used)+" / "+bytesString(p.Usage.Total))
+		expiry := "-"
+		if p.Usage.Expire > 0 {
+			expiry = time.Unix(p.Usage.Expire, 0).Local().Format("2006-01-02")
+		}
+		lines = append(lines, "Expire Time: "+expiry)
+		percent := 0
+		if p.Usage.Total > 0 {
+			percent = int(min(100, float64(used)*100/float64(p.Usage.Total)))
+		}
+		barWidth := max(1, r.W-12)
+		filled := barWidth * percent / 100
+		lines = append(lines, strings.Repeat("━", filled)+strings.Repeat("─", barWidth-filled)+fmt.Sprintf(" %d%%", percent))
+	} else {
+		lines = append(lines, "Usage / expiry: not provided")
+	}
+	for i, line := range lines {
+		f.Line(r.X+2, r.Y+3+i, r.W-4, line, cardStyle.Foreground(muted))
+	}
+	f.Button(Rect{r.X + 2, r.Y + r.H - 3, 14, 1}, "Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
+	if p.Type == "remote" {
+		f.Button(Rect{r.X + 17, r.Y + r.H - 3, r.W - 19, 1}, "Update", app.Action{Kind: "profile-update", ID: p.ID}, false)
+	}
+}
+func (m *Model) homeNode(f *Frame, r Rect) {
+	f.Box(r, "Current Node")
+	mode := m.mode()
+	if mode == "direct" {
+		f.Line(r.X+2, r.Y+4, r.W-4, "DIRECT", cardStyle.Foreground(green).Bold(true))
+		f.Line(r.X+2, r.Y+6, r.W-4, "Direct Mode", cardStyle.Foreground(muted))
+		return
+	}
+	g := app.HomeGroup(m.View)
+	if !m.View.Online || g.Name == "" {
+		f.Line(r.X+2, r.Y+4, r.W-4, "No active proxy node", cardStyle.Foreground(muted))
+		return
+	}
+	if mode == "global" {
+		f.Line(r.X+2, r.Y+3, r.W-4, "Global Mode", cardStyle.Foreground(muted))
+	} else {
+		f.Button(Rect{r.X + 2, r.Y + 3, r.W - 4, 1}, "Group: "+g.Name, app.Action{Kind: "home-groups"}, false)
+	}
+	f.Button(Rect{r.X + 2, r.Y + 5, r.W - 4, 1}, "Proxy: "+g.Now, app.Action{Kind: "home-nodes"}, true)
+	node := m.View.Snapshot.Proxies[g.Now]
+	f.Line(r.X+2, r.Y+7, r.W-4, delayLabel(node), cardStyle.Foreground(green))
+	f.Button(Rect{r.X + 2, r.Y + 9, r.W - 4, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name, Node: g.Now}, false)
+}
+func (m *Model) homeNetwork(f *Frame, r Rect) {
+	f.Box(r, "Network Settings")
+	half := (r.W - 4) / 2
+	f.Button(Rect{r.X + 2, r.Y + 3, half, 1}, "System Proxy", app.Action{Kind: "network-tab", ID: "system"}, m.NetworkTab == "system")
+	f.Button(Rect{r.X + 2 + half, r.Y + 3, half, 1}, "TUN Mode", app.Action{Kind: "network-tab", ID: "tun"}, m.NetworkTab == "tun")
+	if m.NetworkTab == "system" {
+		status := "System Proxy Disabled"
+		if m.View.Desktop.Enabled {
+			status = "System Proxy Enabled"
+		}
+		if !m.View.Desktop.Available {
+			status = "GNOME proxy unavailable"
+		}
+		f.Line(r.X+2, r.Y+5, r.W-4, status, cardStyle.Foreground(muted))
+		if m.View.Desktop.Available {
+			label := "System Proxy: OFF"
+			if m.View.Desktop.Enabled {
+				label = "System Proxy: ON"
+			}
+			f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, label, app.Action{Kind: "system-proxy"}, m.View.Desktop.Enabled)
+		} else {
+			f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, "Proxy Environment", app.Action{Kind: "environment"}, false)
+		}
+	} else {
+		status := "TUN Mode Disabled"
+		enabled := m.View.Settings.Tun
+		if m.View.Online {
+			enabled = m.View.Snapshot.Config.Tun.Enable
+		}
+		if enabled {
+			status = "TUN Mode Enabled"
+		}
+		if m.View.Settings.InstallMode != "system" {
+			status = "TUN Mode Service Required"
+		}
+		f.Line(r.X+2, r.Y+5, r.W-4, status, cardStyle.Foreground(muted))
+		label := "TUN Mode: OFF"
+		if enabled {
+			label = "TUN Mode: ON"
+		}
+		f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, label, app.Action{Kind: "tun"}, enabled)
+	}
+}
+func (m *Model) mode() string {
+	if m.View.Online {
+		return m.View.Snapshot.Config.Mode
+	}
+	return m.View.Settings.Mode
+}
+func (m *Model) modeButtons(f *Frame, x, y, width int) {
+	bw := width / 3
+	for i, mode := range []string{"rule", "global", "direct"} {
+		label := []string{"Rule", "Global", "Direct"}[i]
+		f.Button(Rect{x + i*bw, y, bw, 1}, label, app.Action{Kind: "mode", Value: mode}, m.mode() == mode)
+	}
+}
+func (m *Model) homeMode(f *Frame, r Rect) {
+	f.Box(r, "Proxy Mode")
+	m.modeButtons(f, r.X+2, r.Y+3, r.W-4)
+	lines := []string{"Automatically choose proxies", "according to the rule set."}
+	if m.mode() == "global" {
+		lines = []string{"Forward all network requests", "through the selected proxy."}
+	}
+	if m.mode() == "direct" {
+		lines = []string{"Bypass the proxy and connect", "to the internet directly."}
+	}
+	for i, line := range lines {
+		f.Line(r.X+2, r.Y+6+i, r.W-4, line, cardStyle.Foreground(muted))
+	}
+}
+func (m *Model) homeClash(f *Frame, r Rect) {
+	f.Box(r, "Clash Info")
+	version := m.View.Settings.Core
+	if m.View.Online {
+		version = m.View.Snapshot.Version
+	}
+	if version == "" {
+		version = "Not installed"
+	}
+	address := m.View.Desktop.Address
+	if address == "" {
+		address = "-"
+	}
+	uptime := "-"
+	if m.View.Online && !m.View.CoreStatus.Started.IsZero() {
+		uptime = time.Since(m.View.CoreStatus.Started).Truncate(time.Second).String()
+	}
+	rules := "-"
+	if m.View.Online {
+		rules = strconv.Itoa(m.View.Snapshot.Rules)
+	}
+	lines := []string{"Core Version: " + version, "System Proxy Address: " + address, "Mixed Port: " + strconv.Itoa(m.View.Settings.MixedPort), "Uptime: " + uptime, "Rules Count: " + rules}
+	for i, line := range lines {
+		f.Line(r.X+2, r.Y+3+i, r.W-4, line, cardStyle.Foreground(muted))
+	}
+	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, "Core Version", app.Action{Kind: "cores"}, false)
+}
+func (m *Model) homeSystem(f *Frame, r Rect) {
+	f.Box(r, "System Info")
+	mode := "Core Not Running"
+	if m.View.Online {
+		mode = "Service Mode"
+		if m.View.Owned {
+			mode = "User Mode"
+		}
+		if m.View.Settings.InstallMode == "system" {
+			mode = "Administrator + Service Mode"
+		}
+	}
+	lines := []string{"OS Info: " + m.View.OS, "Auto Launch: service controlled", "Running Mode: " + mode, "Last Check Update: -", "TUI Version: " + m.View.Version}
+	for i, line := range lines {
+		f.Line(r.X+2, r.Y+3+i, r.W-4, line, cardStyle.Foreground(muted))
+	}
+	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, "Auto Launch", app.Action{Kind: "service-info"}, false)
+}
+func delayLabel(p controller.Proxy) string {
+	if len(p.History) == 0 {
+		return "Not tested"
+	}
+	delay := p.History[len(p.History)-1].Delay
+	if delay <= 0 {
+		return "Timeout"
+	}
+	return fmt.Sprintf("%d ms", delay)
+}
+func (m *Model) proxies(f *Frame, x, y, width int) int {
+	m.modeButtons(f, x, y, min(width, 42))
+	y += 3
+	groups := app.Groups(m.View)
+	if !m.View.Online || len(groups) == 0 {
+		message := "No proxy groups are available"
+		if m.mode() == "direct" {
+			message = "Direct Mode"
+		} else if len(m.View.Settings.Profiles) == 0 {
+			message = "No subscription imported"
+		} else if m.View.Settings.Current == "" {
+			message = "No active subscription"
+		} else if !m.View.Online {
+			message = "Core temporarily unavailable"
+		}
+		f.Line(x+2, y+2, width-4, message, baseStyle.Foreground(muted))
+		f.Button(Rect{x + 2, y + 5, 23, 1}, "Go to Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
+		return y + 8
+	}
+	f.Clip = Rect{x, y, width, max(0, f.H-y-2)}
+	y -= m.Scroll[1]
+	cols := max(1, min(3, width/30))
+	cw := (width - (cols-1)*2) / cols
+	for _, g := range groups {
+		nodeRows := (len(g.All) + cols - 1) / cols
+		height := 5 + nodeRows*4
+		if m.Collapsed[g.Name] {
+			height = 4
+		}
+		if y+height > f.Clip.Y && y < f.Clip.Y+f.Clip.H {
+			f.Box(Rect{x, y, width, height}, "")
+			arrow := "▾"
+			if m.Collapsed[g.Name] {
+				arrow = "▸"
+			}
+			f.Button(Rect{x + 1, y + 1, max(10, width-29), 1}, arrow+" "+g.Name+" · "+g.Type, app.Action{Kind: "collapse", ID: g.Name}, false)
+			f.Button(Rect{x + width - 28, y + 1, 16, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name}, false)
+			f.Button(Rect{x + width - 12, y + 1, 11, 1}, "Test URL", app.Action{Kind: "test-url", ID: g.Name}, false)
+			f.Line(x+2, y+2, width-4, fmt.Sprintf("%d nodes  ·  Selected: %s", len(g.All), g.Now), cardStyle.Foreground(muted))
+			if !m.Collapsed[g.Name] {
+				for i, name := range g.All {
+					nx, ny := x+(i%cols)*(cw+2)+1, y+4+(i/cols)*4
+					if ny+3 <= f.Clip.Y || ny >= f.Clip.Y+f.Clip.H {
+						continue
+					}
+					node := m.View.Snapshot.Proxies[name]
+					mark := "○ "
+					if name == g.Now {
+						mark = "● "
+					}
+					f.Button(Rect{nx, ny, cw - 2, 1}, mark+name, app.Action{Kind: "node-select", ID: g.Name, Node: name}, name == g.Now)
+					f.Line(nx+1, ny+1, max(1, cw-15), node.Type, cardStyle.Foreground(muted))
+					f.Button(Rect{nx + cw - 15, ny + 1, 13, 1}, delayLabel(node), app.Action{Kind: "delay", ID: g.Name, Node: name}, false)
+				}
+			}
+		}
+		y += height + 1
+	}
+	return y
+}
+func (m *Model) profiles(f *Frame, x, y, width int) int {
+	inputWidth := width - 33
+	if width < 58 {
+		inputWidth = width - 11
+	}
+	m.input(f, Rect{x, y, inputWidth, 1}, "Profile URL", m.URL, "url")
+	label, kind := "Paste", "paste"
+	if m.URL != "" {
+		label, kind = "Clear", "clear"
+	}
+	f.Button(Rect{x + inputWidth + 1, y, 10, 1}, label, app.Action{Kind: kind}, false)
+	buttonY := y
+	buttonX := x + inputWidth + 12
+	if width < 58 {
+		buttonY = y + 2
+		buttonX = x
+	}
+	f.Button(Rect{buttonX, buttonY, 10, 1}, "Import", app.Action{Kind: "import"}, false)
+	f.Button(Rect{buttonX + 11, buttonY, 8, 1}, "New", app.Action{Kind: "new"}, false)
+	y = buttonY + 3
+	if len(m.View.Settings.Profiles) == 0 {
+		f.Line(x+2, y+2, width-4, "Click to import subscription", baseStyle.Foreground(muted))
+		return y + 5
+	}
+	f.Clip = Rect{x, y, width, max(0, f.H-y-2)}
+	y -= m.Scroll[2]
+	cols := 1
+	if width >= 76 {
+		cols = 2
+	}
+	cw := (width - (cols-1)*2) / cols
+	for i, p := range m.View.Settings.Profiles {
+		r := Rect{x + (i%cols)*(cw+2), y + (i/cols)*10, cw, 9}
+		if r.Y+r.H <= f.Clip.Y || r.Y >= f.Clip.Y+f.Clip.H {
+			continue
+		}
+		f.Box(r, "")
+		f.Add(r, app.Action{Kind: "profile-select", ID: p.ID})
+		mark := "○ "
+		if p.ID == m.View.Settings.Current {
+			mark = "● "
+		}
+		f.Line(r.X+2, r.Y+1, r.W-4, mark+p.Name, cardStyle.Foreground(accent).Bold(true))
+		f.Line(r.X+2, r.Y+3, r.W-4, strings.ToUpper(p.Type), cardStyle.Foreground(muted))
+		source := p.Description
+		if source == "" {
+			source = "Local YAML"
+			if u, err := url.Parse(p.URL); err == nil && u.Host != "" {
+				source = u.Host
+			}
+		}
+		f.Line(r.X+2, r.Y+4, r.W-4, source, cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+5, r.W-4, p.Updated.Local().Format("2006-01-02 15:04"), cardStyle.Foreground(muted))
+		f.Button(Rect{r.X + 2, r.Y + 7, 12, 1}, "Select", app.Action{Kind: "profile-select", ID: p.ID}, p.ID == m.View.Settings.Current)
+		if p.Type == "remote" {
+			f.Button(Rect{r.X + 15, r.Y + 7, r.W - 17, 1}, "Update", app.Action{Kind: "profile-update", ID: p.ID}, false)
+		}
+	}
+	return y + ((len(m.View.Settings.Profiles)+cols-1)/cols)*10 - 1
+}
+func (m *Model) input(f *Frame, r Rect, placeholder, value, id string) {
+	s := cardStyle.Foreground(text)
+	if f.Focus == Key(app.Action{Kind: "input", ID: id}) {
+		s = s.Background(border).Foreground(accent)
+	}
+	f.Fill(r, s)
+	if value == "" {
+		value = placeholder
+		s = s.Foreground(muted)
+	}
+	if displaywidth.String(value) > r.W-3 {
+		value = tail(value, r.W-3)
+	}
+	f.Line(r.X+1, r.Y, r.W-2, value, s)
+	f.Add(r, app.Action{Kind: "input", ID: id})
+}
+func tail(value string, width int) string {
+	runes := []rune(value)
+	for len(runes) > 0 && displaywidth.String(string(runes)) > width {
+		runes = runes[1:]
+	}
+	return string(runes)
+}
+func (m *Model) modal(f *Frame) {
+	modal := m.Modal
+	height := 7 + len(modal.Fields)*2 + len(modal.Choices)*2 + len(modal.Body)
+	height = min(f.H-4, max(9, height))
+	width := min(f.W-6, 86)
+	r := Rect{(f.W - width) / 2, (f.H - height) / 2, width, height}
+	f.Hits = nil
+	f.Clip = Rect{0, 0, f.W, f.H}
+	f.Box(r, modal.Title)
+	f.Clip = Rect{r.X + 1, r.Y + 2, r.W - 2, r.H - 4}
+	y := r.Y + 3
+	isLocal := false
+	for _, field := range modal.Fields {
+		if field.Key == "type" && field.Text == "Local" {
+			isLocal = true
+		}
+	}
+	for _, field := range modal.Fields {
+		if isLocal && (field.Key == "agent" || field.Key == "timeout") {
+			continue
+		}
+		label := field.Label
+		if isLocal && field.Key == "source" {
+			label = "YAML File (optional)"
+		}
+		f.Line(r.X+2, y, r.W-4, label, cardStyle.Foreground(muted))
+		y++
+		m.input(f, Rect{r.X + 2, y, r.W - 4, 1}, label, field.Text, field.Key)
+		y++
+	}
+	for i, choice := range modal.Choices {
+		f.Button(Rect{r.X + 2, y + i*2 - modal.Scroll, r.W - 4, 1}, choice.Label, choice.Action, false)
+	}
+	for i, line := range modal.Body {
+		f.Line(r.X+2, y+i, r.W-4, line, cardStyle.Foreground(muted))
+	}
+	f.Clip = Rect{0, 0, f.W, f.H}
+	if len(modal.Fields) > 0 {
+		f.Button(Rect{r.X + r.W - 24, r.Y + r.H - 2, 11, 1}, "Save", app.Action{Kind: "submit"}, true)
+	}
+	if modal.Title == "Proxy Environment" {
+		f.Button(Rect{r.X + 2, r.Y + r.H - 2, 13, 1}, "Copy", app.Action{Kind: "copy-environment"}, false)
+	}
+	f.Button(Rect{r.X + r.W - 12, r.Y + r.H - 2, 10, 1}, "Close", app.Action{Kind: "close"}, false)
+}
