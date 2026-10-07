@@ -29,7 +29,7 @@ type Existing struct {
 	Prefix, Mode, Unit, RC, Core string
 }
 
-// Inspect is read-only, including for installations predating the marker file.
+// Inspect reads the formal installation marker without changing application data.
 func Inspect(prefix string) (Existing, error) { return inspect(prefix, systemUnit, os.Geteuid()) }
 
 func realPath(path string, dir bool) error {
@@ -93,23 +93,7 @@ func inspect(prefix, systemPath string, uid int) (Existing, error) {
 		}
 		x.Unit = lines[2]
 	} else if os.IsNotExist(err) {
-		candidate := systemPath
-		if x.Mode == "user" {
-			config := os.Getenv("XDG_CONFIG_HOME")
-			if config == "" {
-				home, err := os.UserHomeDir()
-				if err != nil {
-					return x, err
-				}
-				config = filepath.Join(home, ".config")
-			}
-			candidate = filepath.Join(config, "systemd/user/mihomo-tui.service")
-		}
-		if _, err := os.Lstat(candidate); err == nil {
-			x.Unit = candidate
-		} else if !os.IsNotExist(err) {
-			return x, err
-		}
+		return x, errors.New("no mihomo-tui installation marker")
 	} else {
 		return x, err
 	}

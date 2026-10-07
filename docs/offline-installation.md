@@ -55,7 +55,7 @@ Updates replace the application, uninstaller, documentation and licenses, while 
 
 Existing service configuration and enablement are preserved. A running service is stopped for replacement and restarted afterward; a stopped service stays stopped. Foreground cores must be stopped first, and an open TUI should be closed before updating. Updates inherit the registered shell rc and refresh the proxy env and function block without duplicates. `--shell none` skips rc changes and keeps any existing registration. Service or installation mode changes are refused during updates.
 
-Failed replacement or service startup restores the previous application files, generated env and shell integration, and restarts a previously running service. If rollback itself fails, the installer reports the error and retains recovery files in the installation directory. Externally modified service units, moved installations, symlinked installation files and unrelated directories are rejected. Early bundles without an installation marker are recognized by their application directory structure and saved settings; a successful update adds the marker for future updates and uninstallation.
+Failed replacement or service startup restores the previous application files, generated env and shell integration, and restarts a previously running service. If rollback itself fails, the installer reports the error and retains recovery files in the installation directory. Externally modified service units, moved installations, symlinked installation files and unrelated directories are rejected. Updates and uninstallation require the formal installation marker written by the installer; directories without this marker are rejected.
 
 ## Bundled geography databases
 
@@ -116,16 +116,26 @@ Use `sudo` and omit `--user` for system mode. Imported binaries are checked by e
 
 ## Uninstallation
 
-The installer copies `uninstall.sh` into the installation directory. Run it as the installing user, or with `sudo` for system mode:
+From the extracted offline bundle, use the same mode and prefix as the installation command:
+
+```sh
+sh uninstall.sh --mode user
+sudo sh uninstall.sh --mode system
+sudo sh uninstall.sh --mode system --prefix /your/installation/directory
+```
+
+User mode defaults to `${XDG_DATA_HOME:-$HOME/.local/share}/mihomo-tui`; system mode defaults to `/opt/mihomo-tui`. With no explicit mode or prefix, root detects an existing default system installation; otherwise the user location is selected. Mode is verified against the installation marker. The destination never defaults to the extracted bundle itself.
+
+The installer also copies `uninstall.sh` into the installation directory. Running this installed copy uses its own marked directory, including custom locations:
 
 ```sh
 sh "$HOME/.local/share/mihomo-tui/uninstall.sh"
 sudo sh /opt/mihomo-tui/uninstall.sh
 ```
 
-It checks the installation marker and verifies that any service unit belongs to this directory before disabling, stopping and removing it. A foreground core must be stopped by quitting the TUI or terminating its supervisor first. Any GNOME proxy backup is restored and the owned shell rc block is removed before application files are deleted; run from the same GNOME session when such a backup exists. Missing session access, incomplete rc markers or externally changed proxy settings stops uninstallation and preserves application files.
+The uninstaller displays the recorded mode, destination, service and data retention policy, then asks for confirmation. Answering no or providing no input cancels without stopping services or changing installation files or rc content. `--yes` skips confirmation for automation. It checks the installation marker and verifies that any service unit belongs to this directory before disabling, stopping and removing it. A foreground core must be stopped by quitting the TUI or terminating its supervisor first. Any GNOME proxy backup is restored and the owned shell rc block is removed before application files are deleted; run from the same GNOME session when such a backup exists. Missing session access, incomplete rc markers or externally changed proxy settings stops uninstallation and preserves application files.
 
-By default, the program and installed service are removed, while profiles, credentials and managed cores remain in `<prefix>/data`. Add `--purge` to remove the entire installation directory, including this data:
+By default, the program and installed service are removed, while profiles, credentials, managed cores and geography databases remain in `<prefix>/data`. Add `--purge` to remove the entire installation directory, including this data:
 
 ```sh
 sh "$HOME/.local/share/mihomo-tui/uninstall.sh" --purge
@@ -144,14 +154,6 @@ The script refuses unmarked destinations, mode mismatches and service units that
 mihomo_off
 unset -f mihomo_on mihomo_off mihomo_status
 ```
-
-Packages installed before the uninstaller was introduced do not have an installation marker. To uninstall one, use `--legacy` with the script from this updated offline bundle and an explicit prefix. The script verifies the older installation layout and reads its mode through the bundled helper; service ownership, running-core and desktop-backup checks still apply:
-
-```sh
-sh uninstall.sh --prefix "$HOME/.local/share/mihomo-tui" --legacy
-```
-
-Add `--purge` to remove the legacy installation's data too. An arbitrary unmarked directory is still refused.
 
 ## Building an offline package
 

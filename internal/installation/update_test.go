@@ -40,7 +40,7 @@ func content(t *testing.T, path string) string {
 	}
 	return string(b)
 }
-func newUpdate(t *testing.T, mode, active string, legacy bool) *updateFixture {
+func newUpdate(t *testing.T, mode, active string, unmarked bool) *updateFixture {
 	t.Helper()
 	root := t.TempDir()
 	f := &updateFixture{prefix: filepath.Join(root, "Proxy's $literal `name`"), bundle: filepath.Join(root, "bundle"), rc: filepath.Join(root, "shellrc"), active: active}
@@ -78,10 +78,8 @@ func newUpdate(t *testing.T, mode, active string, legacy bool) *updateFixture {
 	if _, err := shellenv.Register(f.store, filepath.Join(f.prefix, "mihomo-tui"), f.rc); err != nil {
 		t.Fatal(err)
 	}
-	if !legacy {
+	if !unmarked {
 		put(t, filepath.Join(f.prefix, ".mihomo-tui-install"), fmt.Sprintf("mihomo-tui-install-v1\n%s\n%s\n%s\n", mode, f.unit, f.prefix))
-	} else if mode == "user" {
-		t.Setenv("XDG_CONFIG_HOME", root)
 	}
 	return f
 }
@@ -188,17 +186,14 @@ func TestUpdatePreservesDataCoreAndServiceState(t *testing.T) {
 	}
 }
 
-func TestLegacyInspectionAndUpdate(t *testing.T) {
+func TestUnmarkedInstallationIsRejectedWithoutWrites(t *testing.T) {
 	for _, mode := range []string{"user", "system"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newUpdate(t, mode, "active", true)
 			settings := content(t, filepath.Join(f.store.Root, "settings.json"))
-			x, err := inspect(f.prefix, f.unit, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if x.Mode != mode || x.Unit != f.unit || x.RC != f.rc {
-				t.Fatalf("incorrect legacy metadata: %+v", x)
+			_, err := inspect(f.prefix, f.unit, 0)
+			if err == nil || !strings.Contains(err.Error(), "installation marker") {
+				t.Fatalf("unmarked inspection: %v", err)
 			}
 			if _, err := os.Stat(filepath.Join(f.prefix, ".mihomo-tui-install")); !os.IsNotExist(err) {
 				t.Fatal("inspection wrote a marker")
@@ -209,11 +204,11 @@ func TestLegacyInspectionAndUpdate(t *testing.T) {
 			if content(t, filepath.Join(f.store.Root, "settings.json")) != settings {
 				t.Fatal("inspection rewrote settings")
 			}
-			if err := f.update(f.rc); err != nil {
-				t.Fatal(err)
+			if err := f.update(f.rc); err == nil || !strings.Contains(err.Error(), "installation marker") {
+				t.Fatalf("unmarked update: %v", err)
 			}
-			if !strings.HasPrefix(content(t, filepath.Join(f.prefix, ".mihomo-tui-install")), "mihomo-tui-install-v1\n"+mode) {
-				t.Fatal("legacy update did not create its installation marker")
+			if len(f.calls) != 0 {
+				t.Fatal("unmarked installation changed the service")
 			}
 		})
 	}
@@ -274,7 +269,8 @@ func TestIncompleteRollbackRetainsPrivateRecoveryFiles(t *testing.T) {
 }
 
 func TestUpdateRollsBackMalformedShellRC(t *testing.T) {
-	f := newUpdate(t, "user", "active", true)
+	f := newUpdate(t, "user", "active", false)
+	marker := content(t, filepath.Join(f.prefix, ".mihomo-tui-install"))
 	lines := strings.Split(content(t, f.rc), "\n")
 	for i, line := range lines {
 		if strings.HasPrefix(line, "# <<< mihomo-tui") {
@@ -290,8 +286,8 @@ func TestUpdateRollsBackMalformedShellRC(t *testing.T) {
 	if f.active != "active" || content(t, filepath.Join(f.prefix, "mihomo-tui")) != "old executable" || content(t, f.rc) != rc {
 		t.Fatal("failed rc update was not rolled back")
 	}
-	if _, err := os.Stat(filepath.Join(f.prefix, ".mihomo-tui-install")); !os.IsNotExist(err) {
-		t.Fatal("failed legacy update left a marker")
+	if content(t, filepath.Join(f.prefix, ".mihomo-tui-install")) != marker {
+		t.Fatal("failed update changed its marker")
 	}
 }
 

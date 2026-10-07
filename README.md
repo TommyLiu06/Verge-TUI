@@ -61,4 +61,6 @@ The installer displays the installation mode and checks user systemd availabilit
 
 Offline bundles include full Country.mmdb, GeoIP.dat and GeoSite.dat snapshots. Installation and updates provision them in `data/runtime` so GEOIP and GEOSITE profiles do not require a geography download to validate or switch. Valid existing databases are retained; missing or invalid files are replaced atomically. The snapshot and hashes are recorded in `data/geodata-bundle.json`. Remote subscriptions, providers, ASN databases and other custom resources can still require network access. Validation timeouts are reported separately from invalid configurations.
 
+To uninstall from the extracted bundle, use the original mode and prefix, for example `sudo sh uninstall.sh --mode system`. The script shows the destination and data policy before asking for confirmation. Data is kept unless `--purge` is specified. Installation markers are required for both updates and uninstallation.
+
 See [offline installation](docs/offline-installation.md) for self-contained packages, user services, system services and uninstallation. Online script installation is deferred. End users do not need Go.

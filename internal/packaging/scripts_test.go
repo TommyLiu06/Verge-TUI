@@ -104,6 +104,9 @@ func (f fixture) run(t *testing.T, script, input string, succeeds bool, args ...
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sh", append([]string{filepath.Join(f.bundle, script), "--prefix", f.prefix}, args...)...)
+	if script == "uninstall.sh" {
+		cmd.Args = append(cmd.Args, "--yes")
+	}
 	if script == "install.sh" {
 		specified := false
 		for _, arg := range args {
@@ -233,14 +236,24 @@ func TestUninstallRefusesUnmarkedDirectory(t *testing.T) {
 	}
 }
 
-func TestExplicitLegacyUninstall(t *testing.T) {
+func TestUnmarkedInstallationCannotBeUpdatedOrUninstalled(t *testing.T) {
 	f := setup(t, "no", "no")
 	f.run(t, "install.sh", "", true, "--yes")
+	marker := read(t, filepath.Join(f.prefix, ".mihomo-tui-install"))
 	if err := os.Remove(filepath.Join(f.prefix, ".mihomo-tui-install")); err != nil {
 		t.Fatal(err)
 	}
 	f.run(t, "uninstall.sh", "", false, "--purge")
-	f.run(t, "uninstall.sh", "", true, "--purge", "--legacy")
+	out := f.run(t, "uninstall.sh", "", false, "--purge", "--legacy")
+	if !strings.Contains(out, "Unknown option: --legacy") {
+		t.Fatal(out)
+	}
+	out = f.run(t, "install.sh", "", false, "--yes")
+	if !strings.Contains(out, "installation marker") {
+		t.Fatal(out)
+	}
+	write(t, filepath.Join(f.prefix, ".mihomo-tui-install"), marker, 0600)
+	f.run(t, "uninstall.sh", "", true, "--purge")
 	absent(t, f.prefix)
 }
 
@@ -430,19 +443,16 @@ func TestInstallerUpdatesExistingInstallationAfterConfirmation(t *testing.T) {
 	f.run(t, "uninstall.sh", "", true, "--purge")
 }
 
-func TestInstallerUpdatesLegacyForegroundInstallation(t *testing.T) {
+func TestInstallerUpdatesForegroundInstallationAndAddsShellFunctions(t *testing.T) {
 	f := setup(t, "no", "no")
 	f.run(t, "install.sh", "", true, "--yes", "--shell", "none")
-	if err := os.Remove(filepath.Join(f.prefix, ".mihomo-tui-install")); err != nil {
-		t.Fatal(err)
-	}
 	settings := read(t, filepath.Join(f.prefix, "data/settings.json"))
 	f.run(t, "install.sh", "", true, "--yes")
 	if read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
-		t.Fatal("legacy update reinitialized settings")
+		t.Fatal("foreground update reinitialized settings")
 	}
 	if !strings.Contains(read(t, f.rc), "mihomo_on()") {
-		t.Fatal("legacy update did not register new shell functions")
+		t.Fatal("foreground update did not register new shell functions")
 	}
 	if strings.Contains(read(t, f.log), "enable") {
 		t.Fatal("foreground update installed a service")
@@ -466,4 +476,73 @@ func TestUpdateRejectsInstallationModeAndServiceChanges(t *testing.T) {
 		t.Fatal("rejected update changed data")
 	}
 	f.run(t, "uninstall.sh", "", true, "--purge")
+}
+
+func (f fixture) uninstallFromBundle(t *testing.T, input string, succeeds bool, args ...string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sh", append([]string{filepath.Join(f.bundle, "uninstall.sh")}, args...)...)
+	cmd.Env, cmd.Stdin = f.env, strings.NewReader(input)
+	out, err := cmd.CombinedOutput()
+	if (err == nil) != succeeds {
+		t.Fatalf("uninstall: %v\n%s", err, out)
+	}
+	return string(out)
+}
+
+func TestUninstallFromBundleDetectsUserPrefixAndConfirmsFirst(t *testing.T) {
+	f := setup(t, "yes", "yes")
+	f.prefix = filepath.Join(f.root, "data-home", "mihomo-tui")
+	f.run(t, "install.sh", "", true, "--yes")
+	settings := read(t, filepath.Join(f.prefix, "data/settings.json"))
+	rc := read(t, f.rc)
+	for _, input := range []string{"n\n", ""} {
+		out := f.uninstallFromBundle(t, input, true, "--mode", "user")
+		if !strings.Contains(out, "Mode:         user") || !strings.Contains(out, "Uninstallation cancelled.") {
+			t.Fatal(out)
+		}
+		if read(t, filepath.Join(f.prefix, "data/settings.json")) != settings || read(t, f.rc) != rc {
+			t.Fatal("cancelled uninstall modified data or rc")
+		}
+		if strings.Contains(read(t, f.log), "disable") || strings.Contains(read(t, f.log), "stop") {
+			t.Fatal("cancelled uninstall stopped the service")
+		}
+	}
+	f.uninstallFromBundle(t, "yes\n", true, "--mode", "user")
+	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
+	if read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
+		t.Fatal("default uninstall changed retained data")
+	}
+	if _, err := os.Stat(filepath.Join(f.prefix, "data/runtime/Country.mmdb")); err != nil {
+		t.Fatal("default uninstall removed geography database")
+	}
+	f.uninstallFromBundle(t, "yes\n", true, "--mode", "user", "--purge")
+	absent(t, f.prefix)
+}
+
+func TestInstalledUninstallerUsesCustomDirectory(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes")
+	f.bundle = f.prefix
+	f.uninstallFromBundle(t, "", true, "--mode", "user", "--purge", "--yes")
+	absent(t, f.prefix)
+}
+
+func TestSystemModeUninstallWithMockRootAndCustomPrefix(t *testing.T) {
+	f := setup(t, "yes", "yes")
+	f.run(t, "install.sh", "", true, "--yes", "--no-service")
+	// Model a stopped system installation under the test directory. The root
+	// identity check is mocked; no /opt, /etc or host systemd files are touched.
+	s := &state.Store{Root: filepath.Join(f.prefix, "data")}
+	if err := s.Update(func(c *state.Settings) error { c.InstallMode = "system"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(f.prefix, ".mihomo-tui-install"), "mihomo-tui-install-v1\nsystem\n\n"+f.prefix+"\n", 0600)
+	write(t, filepath.Join(f.root, "tools", "id"), "#!/bin/sh\nprintf '%s\\n' 0\n", 0700)
+	out := f.uninstallFromBundle(t, "", true, "--mode", "system", "--prefix", f.prefix, "--purge", "--yes")
+	if !strings.Contains(out, "Mode:         system") {
+		t.Fatal(out)
+	}
+	absent(t, f.prefix)
 }
