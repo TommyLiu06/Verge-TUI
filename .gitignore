@@ -1,0 +1,7 @@
+.tools/
+.reference/
+.local/
+bin/
+dist/
+*.test
+coverage.out
