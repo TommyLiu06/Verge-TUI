@@ -122,6 +122,17 @@ func (f *Frame) Button(r Rect, label string, a app.Action, selected bool) {
 	f.Line(r.X+1, r.Y+(r.H-1)/2, r.W-2, "["+label+"]", s)
 	f.Add(r, a)
 }
+
+func (f *Frame) DelayButton(r Rect, label string, a app.Action, foreground color.Color) {
+	s := cardStyle.Foreground(foreground)
+	if f.Focus == Key(a) {
+		// Keep the latency foreground visible while focusing the test control.
+		s = s.Underline(true).Bold(true)
+	}
+	f.Fill(r, s)
+	f.Line(r.X+1, r.Y+(r.H-1)/2, r.W-2, "["+label+"]", s)
+	f.Add(r, a)
+}
 func (f *Frame) Plain() string {
 	var out strings.Builder
 	for y := 0; y < f.H; y++ {

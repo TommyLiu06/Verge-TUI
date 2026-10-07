@@ -13,7 +13,7 @@ sh scripts/go.sh build -trimpath -ldflags='-s -w' -o bin/mihomo-tui ./cmd/mihomo
 
 The first release supports Linux. Home, Proxies and Profiles use the upstream sidebar, card order, page labels and basic forms. Mouse clicks, wheel scrolling, keyboard focus and bracketed paste are supported. Use a terminal with Unicode and mouse reporting; 120 × 42 shows all six Home cards, and narrower terminals use a single column.
 
-The interface inherits the terminal's foreground and background, so light and dark themes both work. Accents use the terminal's ANSI palette; keyboard focus uses reverse video.
+The interface inherits the terminal's foreground and background, so light and dark themes both work. Accents use the terminal's ANSI palette; keyboard focus uses reverse video. Latency labels use Clash Verge Rev's default colors: green below 250 ms, blue from 250 to 399 ms, orange from 400 ms, and red for timeout or error. When `COLORFGBG` reports a dark background, the dark palette is used; otherwise the light palette is used. Focused latency controls keep their color and use bold underline. No background color is forced.
 
 Run the application after importing a core:
 
@@ -29,7 +29,7 @@ Select **Start Core**, then open **Profiles** to import a subscription URL or cr
 - `PageUp` / `PageDown`: scroll; `Home` / `End`: jump to page edges.
 - `F1` / `?`: shortcut help; `Esc`: close a dialog or return from help.
 - `r`: refresh; `n`: new profile; `i`: focus the import field; `q`: quit.
-- Mouse: select cards and controls, scroll pages and choice dialogs.
+- Mouse: select cards and controls, scroll pages and choice dialogs. Wheel scrolling clears keyboard focus, including at scroll boundaries; click or press `Tab` to focus again.
 - Text fields: paste, arrows and `Home` / `End` to move the cursor, `Backspace` / `Delete` to edit, `Ctrl+U` to clear, `Ctrl+W` to delete a word. `Ctrl+S` saves a dialog.
 
 The installer creates `<prefix>/proxy.env` and adds three functions to your Bash or Zsh rc:
@@ -42,7 +42,7 @@ mihomo_status  # Check the core, proxy listener and exported environment separat
 
 Open a new shell or source the rc shown by the installer to load the functions in an existing shell. User-mode `proxy.env` is private and includes proxy credentials; rc files only contain paths. The environment file is refreshed when `configure` changes ports or installation mode. Status output never prints credentials. Clearing environment variables leaves the core and TUN running.
 
-The UI is event driven: there are no periodic API requests or redraws while idle. Delay checks run sequentially. Core logs are capped at 2 MiB per start. Traffic charts, connections and monitoring are excluded from this release. Core resource usage still depends on your subscription and mihomo configuration.
+The UI is event driven: there are no periodic API requests or redraws while idle. Delay checks use at most four concurrent requests and update each node as its result arrives, with a completed/total counter. Each request has a five-second core timeout. Timeout and error results replace previous latencies, including after the final snapshot reload. Quitting cancels outstanding requests and waits for the workers to exit. Core logs are capped at 2 MiB per start. Traffic charts, connections and monitoring are excluded from this release. Core resource usage still depends on your subscription and mihomo configuration.
 
 **Network Settings** supports GNOME System Proxy through `gsettings` and `dconf`, with a private backup restored when disabled. These host tools and a GNOME session are only required for that switch. On headless servers, use the displayed proxy environment or `eval "$(./mihomo-tui env)"`. User mode requires proxy credentials and keeps the API token private. Both listeners bind to loopback; ports are randomly chosen from 20000–59999 and checked again before startup.
 

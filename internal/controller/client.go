@@ -17,6 +17,9 @@ import (
 type History struct {
 	Delay int `json:"delay"`
 }
+
+const DelayTimeoutMillis = 5000
+
 type Proxy struct {
 	Name    string    `json:"name"`
 	Type    string    `json:"type"`
@@ -117,7 +120,7 @@ func (c *Client) Delay(ctx context.Context, name, testURL string) (int, error) {
 	var result struct {
 		Delay int `json:"delay"`
 	}
-	query := url.Values{"url": {testURL}, "timeout": {"5000"}}
+	query := url.Values{"url": {testURL}, "timeout": {strconv.Itoa(DelayTimeoutMillis)}}
 	err := c.Request(ctx, "GET", "/proxies/"+url.PathEscape(name)+"/delay?"+query.Encode(), nil, &result)
 	return result.Delay, err
 }

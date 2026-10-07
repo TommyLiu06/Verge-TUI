@@ -13,6 +13,7 @@ type result struct {
 	View   app.View
 	Action app.Action
 	Err    error
+	Delay  *app.DelayResult
 }
 
 func Run(ctx context.Context, b *app.Backend) (runErr error) {
@@ -31,7 +32,7 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	jobs := make(chan app.Action, 1)
-	results := make(chan result, 1)
+	results := make(chan result, app.DelayConcurrency)
 	var worker sync.WaitGroup
 	var shutdownErr error
 	worker.Go(func() {
@@ -41,11 +42,21 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 			case <-ctx.Done():
 				return
 			case action := <-jobs:
-				err := b.Execute(ctx, action)
+				var err error
+				if action.Kind == "delay" {
+					err = b.TestDelay(ctx, action, func(update app.DelayResult) {
+						select {
+						case results <- result{Delay: &update}:
+						case <-ctx.Done():
+						}
+					})
+				} else {
+					err = b.Execute(ctx, action)
+				}
 				view, loadErr := b.Load(ctx)
 				err = errors.Join(err, loadErr)
 				select {
-				case results <- result{view, action, err}:
+				case results <- result{View: view, Action: action, Err: err}:
 				case <-ctx.Done():
 					return
 				}
@@ -64,7 +75,11 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 		case <-ctx.Done():
 			return nil
 		case done := <-results:
-			m.Complete(done.View, done.Action, done.Err)
+			if done.Delay != nil {
+				m.ApplyDelay(*done.Delay)
+			} else {
+				m.Complete(done.View, done.Action, done.Err)
+			}
 		case ev := <-screen.EventQ():
 			if ev == nil {
 				return nil

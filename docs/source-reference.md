@@ -15,7 +15,7 @@ Commit: `d01f43cc783a9dbd05f064b79ea3ce39dcbfce16`.
 | Clash information | `src/components/home/clash-info-card.tsx` | Core version, proxy address, mixed port, uptime, rules count |
 | System information | `src/components/home/system-info-card.tsx` | OS info, auto launch, running mode, update check, app version |
 | Proxy selection | `src/pages/proxies.tsx`, `src/components/proxy/proxy-groups.tsx`, `proxy-render.tsx`, `proxy-item.tsx`, `use-render-list.ts` | Mode selector, collapsible groups, node grid, selected indicator |
-| Delay testing | `src/components/proxy/proxy-group-tools.tsx`, `src/services/delay.ts` | Group delay check and per-node delay check, configurable test URL |
+| Delay testing | `src/components/proxy/proxy-group-tools.tsx`, `src/services/delay.ts`, `src/utils/delay.ts`, `src/pages/_theme.tsx` | Group and per-node checks, configurable URL, four concurrent requests, immediate per-node updates, upstream color thresholds and default light/dark RGB palettes |
 | Import URL | `src/pages/profiles.tsx` | Profile URL field followed by Import and New; import on Enter |
 | New profile | `src/components/profile/profile-viewer.tsx`, `file-input.tsx` | Create Profile dialog, Remote / Local, name, description, URL or YAML file, user agent and request timeout |
 | Profile selection | `src/pages/profiles.tsx` (`onSelect`), `src/components/profile/profile-item.tsx` | Click a profile card to select and reload it |

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gdamore/tcell/v3"
 	"mihomo-tui/internal/app"
+	"mihomo-tui/internal/controller"
 	"mihomo-tui/internal/state"
 )
 
@@ -45,10 +46,12 @@ type Model struct {
 	Cursors    map[string]int
 	HelpBack   *Modal
 	HelpFocus  string
+	Delays     map[string]app.DelayResult
+	Dark       bool
 }
 
 func New(v app.View) *Model {
-	return &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, Cursors: map[string]int{}, NetworkTab: "system", Message: "Ready"}
+	return &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, Cursors: map[string]int{}, NetworkTab: "system", Message: "Ready", Dark: darkTerminal()}
 }
 func (m *Model) Input() *string {
 	if m.Focus == Key(app.Action{Kind: "input", ID: "url"}) && m.Modal == nil {
@@ -419,6 +422,14 @@ func (m *Model) submit() *app.Action {
 func (m *Model) Complete(v app.View, a app.Action, err error) {
 	m.Busy = false
 	m.View = v
+	// The core may keep an older history after a failed health check. Retain the
+	// actual results of this batch when the completion snapshot is loaded.
+	if a.Kind == "delay" {
+		for _, update := range m.Delays {
+			m.setDelay(update)
+		}
+	}
+	m.Delays = nil
 	if err != nil {
 		m.Message = "Error: " + err.Error()
 		m.Modal = &Modal{Title: "Action Failed", Body: strings.Split(err.Error(), "\n")}
@@ -435,6 +446,24 @@ func (m *Model) Complete(v app.View, a app.Action, err error) {
 			m.Message = "Delay check completed"
 		}
 	}
+}
+
+func (m *Model) setDelay(update app.DelayResult) {
+	p, ok := m.View.Snapshot.Proxies[update.Name]
+	if !ok {
+		return
+	}
+	p.History = []controller.History{{Delay: update.Delay}}
+	m.View.Snapshot.Proxies[update.Name] = p
+}
+
+func (m *Model) ApplyDelay(update app.DelayResult) {
+	if m.Delays == nil {
+		m.Delays = make(map[string]app.DelayResult)
+	}
+	m.Delays[update.Name] = update
+	m.setDelay(update)
+	m.Message = fmt.Sprintf("Delay check: %d/%d", update.Done, update.Total)
 }
 func bytesString(n uint64) string {
 	units := []string{"B", "KiB", "MiB", "GiB", "TiB"}

@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -249,7 +247,7 @@ func (b *Backend) Execute(ctx context.Context, a Action) error {
 		}
 		return client.Select(ctx, a.ID, a.Node)
 	case "delay":
-		return b.testDelay(ctx, a)
+		return b.TestDelay(ctx, a, nil)
 	}
 	return errors.New("unknown action")
 }
@@ -306,51 +304,6 @@ func (b *Backend) updateProfile(ctx context.Context, id string) error {
 		}
 		return errors.New("profile was removed during update")
 	})
-}
-func (b *Backend) testDelay(ctx context.Context, a Action) error {
-	c, err := b.Store.Read()
-	if err != nil {
-		return err
-	}
-	client := controller.New(c)
-	defer client.Close()
-	snap, err := client.Snapshot(ctx)
-	if err != nil {
-		return err
-	}
-	testURL := a.Value
-	if testURL == "" {
-		testURL = snap.Proxies[a.ID].TestURL
-	}
-	if testURL == "" {
-		testURL = "http://cp.cloudflare.com/generate_204"
-	}
-	u, err := url.Parse(testURL)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return errors.New("invalid delay test URL")
-	}
-	if a.Node != "" {
-		_, err := client.Delay(ctx, a.Node, testURL)
-		return err
-	}
-	group, ok := snap.Proxies[a.ID]
-	if !ok {
-		return errors.New("group does not exist")
-	}
-	// Serial tests avoid a burst of connections and CPU usage on small machines.
-	failures := 0
-	for _, name := range group.All {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if _, err := client.Delay(ctx, name, testURL); err != nil {
-			failures++
-		}
-	}
-	if failures > 0 {
-		return fmt.Errorf("%d of %d nodes failed delay testing; successful results were kept", failures, len(group.All))
-	}
-	return nil
 }
 func Groups(v View) []controller.Proxy {
 	mode := v.Settings.Mode

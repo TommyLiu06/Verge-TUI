@@ -9,7 +9,6 @@ import (
 
 	"github.com/clipperhouse/displaywidth"
 	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/controller"
 	"mihomo-tui/internal/state"
 )
 
@@ -162,7 +161,7 @@ func (m *Model) homeNode(f *Frame, r Rect) {
 	}
 	f.Button(Rect{r.X + 2, r.Y + 5, r.W - 4, 1}, "Proxy: "+g.Now, app.Action{Kind: "home-nodes"}, true)
 	node := m.View.Snapshot.Proxies[g.Now]
-	f.Line(r.X+2, r.Y+7, r.W-4, delayLabel(node), cardStyle.Foreground(green))
+	f.Line(r.X+2, r.Y+7, r.W-4, delayLabel(node), cardStyle.Foreground(m.delayColor(node)))
 	f.Button(Rect{r.X + 2, r.Y + 9, r.W - 4, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name, Node: g.Now}, false)
 }
 func (m *Model) homeNetwork(f *Frame, r Rect) {
@@ -280,16 +279,6 @@ func (m *Model) homeSystem(f *Frame, r Rect) {
 	}
 	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, "Auto Launch", app.Action{Kind: "service-info"}, false)
 }
-func delayLabel(p controller.Proxy) string {
-	if len(p.History) == 0 {
-		return "Not tested"
-	}
-	delay := p.History[len(p.History)-1].Delay
-	if delay <= 0 {
-		return "Timeout"
-	}
-	return fmt.Sprintf("%d ms", delay)
-}
 func (m *Model) proxies(f *Frame, x, y, width int) int {
 	m.modeButtons(f, x, y, min(width, 42))
 	y += 3
@@ -342,7 +331,7 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 					}
 					f.Button(Rect{nx, ny, cw - 2, 1}, mark+name, app.Action{Kind: "node-select", ID: g.Name, Node: name}, name == g.Now)
 					f.Line(nx+1, ny+1, max(1, cw-17), node.Type, cardStyle.Foreground(muted))
-					f.Button(Rect{nx + cw - 16, ny + 1, 14, 1}, delayLabel(node), app.Action{Kind: "delay", ID: g.Name, Node: name}, false)
+					f.DelayButton(Rect{nx + cw - 16, ny + 1, 14, 1}, delayLabel(node), app.Action{Kind: "delay", ID: g.Name, Node: name}, m.delayColor(node))
 				}
 			}
 		}
