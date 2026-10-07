@@ -23,4 +23,11 @@ func TestServiceEscapingAndPrivileges(t *testing.T) {
 	if _, err := Unit("/bin/a\nExecStart=/bin/b", "/srv/a", "system"); err == nil {
 		t.Fatal("accepted unit injection")
 	}
+	unit, err = Unit("/opt/${APP}/mihomo-tui", "/srv/${DATA}%proxy", "user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(unit, `ExecStart=:"/opt/${APP}/mihomo-tui" --data-dir "/srv/${DATA}%%proxy" run`) || !strings.Contains(unit, `ReadWritePaths="/srv/${DATA}%%proxy"`) {
+		t.Fatal("service paths permit variable expansion")
+	}
 }

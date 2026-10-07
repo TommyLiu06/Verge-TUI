@@ -21,7 +21,8 @@ func Unit(executable, root, mode string) (string, error) {
 		return "\"" + s + "\""
 	}
 	unit := "[Unit]\nDescription=mihomo-tui managed proxy core\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\n"
-	unit += fmt.Sprintf("ExecStart=%s --data-dir %s run\n", quote(executable), quote(root))
+	// Disable systemd environment expansion so literal '$' in paths is preserved.
+	unit += fmt.Sprintf("ExecStart=:%s --data-dir %s run\n", quote(executable), quote(root))
 	unit += "Restart=on-failure\nRestartSec=5s\nTimeoutStopSec=10s\nKillMode=control-group\nUMask=0077\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\n"
 	unit += "ReadWritePaths=" + quote(root) + "\n"
 	if mode == "system" {

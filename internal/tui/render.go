@@ -325,9 +325,9 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 			if m.Collapsed[g.Name] {
 				arrow = "▸"
 			}
-			f.Button(Rect{x + 1, y + 1, max(10, width-29), 1}, arrow+" "+g.Name+" · "+g.Type, app.Action{Kind: "collapse", ID: g.Name}, false)
-			f.Button(Rect{x + width - 28, y + 1, 16, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name}, false)
-			f.Button(Rect{x + width - 12, y + 1, 11, 1}, "Test URL", app.Action{Kind: "test-url", ID: g.Name}, false)
+			f.Button(Rect{x + 1, y + 1, max(10, width-31), 1}, arrow+" "+g.Name+" · "+g.Type, app.Action{Kind: "collapse", ID: g.Name}, false)
+			f.Button(Rect{x + width - 30, y + 1, 16, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name}, false)
+			f.Button(Rect{x + width - 14, y + 1, 13, 1}, "Test URL", app.Action{Kind: "test-url", ID: g.Name}, false)
 			f.Line(x+2, y+2, width-4, fmt.Sprintf("%d nodes  ·  Selected: %s", len(g.All), g.Now), cardStyle.Foreground(muted))
 			if !m.Collapsed[g.Name] {
 				for i, name := range g.All {
@@ -341,8 +341,8 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 						mark = "● "
 					}
 					f.Button(Rect{nx, ny, cw - 2, 1}, mark+name, app.Action{Kind: "node-select", ID: g.Name, Node: name}, name == g.Now)
-					f.Line(nx+1, ny+1, max(1, cw-15), node.Type, cardStyle.Foreground(muted))
-					f.Button(Rect{nx + cw - 15, ny + 1, 13, 1}, delayLabel(node), app.Action{Kind: "delay", ID: g.Name, Node: name}, false)
+					f.Line(nx+1, ny+1, max(1, cw-17), node.Type, cardStyle.Foreground(muted))
+					f.Button(Rect{nx + cw - 16, ny + 1, 14, 1}, delayLabel(node), app.Action{Kind: "delay", ID: g.Name, Node: name}, false)
 				}
 			}
 		}
