@@ -6,18 +6,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"mihomo-tui/internal/core"
+	"mihomo-tui/internal/shellenv"
 	"mihomo-tui/internal/state"
 )
 
 type fixture struct {
-	bundle, root, prefix, unit, log string
-	env                             []string
+	bundle, root, prefix, unit, log, rc string
+	env                                 []string
 }
 
 func setup(t *testing.T, manager, linger string) fixture {
@@ -28,6 +30,8 @@ func setup(t *testing.T, manager, linger string) fixture {
 	}
 	root := t.TempDir()
 	f := fixture{bundle: bundle, root: root, prefix: filepath.Join(root, "My Proxy"), unit: filepath.Join(root, "config", "systemd", "user", "mihomo-tui.service"), log: filepath.Join(root, "service.log")}
+	f.rc = filepath.Join(root, "shellrc")
+	write(t, f.rc, "# Existing user configuration\n", 0644)
 	bin := filepath.Join(root, "tools")
 	if err := os.Mkdir(bin, 0700); err != nil {
 		t.Fatal(err)
@@ -67,6 +71,17 @@ func (f fixture) run(t *testing.T, script, input string, succeeds bool, args ...
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sh", append([]string{filepath.Join(f.bundle, script), "--prefix", f.prefix}, args...)...)
+	if script == "install.sh" {
+		specified := false
+		for _, arg := range args {
+			if arg == "--shell" {
+				specified = true
+			}
+		}
+		if !specified {
+			cmd.Args = append(cmd.Args, "--shell", "bash", "--rc-file", f.rc)
+		}
+	}
 	cmd.Env = f.env
 	cmd.Stdin = strings.NewReader(input)
 	b, err := cmd.CombinedOutput()
@@ -93,6 +108,9 @@ func TestConfirmationBeforeInstallation(t *testing.T) {
 				}
 			}
 			absent(t, f.prefix)
+			if read(t, f.rc) != "# Existing user configuration\n" {
+				t.Fatal("cancelled installation modified the shell rc")
+			}
 			if strings.Contains(read(t, f.log), "enable") || strings.Contains(out, "Verifying offline files") {
 				t.Fatal("installation started before confirmation")
 			}
@@ -115,6 +133,9 @@ func TestAutomaticUserServiceAndDataPreservingUninstall(t *testing.T) {
 	}
 	write(t, f.unit, unit, 0600)
 	f.run(t, "uninstall.sh", "", true)
+	if read(t, f.rc) != "# Existing user configuration\n" {
+		t.Fatal("uninstall did not preserve unrelated shell configuration")
+	}
 	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
 	absent(t, f.unit)
 	if read(t, filepath.Join(f.prefix, "data", "settings.json")) != settings {
@@ -235,6 +256,12 @@ func TestUninstallRequiresForegroundCoreToStop(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	statusCmd := exec.Command("bash", "--noprofile", "--norc", "-c", `. "$1"; mihomo_on; mihomo_status`, "proxy-status-test", f.rc)
+	statusCmd.Env = f.env
+	statusOutput, err := statusCmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(statusOutput), "Core: running") || !strings.Contains(string(statusOutput), "loaded and matches") {
+		t.Fatalf("shell status with a running core: %v\n%s", err, statusOutput)
+	}
 	out := f.run(t, "uninstall.sh", "", false, "--purge")
 	if !strings.Contains(out, "core is still running") {
 		t.Fatal(out)
@@ -249,4 +276,78 @@ func TestUninstallRequiresForegroundCoreToStop(t *testing.T) {
 	}
 	f.run(t, "uninstall.sh", "", true, "--purge")
 	absent(t, f.prefix)
+}
+
+func TestProxyFunctionsInBashAndZsh(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh"} {
+		t.Run(shell, func(t *testing.T) {
+			f := setup(t, "no", "no")
+			f.prefix = filepath.Join(f.root, "Proxy's $literal `name`")
+			f.run(t, "install.sh", "", true, "--yes", "--shell", shell, "--rc-file", f.rc)
+			args := []string{"--noprofile", "--norc", "-c"}
+			if shell == "zsh" {
+				args = []string{"-f", "-c"}
+			}
+			script := `. "$1"
+mihomo_off
+mihomo_status
+mihomo_on
+[ -n "${http_proxy:-}" ] && [ "$http_proxy" = "$https_proxy" ] && [ "$http_proxy" = "$ALL_PROXY" ] || exit 21
+[ "$no_proxy" = "$NO_PROXY" ] || exit 22
+mihomo_status
+mihomo_off
+[ -z "${http_proxy+x}${HTTPS_PROXY+x}${ALL_PROXY+x}${NO_PROXY+x}" ] || exit 23
+mihomo_status`
+			cmd := exec.Command(shell, append(args, script, "proxy-functions-test", f.rc)...)
+			cmd.Env = f.env
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("%s shell functions: %v\n%s", shell, err, out)
+			}
+			if strings.Count(string(out), "Shell environment: not loaded") != 2 || !strings.Contains(string(out), "loaded and matches") {
+				t.Fatal("shell functions did not change the caller's exported variables")
+			}
+			s := &state.Store{Root: filepath.Join(f.prefix, "data")}
+			c, err := s.Read()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(out), c.ProxyPassword) || strings.Contains(read(t, f.rc), c.ProxyPassword) {
+				t.Fatal("shell status or rc leaked credentials")
+			}
+			info, _ := os.Stat(filepath.Join(f.prefix, "proxy.env"))
+			if info.Mode().Perm() != 0600 {
+				t.Fatal("private env file permissions changed")
+			}
+			newPort, err := state.FreePort(c.APIPort)
+			if err != nil {
+				t.Fatal(err)
+			}
+			configure := exec.Command(filepath.Join(f.prefix, "mihomo-tui"), "configure", "--mixed-port", strconv.Itoa(newPort))
+			configure.Env = f.env
+			if out, err := configure.CombinedOutput(); err != nil {
+				t.Fatalf("configure: %v\n%s", err, out)
+			}
+			env, err := shellenv.ReadFile(filepath.Join(f.prefix, "proxy.env"))
+			if err != nil || env.MixedPort != newPort {
+				t.Fatal("configure did not update the prepared env file")
+			}
+			f.run(t, "uninstall.sh", "", true, "--purge")
+			if read(t, f.rc) != "# Existing user configuration\n" {
+				t.Fatal("uninstall left shell functions in the rc")
+			}
+		})
+	}
+}
+
+func TestShellIntegrationCanBeDisabled(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes", "--shell", "none")
+	if read(t, f.rc) != "# Existing user configuration\n" {
+		t.Fatal("--shell none modified an rc file")
+	}
+	if _, err := os.Stat(filepath.Join(f.prefix, "proxy.env")); err != nil {
+		t.Fatal("--shell none did not prepare the proxy env")
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
 }

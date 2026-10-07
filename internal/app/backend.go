@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"mihomo-tui/internal/core"
 	"mihomo-tui/internal/desktop"
 	"mihomo-tui/internal/profile"
+	"mihomo-tui/internal/shellenv"
 	"mihomo-tui/internal/state"
 )
 
@@ -423,9 +423,5 @@ func HomeGroup(v View) controller.Proxy {
 	return controller.Proxy{}
 }
 func ProxyEnvironment(c state.Settings) string {
-	u := &url.URL{Scheme: "http", Host: "127.0.0.1:" + strconv.Itoa(c.MixedPort)}
-	if c.InstallMode == "user" {
-		u.User = url.UserPassword(c.ProxyUser, c.ProxyPassword)
-	}
-	return "export http_proxy='" + u.String() + "'\nexport https_proxy=\"$http_proxy\"\nexport no_proxy='localhost,127.0.0.1,::1'"
+	return strings.TrimSuffix(shellenv.Exports(c), "\n")
 }

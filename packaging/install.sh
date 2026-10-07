@@ -3,7 +3,7 @@ set -eu
 umask 077
 
 usage() {
-    echo 'Usage: sh install.sh [--prefix DIR] [--mode user|system] [--service|--no-service] [--yes]'
+    echo 'Usage: sh install.sh [--prefix DIR] [--mode user|system] [--service|--no-service] [--shell bash|zsh|none] [--rc-file FILE] [--yes]'
 }
 fail() { echo "Error: $*" >&2; exit 1; }
 
@@ -12,6 +12,8 @@ prefix=
 mode=user
 service_choice=auto
 assume_yes=no
+shell_choice=auto
+rc_file=
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix) [ "$#" -ge 2 ] || fail 'Missing --prefix value'; prefix=$2; shift 2 ;;
@@ -19,6 +21,8 @@ while [ "$#" -gt 0 ]; do
         --service) service_choice=yes; shift ;;
         --no-service) service_choice=no; shift ;;
         --yes|-y) assume_yes=yes; shift ;;
+        --shell) [ "$#" -ge 2 ] || fail 'Missing --shell value'; shell_choice=$2; shift 2 ;;
+        --rc-file) [ "$#" -ge 2 ] || fail 'Missing --rc-file value'; rc_file=$2; shift 2 ;;
         --help|-h) usage; exit 0 ;;
         *) usage >&2; fail "Unknown option: $1" ;;
     esac
@@ -34,6 +38,25 @@ case "$prefix" in /*) ;; *) fail 'Prefix must be an absolute path' ;; esac
 case "$prefix" in *'
 '*|*"$(printf '\r')"*) fail 'Prefix must be a single-line path' ;; esac
 [ ! -e "$prefix" ] && [ ! -L "$prefix" ] || fail 'Destination already exists; use core import to add a version'
+
+if [ "$shell_choice" = auto ]; then
+    parent_shell=
+    if command -v ps >/dev/null 2>&1; then parent_shell=$(ps -p "${PPID:-0}" -o comm= 2>/dev/null) || parent_shell=; fi
+    parent_shell=${parent_shell#-}
+    login_shell=${SHELL:-}
+    case "$parent_shell" in bash|zsh) shell_choice=$parent_shell ;; *) shell_choice=${login_shell##*/} ;; esac
+fi
+case "$shell_choice" in
+    bash) [ -n "$rc_file" ] || rc_file="$HOME/.bashrc" ;;
+    zsh) [ -n "$rc_file" ] || rc_file="${ZDOTDIR:-$HOME}/.zshrc" ;;
+    none) [ -z "$rc_file" ] || fail '--rc-file cannot be combined with --shell none' ;;
+    *) fail 'Cannot determine a supported shell; select --shell bash, zsh or none' ;;
+esac
+if [ -n "$rc_file" ]; then
+    case "$rc_file" in /*) ;; *) fail 'Shell rc must be an absolute path' ;; esac
+    case "$rc_file" in *'
+'*|*"$(printf '\r')"*) fail 'Shell rc must be a single-line path' ;; esac
+fi
 
 # Verify files before executing the bundled program or core.
 command -v sha256sum >/dev/null 2>&1 || fail 'Install sha256sum (GNU coreutils) first'
@@ -62,6 +85,13 @@ printf '\n%s\n' 'mihomo-tui installation'
 printf '  Mode:         %s\n' "$mode"
 printf '  Destination:  %s\n' "$prefix"
 printf '  Bundled core: %s (Linux amd64)\n' "$core_id"
+printf '  Proxy env:    %s/proxy.env\n' "$prefix"
+if [ "$shell_choice" != none ]; then
+    printf '  Shell:        %s\n  Shell rc:     %s\n' "$shell_choice" "$rc_file"
+    echo '  Functions:    mihomo_on, mihomo_off, mihomo_status'
+else
+    echo '  Shell:        rc integration disabled'
+fi
 if [ "$mode" = user ]; then
     printf '  User systemd: %s\n' "$manager_available"
     case "$linger" in
@@ -105,6 +135,7 @@ mkdir -m 700 -p -- "$prefix"
 prefix=$(CDPATH= cd -- "$prefix" && pwd -P)
 cp bin/mihomo-tui "$prefix/mihomo-tui"
 chmod 700 "$prefix/mihomo-tui"
+if [ "$mode" = system ]; then chmod 755 "$prefix" "$prefix/mihomo-tui"; fi
 cp README.md LICENSE NOTICE.md "$prefix/"
 cp -R docs "$prefix/docs"
 cp DEPENDENCIES.txt "$prefix/"
@@ -118,6 +149,8 @@ profile_output=$("$app_bin" profile new Default)
 profile_id=${profile_output%% *}
 "$app_bin" profile select "$profile_id"
 "$app_bin" service --mode "$mode" > "$prefix/mihomo-tui.service"
+"$app_bin" env-file
+if [ "$shell_choice" != none ]; then "$app_bin" shell install --rc-file "$rc_file"; fi
 
 if [ "$install_service" = yes ]; then
     mkdir -p -- "$(dirname -- "$unit_path")"

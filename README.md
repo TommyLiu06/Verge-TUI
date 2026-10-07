@@ -13,6 +13,8 @@ sh scripts/go.sh build -trimpath -ldflags='-s -w' -o bin/mihomo-tui ./cmd/mihomo
 
 The first release supports Linux. Home, Proxies and Profiles use the upstream sidebar, card order, page labels and basic forms. Mouse clicks, wheel scrolling, keyboard focus and bracketed paste are supported. Use a terminal with Unicode and mouse reporting; 120 × 42 shows all six Home cards, and narrower terminals use a single column.
 
+The interface inherits the terminal's foreground and background, so light and dark themes both work. Accents use the terminal's ANSI palette; keyboard focus uses reverse video.
+
 Run the application after importing a core:
 
 ```sh
@@ -23,10 +25,22 @@ Run the application after importing a core:
 Select **Start Core**, then open **Profiles** to import a subscription URL or create a local profile. Select the profile before choosing a node on **Proxies**. New local profiles default to DIRECT until you provide proxy configuration. Switching profiles validates and reloads the core. Importing a profile does not select it automatically.
 
 - `1`, `2`, `3`: Home, Proxies, Profiles.
-- `Tab` / `Shift+Tab`: move focus; `Enter` / `Space`: activate.
+- `Tab` / `Shift+Tab` or arrows: move focus; `Enter` / `Space`: activate.
+- `PageUp` / `PageDown`: scroll; `Home` / `End`: jump to page edges.
+- `F1` / `?`: shortcut help; `Esc`: close a dialog or return from help.
 - `r`: refresh; `n`: new profile; `i`: focus the import field; `q`: quit.
 - Mouse: select cards and controls, scroll pages and choice dialogs.
-- Text fields: paste, `Ctrl+U` to clear, `Esc` to leave a dialog.
+- Text fields: paste, arrows and `Home` / `End` to move the cursor, `Backspace` / `Delete` to edit, `Ctrl+U` to clear, `Ctrl+W` to delete a word. `Ctrl+S` saves a dialog.
+
+The installer creates `<prefix>/proxy.env` and adds three functions to your Bash or Zsh rc:
+
+```sh
+mihomo_on      # Load this installation's proxy environment into the current shell.
+mihomo_off     # Clear proxy and bypass environment variables in the current shell.
+mihomo_status  # Check the core, proxy listener and exported environment separately.
+```
+
+Open a new shell or source the rc shown by the installer to load the functions in an existing shell. User-mode `proxy.env` is private and includes proxy credentials; rc files only contain paths. The environment file is refreshed when `configure` changes ports or installation mode. Status output never prints credentials. Clearing environment variables leaves the core and TUN running.
 
 The UI is event driven: there are no periodic API requests or redraws while idle. Delay checks run sequentially. Core logs are capped at 2 MiB per start. Traffic charts, connections and monitoring are excluded from this release. Core resource usage still depends on your subscription and mihomo configuration.
 

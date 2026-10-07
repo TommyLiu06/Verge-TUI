@@ -6,17 +6,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"syscall"
 
 	"mihomo-tui/internal/app"
 	"mihomo-tui/internal/core"
 	"mihomo-tui/internal/profile"
 	"mihomo-tui/internal/service"
+	"mihomo-tui/internal/shellenv"
 	"mihomo-tui/internal/state"
 	"mihomo-tui/internal/tui"
 )
@@ -37,7 +36,7 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("mihomo-tui", flag.ContinueOnError)
 	root := flags.String("data-dir", filepath.Join(filepath.Dir(executable), "data"), "application-owned data directory")
 	flags.Usage = func() {
-		fmt.Println("mihomo-tui [--data-dir DIR] [command]\n\nCommands: tui (default), core install|import|list|use, profile import|new|list|select, run, env, service, configure, status, preview, version, prepare-uninstall\n\nGo and a system-wide mihomo installation are not required.")
+		fmt.Println("mihomo-tui [--data-dir DIR] [command]\n\nCommands: tui (default), core install|import|list|use, profile import|new|list|select, run, env, env-file, shell install|remove, proxy-status, service, configure, status, preview, version, prepare-uninstall\n\nGo and a system-wide mihomo installation are not required.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -46,6 +45,18 @@ func run(args []string) error {
 	args = flags.Args()
 	if len(args) > 0 && args[0] == "version" {
 		fmt.Println(version)
+		return nil
+	}
+	if len(args) > 0 && args[0] == "proxy-status" {
+		abs, err := filepath.Abs(*root)
+		if err != nil {
+			return err
+		}
+		out, err := shellenv.Status(context.Background(), &state.Store{Root: abs}, os.Environ())
+		if err != nil {
+			return err
+		}
+		fmt.Print(out)
 		return nil
 	}
 	s, err := state.Open(*root)
@@ -58,6 +69,32 @@ func run(args []string) error {
 		args = []string{"tui"}
 	}
 	switch args[0] {
+	case "env-file":
+		return shellenv.Write(s)
+	case "shell":
+		if len(args) < 2 {
+			return errors.New("usage: shell install --rc-file FILE | shell remove")
+		}
+		if args[1] == "remove" {
+			return shellenv.Remove(s)
+		}
+		if args[1] != "install" {
+			return errors.New("unknown shell command")
+		}
+		f := flag.NewFlagSet("shell install", flag.ContinueOnError)
+		rc := f.String("rc-file", "", "absolute shell rc path")
+		if err := f.Parse(args[2:]); err != nil {
+			return err
+		}
+		if *rc == "" {
+			return errors.New("shell install requires --rc-file")
+		}
+		path, err := shellenv.Register(s, executable, *rc)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Shell functions: mihomo_on, mihomo_off, mihomo_status\nLoad in this shell: . %s\n", shellenv.Quote(path))
+		return nil
 	case "prepare-uninstall":
 		return app.New(s, version).PrepareUninstall(ctx)
 	case "tui":
@@ -223,14 +260,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		u := &url.URL{Scheme: "http", Host: "127.0.0.1:" + strconv.Itoa(c.MixedPort)}
-		if c.InstallMode == "user" {
-			u.User = url.UserPassword(c.ProxyUser, c.ProxyPassword)
-		}
-		for _, name := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"} {
-			fmt.Printf("export %s='%s'\n", name, u.String())
-		}
-		fmt.Println("export no_proxy='localhost,127.0.0.1,::1'")
+		fmt.Print(shellenv.Exports(c))
 		return nil
 	case "service":
 		f := flag.NewFlagSet("service", flag.ContinueOnError)
@@ -258,7 +288,7 @@ func run(args []string) error {
 		if *mode == "system" && os.Geteuid() != 0 {
 			return errors.New("system mode configuration requires root")
 		}
-		return s.Update(func(c *state.Settings) error {
+		err := s.Update(func(c *state.Settings) error {
 			running, err := core.Running(s)
 			if err != nil {
 				return err
@@ -287,6 +317,10 @@ func run(args []string) error {
 			}
 			return nil
 		})
+		if err != nil {
+			return err
+		}
+		return shellenv.Refresh(s)
 	case "status":
 		c, err := s.Read()
 		if err != nil {

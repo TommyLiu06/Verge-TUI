@@ -77,6 +77,7 @@ fi
 # Check the supervisor lock instead of trusting a stale PID, and restore any
 # GNOME proxy backup before deleting application files or credentials.
 "$app_bin" --data-dir "$prefix/data" prepare-uninstall
+"$app_bin" --data-dir "$prefix/data" shell remove
 
 if [ -n "$unit_path" ] && [ -f "$unit_path" ]; then
     rm -- "$unit_path"
@@ -87,11 +88,12 @@ if [ "$purge" = yes ]; then
     echo "Removed installation and data: $prefix"
 else
     rm -f -- "$prefix/mihomo-tui" "$prefix/mihomo-tui.service" "$prefix/uninstall.sh" \
-        "$prefix/README.md" "$prefix/LICENSE" "$prefix/NOTICE.md" "$prefix/DEPENDENCIES.txt"
+        "$prefix/README.md" "$prefix/LICENSE" "$prefix/NOTICE.md" "$prefix/DEPENDENCIES.txt" "$prefix/proxy.env"
     rm -rf -- "$prefix/docs" "$prefix/licenses"
     # Forget the removed service so a later purge cannot affect a new install.
     printf '%s\n' mihomo-tui-install-v1 "$mode" '' "$prefix" > "$marker"
     echo "Application removed. Profiles, credentials and managed cores retained in $prefix/data"
     echo 'Use the offline bundle uninstall.sh with --prefix and --purge to remove retained data.'
 fi
-echo 'Previously exported proxy environment variables remain in your shell; unset them if needed.'
+echo 'Shell rc integration removed. Already loaded functions and variables remain in existing shells.'
+echo 'Clear them with: mihomo_off; unset -f mihomo_on mihomo_off mihomo_status'

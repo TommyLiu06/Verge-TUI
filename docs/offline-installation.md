@@ -11,7 +11,7 @@ sh install.sh --prefix "$HOME/.local/share/mihomo-tui" --mode user
 "$HOME/.local/share/mihomo-tui/mihomo-tui"
 ```
 
-Before installation, the script displays the selected mode, destination, bundled core, service availability and proxy access policy, then asks for confirmation. Answering no, or providing no input, cancels without creating the destination. For automation, `--yes` explicitly skips the confirmation.
+Before installation, the script displays the selected mode, destination, bundled core, service availability, proxy access policy and the shell rc to update, then asks for confirmation. Answering no, or providing no input, cancels without creating the destination or changing the rc. For automation, `--yes` explicitly skips the confirmation.
 
 User mode always checks for a working user systemd manager and reports whether lingering is enabled. When the manager is available, the default is to enable a user service; otherwise, the installer selects foreground operation. A working user manager without lingering does not guarantee operation after logout. Use `--no-service` to choose foreground operation even when systemd is available, or `--service` to require a service and fail if its manager is unavailable. System mode requires a working systemd manager and always uses a service.
 
@@ -35,13 +35,39 @@ sudo /opt/mihomo-tui/mihomo-tui
 
 System mode requires root and a system service. Its unit is written to `/etc/systemd/system/mihomo-tui.service`. Enable **TUN Mode** on Home after selecting your subscription. The unit grants network administration capabilities; actual TUN availability depends on the host kernel and container permissions. All local users can connect to `127.0.0.1:<mixed-port>` without proxy credentials, while only root manages this installation and its authenticated API. Run `sudo /opt/mihomo-tui/mihomo-tui status` to see the selected ports without exposing the API secret.
 
-For a user-mode shell, export authenticated proxy variables with:
+## Shell proxy functions
+
+The installer prepares `<prefix>/proxy.env` and adds a marked block defining `mihomo_on`, `mihomo_off` and `mihomo_status` to the invoking shell's rc. It detects Bash or Zsh from the parent process, falling back to `$SHELL`. Zsh uses `${ZDOTDIR:-$HOME}/.zshrc`; Bash uses `$HOME/.bashrc`. The displayed rc path lets you check this choice before confirming. Override it with `--shell bash|zsh --rc-file /absolute/path`, or use `--shell none` to create the env file without changing an rc.
+
+Open a new shell, or source the rc printed after installation, then use:
+
+```sh
+mihomo_on
+mihomo_status
+mihomo_off
+```
+
+`mihomo_on` sources the prepared file in the current shell. It sets lower- and upper-case HTTP, HTTPS, ALL_PROXY and NO_PROXY variables. `mihomo_off` clears them. The functions do not start or stop the core; clearing variables does not disable TUN. Proxy variables are not loaded automatically on shell startup.
+
+`mihomo_status` queries the core API, checks the loopback proxy listener and compares each exported environment variable with the current installation. It reports unset, matching, empty and different variables without printing passwords or foreign proxy values. It does not contact an external test site or collect traffic statistics. Unexported shell variables are not visible to child processes.
+
+User-mode env files have mode `0600`; passwords never appear in the rc block. System mode keeps `data/` private while allowing all users to read the credential-free `proxy.env` and execute the TUI binary. A regular user can run `proxy-status` to check the shared listener and their environment, while detailed API status requires the administrator. Under `sudo`, the default rc belongs to the installing account; to register functions for another user, explicitly select their rc with `--rc-file`. Existing rc ownership and permissions are preserved, including symlinked rc files.
+
+For an existing installation, stop the core before copying the updated bundle's `bin/mihomo-tui` and `uninstall.sh` into the installation directory. Then prepare and register the functions, for example in Zsh:
+
+```sh
+"$HOME/.local/share/mihomo-tui/mihomo-tui" env-file
+"$HOME/.local/share/mihomo-tui/mihomo-tui" shell install --rc-file "${ZDOTDIR:-$HOME}/.zshrc"
+. "${ZDOTDIR:-$HOME}/.zshrc"
+```
+
+Registering the same installation twice updates its block instead of duplicating functions. Uninstall removes only that installation's marked block, preserving other rc content. For a one-time export without registering functions:
 
 ```sh
 eval "$("$HOME/.local/share/mihomo-tui/mihomo-tui" env)"
 ```
 
-These variables include the proxy password. The application does not print them during installation or include credentials in `status` output. Both installation modes use loopback listeners and select uncommon ports; startup checks TCP and UDP availability. A detected collision stops startup. To choose new ports while the core is stopped:
+These variables include the proxy password. The application does not print them during installation or include credentials in status output. Both installation modes use loopback listeners and select uncommon ports; startup checks TCP and UDP availability. A detected collision stops startup. The prepared env file is regenerated when you choose new ports while the core is stopped:
 
 ```sh
 ./mihomo-tui configure --install-mode user --mixed-port 43128 --api-port 43129
@@ -67,7 +93,7 @@ sh "$HOME/.local/share/mihomo-tui/uninstall.sh"
 sudo sh /opt/mihomo-tui/uninstall.sh
 ```
 
-It checks the installation marker and verifies that any service unit belongs to this directory before disabling, stopping and removing it. A foreground core must be stopped by quitting the TUI or terminating its supervisor first. Any GNOME proxy backup is restored before files are removed; run from the same GNOME session when such a backup exists. Missing session access or externally changed proxy settings stops uninstallation and preserves files.
+It checks the installation marker and verifies that any service unit belongs to this directory before disabling, stopping and removing it. A foreground core must be stopped by quitting the TUI or terminating its supervisor first. Any GNOME proxy backup is restored and the owned shell rc block is removed before application files are deleted; run from the same GNOME session when such a backup exists. Missing session access, incomplete rc markers or externally changed proxy settings stops uninstallation and preserves application files.
 
 By default, the program and installed service are removed, while profiles, credentials and managed cores remain in `<prefix>/data`. Add `--purge` to remove the entire installation directory, including this data:
 
@@ -82,10 +108,11 @@ After a data-preserving uninstall, use the script in the extracted offline bundl
 sh uninstall.sh --prefix "$HOME/.local/share/mihomo-tui" --purge
 ```
 
-The script refuses unmarked destinations, mode mismatches and service units that were modified or replaced. It does not alter administrator-managed lingering settings. Proxy variables already exported into your shell remain there; unset them when you no longer need them:
+The script refuses unmarked destinations, mode mismatches and service units that were modified or replaced. It does not alter administrator-managed lingering settings. Functions and proxy variables already loaded into existing shells remain there; clear them with:
 
 ```sh
-unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy
+mihomo_off
+unset -f mihomo_on mihomo_off mihomo_status
 ```
 
 Packages installed before the uninstaller was introduced do not have an installation marker. To uninstall one, use `--legacy` with the script from this updated offline bundle and an explicit prefix. The script verifies the older installation layout and reads its mode through the bundled helper; service ownership, running-core and desktop-backup checks still apply:
