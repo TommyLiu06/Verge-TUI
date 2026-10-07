@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 	"mihomo-tui/internal/controller"
 	"mihomo-tui/internal/core"
+	"mihomo-tui/internal/geodata"
 	"mihomo-tui/internal/shellenv"
 	"mihomo-tui/internal/state"
 )
@@ -173,13 +174,18 @@ func systemctl(ctx context.Context, mode string, args ...string) (string, error)
 // Update is called by the checksum-verified bundle only after confirmation.
 // Existing data, core binaries and service configuration are never replaced.
 func Update(ctx context.Context, bundle, prefix, rc string) error {
-	return update(ctx, bundle, prefix, rc, systemUnit, os.Geteuid(), systemctl, waitReady)
+	return update(ctx, bundle, prefix, rc, systemUnit, os.Geteuid(), systemctl, waitReady, bundledData)
 }
 
 type replaced struct{ target, backup string }
 type readiness func(context.Context, *state.Store) error
+type dataStager func(context.Context, string, string, string) ([]string, error)
 
-func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int, run serviceRunner, ready readiness) (result error) {
+func bundledData(ctx context.Context, bundle, stage, root string) ([]string, error) {
+	return geodata.Stage(ctx, filepath.Join(bundle, "geodata"), stage, root, filepath.Join(bundle, "cores", "mihomo"))
+}
+
+func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int, run serviceRunner, ready readiness, stageData dataStager) (result error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -240,6 +246,11 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 	if err := state.Write(filepath.Join(stage, ".mihomo-tui-install"), []byte(fmt.Sprintf("mihomo-tui-install-v1\n%s\n%s\n%s\n", x.Mode, x.Unit, x.Prefix)), 0600); err != nil {
 		return err
 	}
+	dataFiles, err := stageData(ctx, bundle, stage, s.Root)
+	if err != nil {
+		return err
+	}
+	files = append(files, dataFiles...)
 	// Backup generated files and the rc before any writes, including ownership.
 	snapshots := []snapshot{}
 	paths := []string{shellenv.FilePath(s), filepath.Join(s.Root, "shell-integration.json")}

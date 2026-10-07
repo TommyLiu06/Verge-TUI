@@ -112,7 +112,18 @@ func (f *updateFixture) update(rc string) error {
 			return errors.New("simulated core readiness failure")
 		}
 		return nil
-	})
+	}, stageTestData)
+}
+
+func stageTestData(_ context.Context, _, stage, _ string) ([]string, error) {
+	path := filepath.Join(stage, "data", "runtime", "Country.mmdb")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(path, []byte("bundled geography bytes"), 0600); err != nil {
+		return nil, err
+	}
+	return []string{"data/runtime/Country.mmdb"}, nil
 }
 
 func TestUpdatePreservesDataCoreAndServiceState(t *testing.T) {
@@ -210,6 +221,7 @@ func TestLegacyInspectionAndUpdate(t *testing.T) {
 
 func TestUpdateRollsBackStartupFailure(t *testing.T) {
 	f := newUpdate(t, "system", "active", false)
+	put(t, filepath.Join(f.store.Root, "runtime", "Country.mmdb"), "old geography bytes")
 	f.failedStarts = 1
 	settings, rc := content(t, filepath.Join(f.store.Root, "settings.json")), content(t, f.rc)
 	err := f.update(f.rc)
@@ -224,6 +236,9 @@ func TestUpdateRollsBackStartupFailure(t *testing.T) {
 	}
 	if content(t, filepath.Join(f.store.Root, "settings.json")) != settings || content(t, f.rc) != rc {
 		t.Fatal("rollback changed proxy data or shell rc")
+	}
+	if content(t, filepath.Join(f.store.Root, "runtime", "Country.mmdb")) != "old geography bytes" {
+		t.Fatal("failed update did not restore its previous geography database")
 	}
 }
 
@@ -324,7 +339,7 @@ func TestUpdateCancellationRestoresStoppedService(t *testing.T) {
 		}
 		return out, err
 	}
-	err := update(ctx, f.bundle, f.prefix, f.rc, f.unit, 0, runner, func(context.Context, *state.Store) error { return nil })
+	err := update(ctx, f.bundle, f.prefix, f.rc, f.unit, 0, runner, func(context.Context, *state.Store) error { return nil }, stageTestData)
 	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "original installation restored") {
 		t.Fatalf("cancelled update: %v", err)
 	}

@@ -13,6 +13,7 @@ import (
 
 	"mihomo-tui/internal/app"
 	"mihomo-tui/internal/core"
+	"mihomo-tui/internal/geodata"
 	"mihomo-tui/internal/installation"
 	"mihomo-tui/internal/profile"
 	"mihomo-tui/internal/service"
@@ -21,7 +22,7 @@ import (
 	"mihomo-tui/internal/tui"
 )
 
-const version = "0.1.1"
+const version = "0.1.2"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -57,10 +58,20 @@ func run(args []string) error {
 		f := flag.NewFlagSet("installation", flag.ContinueOnError)
 		prefix := f.String("prefix", "", "existing installation directory")
 		rc := f.String("rc-file", "", "shell rc to refresh")
+		source := f.String("source-dir", "", "geography database source directory")
+		binary := f.String("core-file", "", "core binary used to verify geography data")
 		if err := f.Parse(args[2:]); err != nil {
 			return err
 		}
 		switch args[1] {
+		case "check-geodata":
+			return geodata.Verify(context.Background(), *source, *binary)
+		case "seed-geodata":
+			if !filepath.IsAbs(*prefix) {
+				return errors.New("installation prefix must be absolute")
+			}
+			bundle := filepath.Dir(filepath.Dir(executable))
+			return geodata.Install(context.Background(), filepath.Join(bundle, "geodata"), filepath.Join(*prefix, "data"), filepath.Join(bundle, "cores", "mihomo"))
 		case "inspect":
 			x, err := installation.Inspect(*prefix)
 			if err != nil {

@@ -115,6 +115,7 @@ if [ "$updating" = yes ]; then printf '\n%s\n' 'mihomo-tui update'; else printf 
 printf '  Mode:         %s\n' "$mode"
 printf '  Destination:  %s\n' "$prefix"
 printf '  Bundled core: %s (Linux amd64)\n' "$core_id"
+echo '  Geo data:     bundled MMDB, GeoIP.dat and GeoSite.dat (offline)'
 if [ "$updating" = yes ]; then
     printf '  Current core: %s (preserved)\n' "$selected_core"
     echo '  Data:         profiles, credentials, ports and TUN settings preserved'
@@ -198,6 +199,7 @@ cp uninstall.sh "$prefix/uninstall.sh"
 printf '%s\n' mihomo-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.mihomo-tui-install"
 app_bin="$prefix/mihomo-tui"
 "$app_bin" configure --install-mode "$mode"
+"$bundle_dir/bin/mihomo-tui" installation seed-geodata --prefix "$prefix"
 "$app_bin" core import "$core_id" "$bundle_dir/cores/mihomo" >/dev/null
 profile_output=$("$app_bin" profile new Default)
 profile_id=${profile_output%% *}

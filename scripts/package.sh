@@ -4,9 +4,10 @@ umask 022
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$project_dir"
 fail() { echo "Error: $*" >&2; exit 1; }
-[ "$#" -eq 2 ] || fail 'Usage: sh scripts/package.sh /absolute/path/to/mihomo CORE_ID'
+[ "$#" -ge 2 ] && [ "$#" -le 3 ] || fail 'Usage: sh scripts/package.sh /absolute/path/to/mihomo CORE_ID [GEODATA_DIR]'
 core_path=$1
 core_id=$2
+geodata_dir=${3:-"$project_dir/.local/geodata-source"}
 case "$core_path" in /*) ;; *) fail 'Core path must be absolute' ;; esac
 case "$core_id" in ''|*[!A-Za-z0-9._-]*) fail 'Invalid core identifier' ;; esac
 [ -f "$core_path" ] && [ -x "$core_path" ] || fail 'Core must be an executable file'
@@ -20,7 +21,13 @@ mkdir -p dist
 staging_dir=$(mktemp -d "$project_dir/dist/.package.XXXXXX")
 trap 'rm -rf -- "$staging_dir"' EXIT INT TERM
 bundle_dir="$staging_dir/$bundle_name"
-mkdir -p "$bundle_dir/bin" "$bundle_dir/cores"
+mkdir -p "$bundle_dir/bin" "$bundle_dir/cores" "$bundle_dir/geodata"
+for file in Country.mmdb GeoIP.dat GeoSite.dat; do
+    [ -f "$geodata_dir/$file" ] && [ ! -L "$geodata_dir/$file" ] || fail "Missing geodata file: $geodata_dir/$file (see packaging/geodata/manifest.json)"
+    cp "$geodata_dir/$file" "$bundle_dir/geodata/$file"
+done
+cp packaging/geodata/manifest.json "$bundle_dir/geodata/manifest.json"
+"$project_dir/bin/mihomo-tui" installation check-geodata --source-dir "$bundle_dir/geodata" --core-file "$core_path"
 cp bin/mihomo-tui "$bundle_dir/bin/"
 cp "$core_path" "$bundle_dir/cores/mihomo"
 chmod 755 "$bundle_dir/bin/mihomo-tui" "$bundle_dir/cores/mihomo"
@@ -30,6 +37,7 @@ chmod 755 "$bundle_dir/install.sh" "$bundle_dir/uninstall.sh"
 cp README.md LICENSE NOTICE.md "$bundle_dir/"
 cp -R docs "$bundle_dir/docs"
 mkdir "$bundle_dir/licenses"
+cp packaging/geodata/*LICENSE "$bundle_dir/licenses/"
 sh scripts/go.sh list -m -f '{{if .Version}}{{.Path}} {{.Version}} {{.Dir}}{{end}}' all > "$bundle_dir/DEPENDENCIES.txt"
 while read -r module_name module_version module_dir; do
     [ -n "$module_name" ] || continue
@@ -45,7 +53,7 @@ cut -d ' ' -f 1,2 "$bundle_dir/DEPENDENCIES.txt" > "$bundle_dir/DEPENDENCIES.tmp
 mv "$bundle_dir/DEPENDENCIES.tmp" "$bundle_dir/DEPENDENCIES.txt"
 printf '%s\n' "$core_id" > "$bundle_dir/CORE_VERSION"
 cd "$bundle_dir"
-sha256sum bin/mihomo-tui cores/mihomo install.sh uninstall.sh CORE_VERSION DEPENDENCIES.txt README.md LICENSE NOTICE.md docs/*.md licenses/* > SHA256SUMS
+sha256sum bin/mihomo-tui cores/mihomo geodata/* install.sh uninstall.sh CORE_VERSION DEPENDENCIES.txt README.md LICENSE NOTICE.md docs/*.md licenses/* > SHA256SUMS
 cd "$staging_dir"
 tar -czf "$bundle_name.tar.gz" "$bundle_name"
 sha256sum "$bundle_name.tar.gz" > "$bundle_name.tar.gz.sha256"

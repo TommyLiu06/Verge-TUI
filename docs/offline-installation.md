@@ -1,12 +1,12 @@
 # Offline installation
 
-The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo core, documentation, licenses and SHA-256 checksums. Installing and starting the default DIRECT configuration requires no network access, Go toolchain or separately installed mihomo. Subscription URLs, remote proxy providers and geography databases referenced by custom profiles may still require network access or locally supplied files. Optional GNOME integration uses the host's `gsettings` and `dconf`; services use the host's systemd.
+The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo core, full Country.mmdb, GeoIP.dat and GeoSite.dat databases, documentation, licenses and SHA-256 checksums. Installing, starting the default DIRECT configuration and validating GEOIP/GEOSITE rules requires no geography downloads, Go toolchain or separately installed mihomo. Subscription URLs, remote providers, ASN databases and other custom resources may still require network access or locally supplied files. Optional GNOME integration uses the host's `gsettings` and `dconf`; services use the host's systemd.
 
 Extract the archive, enter its directory and install:
 
 ```sh
-tar -xzf mihomo-tui-0.1.1-linux-amd64.tar.gz
-cd mihomo-tui-0.1.1-linux-amd64
+tar -xzf mihomo-tui-0.1.2-linux-amd64.tar.gz
+cd mihomo-tui-0.1.2-linux-amd64
 sh install.sh --prefix "$HOME/.local/share/mihomo-tui" --mode user
 "$HOME/.local/share/mihomo-tui/mihomo-tui"
 ```
@@ -51,11 +51,19 @@ sudo sh install.sh --prefix /your/installation/directory
 
 The installer displays **mihomo-tui update**, the detected mode, current core, destination and shell rc, then asks for confirmation. No installation files, shell rc or service state change before confirmation. The bundled helper is checksum-verified before it reads installation metadata. Declining or providing no input cancels the update. `--yes` skips confirmation explicitly.
 
-Updates replace the application, uninstaller, documentation and licenses, while preserving subscriptions, selected profile and core, every managed core version, credentials, ports, proxy mode, TUN settings and any GNOME proxy backup. The bundled core is used for fresh installations; updating the application does not replace or select it. Use `core import` and `core use` separately to change the core.
+Updates replace the application, uninstaller, documentation and licenses, while preserving subscriptions, selected profile and core, every managed core version, credentials, ports, proxy mode, TUN settings and any GNOME proxy backup. Missing or invalid geography databases are provisioned from the offline bundle; valid existing databases are retained. Geography changes are included in the update transaction and rolled back if the update fails. The bundled core is used for fresh installations; updating the application does not replace or select it. Use `core import` and `core use` separately to change the core.
 
 Existing service configuration and enablement are preserved. A running service is stopped for replacement and restarted afterward; a stopped service stays stopped. Foreground cores must be stopped first, and an open TUI should be closed before updating. Updates inherit the registered shell rc and refresh the proxy env and function block without duplicates. `--shell none` skips rc changes and keeps any existing registration. Service or installation mode changes are refused during updates.
 
 Failed replacement or service startup restores the previous application files, generated env and shell integration, and restarts a previously running service. If rollback itself fails, the installer reports the error and retains recovery files in the installation directory. Externally modified service units, moved installations, symlinked installation files and unrelated directories are rejected. Early bundles without an installation marker are recognized by their application directory structure and saved settings; a successful update adds the marker for future updates and uninstallation.
+
+## Bundled geography databases
+
+The installer places Country.mmdb, GeoIP.dat and GeoSite.dat in `<prefix>/data/runtime`, the same directory passed to the core during validation and operation. MMDB mode and `geodata-mode: true` are both supported. Full datasets are used to avoid removing countries or domain categories from subscriptions. These are data files rather than content embedded in the TUI executable; the core loads only the databases needed by the selected configuration.
+
+The bundle includes a dated manifest with upstream SHA-256 digests, copied to `data/geodata-bundle.json` for reference. Valid custom databases are kept, including mihomo's alternative MMDB filenames `geoip.db` and `geoip.metadb`; this manifest describes the bundled snapshot, not any retained custom files. Invalid MMDB downloads are repaired in their original location. All runtime database files are private to the installation. Verification uses temporary copies and disabled download URLs, so checking a damaged file cannot delete or overwrite its live copy.
+
+If a profile still needs other resources, such as an ASN database or remote providers, supply those files separately or allow the required download. A validation deadline reports **core validation timed out**, while a core parse failure reports **core rejected profile**; failed validation keeps the existing profile selection.
 
 ## Shell proxy functions
 
@@ -150,7 +158,9 @@ Add `--purge` to remove the legacy installation's data too. An arbitrary unmarke
 Developers can create a package using an already downloaded, extracted core:
 
 ```sh
-sh scripts/package.sh /absolute/path/to/mihomo v1.19.32
+sh scripts/package.sh /absolute/path/to/mihomo v1.19.32 /absolute/path/to/geodata
 ```
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/mihomo-tui-0.1.1-linux-amd64.tar.gz` and an archive checksum, without downloading a core or installing a service. The online GitHub installer and publication workflow are deferred.
+The geodata directory must contain Country.mmdb, GeoIP.dat and GeoSite.dat matching the hashes in `packaging/geodata/manifest.json`. The default directory is `.local/geodata-source`. The source release URLs are moving `latest` URLs; keep the verified snapshot files, or explicitly update the manifest when choosing a newer snapshot. Packaging verifies all hashes and tests all three formats with the supplied core before creating an archive.
+
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/mihomo-tui-0.1.2-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.

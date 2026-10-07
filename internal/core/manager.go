@@ -73,6 +73,10 @@ func ReadStatus(s *state.Store) Status {
 	return status
 }
 func (m *Manager) Validate(ctx context.Context, c state.Settings, payload []byte) error {
+	return m.validate(ctx, c, payload, 45*time.Second)
+}
+
+func (m *Manager) validate(ctx context.Context, c state.Settings, payload []byte, timeout time.Duration) error {
 	path, err := Path(m.Store, c.Core)
 	if err != nil {
 		return errors.New("install and select a managed core first")
@@ -89,7 +93,8 @@ func (m *Manager) Validate(ctx context.Context, c state.Settings, payload []byte
 	if err := f.Close(); err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	parent := ctx
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	b, err := exec.CommandContext(ctx, path, "-t", "-d", filepath.Join(m.Store.Root, "runtime"), "-f", f.Name()).CombinedOutput()
 	if err != nil {
@@ -97,8 +102,17 @@ func (m *Manager) Validate(ctx context.Context, c state.Settings, payload []byte
 		if len(text) > 2000 {
 			text = text[len(text)-2000:]
 		}
-		text = strings.ReplaceAll(text, c.Secret, "[redacted]")
-		text = strings.ReplaceAll(text, c.ProxyPassword, "[redacted]")
+		for _, secret := range []string{c.Secret, c.ProxyPassword} {
+			if secret != "" {
+				text = strings.ReplaceAll(text, secret, "[redacted]")
+			}
+		}
+		if ctx.Err() != nil {
+			if parent.Err() != nil {
+				return fmt.Errorf("core validation interrupted: %w\n%s", parent.Err(), text)
+			}
+			return fmt.Errorf("core validation timed out after %s; required geodata or provider files may be unavailable: %w\n%s", timeout, ctx.Err(), text)
+		}
 		return fmt.Errorf("core rejected profile: %w\n%s", err, text)
 	}
 	return nil

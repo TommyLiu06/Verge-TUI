@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "snapshot": "2026-10-07",
+  "repository": "https://github.com/MetaCubeX/meta-rules-dat",
+  "assets": [
+    {
+      "file": "Country.mmdb",
+      "source": "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb",
+      "updated": "2026-10-07T01:44:06Z",
+      "sha256": "b13f10cdb414b8db78a64c432d6cd511668415760ee0fb2d17ac9f42de5aba08"
+    },
+    {
+      "file": "GeoIP.dat",
+      "source": "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat",
+      "updated": "2026-10-07T01:44:07Z",
+      "sha256": "391b522361c52804e486a98b53d97f3d9c1d3e4e4217bb34954774a0b456b9fd"
+    },
+    {
+      "file": "GeoSite.dat",
+      "source": "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat",
+      "updated": "2026-10-07T01:44:08Z",
+      "sha256": "dac4b8b3b5bce1d8e59f75f5f2cb3f61e336aa5f4ac7ce465f9dee5e5b0e0457"
+    }
+  ]
+}
