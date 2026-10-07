@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v3"
 	"mihomo-tui/internal/app"
@@ -43,10 +42,13 @@ type Model struct {
 	Quit       bool
 	MouseDown  bool
 	Pasting    bool
+	Cursors    map[string]int
+	HelpBack   *Modal
+	HelpFocus  string
 }
 
 func New(v app.View) *Model {
-	return &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, NetworkTab: "system", Message: "Ready"}
+	return &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, Cursors: map[string]int{}, NetworkTab: "system", Message: "Ready"}
 }
 func (m *Model) Input() *string {
 	if m.Focus == Key(app.Action{Kind: "input", ID: "url"}) && m.Modal == nil {
@@ -63,21 +65,27 @@ func (m *Model) Input() *string {
 	return nil
 }
 func (m *Model) appendText(text string) {
+	text = Clean(text)
 	if input := m.Input(); input != nil && len(*input)+len(text) <= 8192 {
-		*input += Clean(text)
+		pos := m.cursor(*input)
+		*input = (*input)[:pos] + text + (*input)[pos:]
+		m.Cursors[m.Focus] = pos + len(text)
 	}
 }
 func (m *Model) FocusNext(delta int) {
-	if m.Frame == nil || len(m.Frame.Hits) == 0 {
+	if m.Frame == nil {
 		return
 	}
 	var keys []string
 	seen := map[string]bool{}
-	for _, h := range m.Frame.Hits {
+	for _, h := range m.focusTargets() {
 		if !seen[h.Key] {
 			keys = append(keys, h.Key)
 			seen[h.Key] = true
 		}
+	}
+	if len(keys) == 0 {
+		return
 	}
 	i := -1
 	for n, key := range keys {
@@ -86,8 +94,17 @@ func (m *Model) FocusNext(delta int) {
 			break
 		}
 	}
-	i = (i + delta + len(keys)) % len(keys)
+	if i == -1 {
+		if delta > 0 {
+			i = 0
+		} else {
+			i = len(keys) - 1
+		}
+	} else {
+		i = (i + delta + len(keys)) % len(keys)
+	}
 	m.Focus = keys[i]
+	m.revealFocus()
 }
 func (m *Model) Handle(ev tcell.Event) *app.Action {
 	switch e := ev.(type) {
@@ -142,8 +159,22 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 			return nil
 		}
 		if e.Key() == tcell.KeyEscape {
-			m.Modal = nil
-			m.Focus = ""
+			m.closeModal()
+			return nil
+		}
+		if e.Key() == tcell.KeyF1 {
+			m.help()
+			return nil
+		}
+		if e.Key() == tcell.KeyCtrlS && m.Modal != nil {
+			return m.submit()
+		}
+		if e.Key() == tcell.KeyPgUp || e.Key() == tcell.KeyPgDn {
+			step := max(1, m.FrameHeight()-8)
+			if e.Key() == tcell.KeyPgUp {
+				step = -step
+			}
+			m.scroll(step)
 			return nil
 		}
 		if e.Key() == tcell.KeyEnter {
@@ -163,46 +194,53 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 			return nil
 		}
 		if input := m.Input(); input != nil {
-			switch e.Key() {
-			case tcell.KeyBackspace:
-				if len(*input) > 0 {
-					_, size := utf8.DecodeLastRuneInString(*input)
-					*input = (*input)[:len(*input)-size]
-				}
-			case tcell.KeyCtrlU:
-				*input = ""
-			case tcell.KeyRune:
-				m.appendText(e.Str())
-			}
+			m.editInput(e, input)
 			return nil
 		}
-		if e.Key() == tcell.KeyUp || e.Key() == tcell.KeyPgUp {
-			step := 1
-			if e.Key() == tcell.KeyPgUp {
-				step = 10
-			}
-			m.scroll(-step)
+		if e.Key() == tcell.KeyUp {
+			m.moveFocus(0, -1)
 			return nil
 		}
-		if e.Key() == tcell.KeyDown || e.Key() == tcell.KeyPgDn {
-			step := 1
-			if e.Key() == tcell.KeyPgDn {
-				step = 10
-			}
-			m.scroll(step)
+		if e.Key() == tcell.KeyDown {
+			m.moveFocus(0, 1)
 			return nil
 		}
 		if e.Key() == tcell.KeyLeft || e.Key() == tcell.KeyRight {
 			if m.Modal != nil {
 				for _, field := range m.Modal.Fields {
 					if len(field.Options) > 0 && m.Focus == Key(app.Action{Kind: "input", ID: field.Key}) {
-						return m.Activate(app.Action{Kind: "input", ID: field.Key})
+						delta := 1
+						if e.Key() == tcell.KeyLeft {
+							delta = -1
+						}
+						m.cycleOption(field.Key, delta)
+						return nil
 					}
 				}
+			}
+			delta := 1
+			if e.Key() == tcell.KeyLeft {
+				delta = -1
+			}
+			m.moveFocus(delta, 0)
+			return nil
+		}
+		if e.Key() == tcell.KeyHome || e.Key() == tcell.KeyEnd {
+			if e.Key() == tcell.KeyHome {
+				m.scroll(-1 << 20)
+			} else {
+				m.scroll(1 << 20)
 			}
 			return nil
 		}
 		if e.Key() == tcell.KeyRune {
+			if e.Str() == "?" {
+				m.help()
+				return nil
+			}
+			if m.Modal != nil && e.Str() != " " {
+				return nil
+			}
 			switch e.Str() {
 			case "q":
 				m.Quit = true
@@ -259,8 +297,7 @@ func (m *Model) Activate(a app.Action) *app.Action {
 	case "new":
 		m.newProfile()
 	case "close":
-		m.Modal = nil
-		m.Focus = ""
+		m.closeModal()
 	case "clear":
 		m.URL = ""
 	case "paste":
@@ -326,17 +363,14 @@ func (m *Model) Activate(a app.Action) *app.Action {
 }
 func (m *Model) scroll(delta int) {
 	if m.Modal != nil {
-		height := 0
-		if m.Frame != nil {
-			height = m.Frame.H
-		}
-		limit := max(0, len(m.Modal.Choices)*2-max(1, height-12))
+		limit := max(0, m.modalContentHeight()-m.modalViewport())
 		m.Modal.Scroll = max(0, min(limit, m.Modal.Scroll+delta))
 		return
 	}
 	m.Scroll[m.Tab] = max(0, min(m.MaxScroll, m.Scroll[m.Tab]+delta))
 }
 func (m *Model) newProfile() {
+	m.Cursors = map[string]int{}
 	m.Modal = &Modal{Title: "Create Profile", Kind: "profile-new", Fields: []Field{{Key: "type", Label: "Type", Text: "Remote", Options: []string{"Remote", "Local"}}, {Key: "name", Label: "Name"}, {Key: "description", Label: "Descriptions"}, {Key: "source", Label: "Subscription URL"}, {Key: "agent", Label: "User Agent"}, {Key: "timeout", Label: "HTTP Request Timeout", Text: "30"}}}
 	m.Focus = Key(app.Action{Kind: "input", ID: "type"})
 }

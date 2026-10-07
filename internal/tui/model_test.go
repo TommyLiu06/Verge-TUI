@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -179,5 +180,112 @@ func TestPagesAndFocusInheritTerminalTheme(t *testing.T) {
 		if cell.Style.GetBackground() != color.Default {
 			t.Fatal("dialog overrides the terminal's background")
 		}
+	}
+}
+
+func TestKeyboardCreatesLocalProfileInSmallTerminal(t *testing.T) {
+	m := New(fixture())
+	key := func(k tcell.Key, text string) *app.Action {
+		a := m.Handle(tcell.NewEventKey(k, text, tcell.ModNone))
+		m.Render(60, 18)
+		return a
+	}
+	m.Render(60, 18)
+	key(tcell.KeyRune, "3")
+	key(tcell.KeyRune, "n")
+	key(tcell.KeyLeft, "")
+	key(tcell.KeyTab, "")
+	key(tcell.KeyRune, "Keyboard profile")
+	key(tcell.KeyF1, "")
+	if m.Modal.Kind != "help" {
+		t.Fatal("F1 did not show keyboard help")
+	}
+	key(tcell.KeyEscape, "")
+	if m.Input() == nil || *m.Input() != "Keyboard profile" {
+		t.Fatal("help discarded the profile form")
+	}
+	key(tcell.KeyTab, "")
+	key(tcell.KeyRune, "Created without a mouse")
+	key(tcell.KeyTab, "")
+	key(tcell.KeyTab, "")
+	a := key(tcell.KeyEnter, "")
+	if a == nil || a.Kind != "profile-new" || a.Profile.Type != "local" || a.Profile.Name != "Keyboard profile" || a.File != "" {
+		t.Fatal("keyboard-only profile creation failed")
+	}
+}
+
+func TestKeyboardScrollsThroughAllModalChoices(t *testing.T) {
+	v := fixture()
+	g := v.Snapshot.Proxies["Proxy"]
+	g.All = nil
+	for i := range 30 {
+		g.All = append(g.All, fmt.Sprintf("Node %02d", i))
+	}
+	v.Snapshot.Proxies["Proxy"] = g
+	m := New(v)
+	m.Activate(app.Action{Kind: "home-nodes"})
+	m.Render(60, 18)
+	for i, name := range g.All {
+		m.Handle(tcell.NewEventKey(tcell.KeyDown, "", tcell.ModNone))
+		f := m.Render(60, 18)
+		expected := Key(app.Action{Kind: "node-select", ID: "Proxy", Node: name})
+		visible := false
+		for _, hit := range f.Hits {
+			if hit.Key == expected {
+				visible = true
+			}
+		}
+		if m.Focus != expected || !visible {
+			t.Fatalf("choice %d is not keyboard-accessible", i)
+		}
+	}
+	a := m.Handle(tcell.NewEventKey(tcell.KeyEnter, "", tcell.ModNone))
+	if a == nil || a.Kind != "node-select" || a.Node != "Node 29" {
+		t.Fatal("Enter did not select the final node")
+	}
+}
+
+func TestInputCursorEditsWholeGraphemes(t *testing.T) {
+	m := New(fixture())
+	m.Tab = 2
+	m.Focus = Key(app.Action{Kind: "input", ID: "url"})
+	m.Render(80, 24)
+	key := func(k tcell.Key, text string) { m.Handle(tcell.NewEventKey(k, text, tcell.ModNone)); m.Render(80, 24) }
+	key(tcell.KeyRune, "ab👩‍💻cd")
+	key(tcell.KeyLeft, "")
+	key(tcell.KeyLeft, "")
+	key(tcell.KeyDelete, "")
+	key(tcell.KeyBackspace, "")
+	if m.URL != "abd" {
+		t.Fatal("cursor editing split an emoji grapheme")
+	}
+	key(tcell.KeyHome, "")
+	key(tcell.KeyRune, "X")
+	if m.URL != "Xabd" {
+		t.Fatal("Home did not move the insertion point")
+	}
+	key(tcell.KeyEnd, "")
+	key(tcell.KeyCtrlW, "")
+	if m.URL != "" {
+		t.Fatal("Ctrl+W did not delete the preceding word")
+	}
+}
+
+func TestArrowNavigationAndModalIsolation(t *testing.T) {
+	m := New(fixture())
+	m.Render(120, 42)
+	m.Handle(tcell.NewEventKey(tcell.KeyDown, "", tcell.ModNone))
+	m.Render(120, 42)
+	m.Handle(tcell.NewEventKey(tcell.KeyDown, "", tcell.ModNone))
+	m.Render(120, 42)
+	m.Handle(tcell.NewEventKey(tcell.KeyEnter, "", tcell.ModNone))
+	if m.Tab != 1 {
+		t.Fatal("arrows and Enter did not navigate to Proxies")
+	}
+	m.newProfile()
+	m.Render(120, 42)
+	m.Handle(tcell.NewEventKey(tcell.KeyRune, "1", tcell.ModNone))
+	if m.Tab != 1 {
+		t.Fatal("page shortcut escaped the active dialog")
 	}
 }

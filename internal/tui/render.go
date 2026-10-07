@@ -70,7 +70,7 @@ func (m *Model) Render(w, h int) *Frame {
 	}
 	f.Fill(Rect{0, h - 1, w, 1}, cardStyle)
 	f.Line(1, h-1, max(0, w-45), status, cardStyle.Foreground(muted))
-	f.Line(max(1, w-43), h-1, 42, "1 Home  2 Proxies  3 Profiles  Tab  q Quit", cardStyle.Foreground(muted))
+	f.Line(max(1, w-43), h-1, 42, "1/2/3 Pages  Tab Focus  F1 Help  q Quit", cardStyle.Foreground(muted))
 	if m.Modal != nil {
 		m.modal(f)
 	}
@@ -412,7 +412,8 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 }
 func (m *Model) input(f *Frame, r Rect, placeholder, value, id string) {
 	s := cardStyle.Foreground(text)
-	if f.Focus == Key(app.Action{Kind: "input", ID: id}) {
+	focused := f.Focus == Key(app.Action{Kind: "input", ID: id})
+	if focused {
 		s = cardStyle.Reverse(true)
 	}
 	f.Fill(r, s)
@@ -420,10 +421,28 @@ func (m *Model) input(f *Frame, r Rect, placeholder, value, id string) {
 		value = placeholder
 		s = s.Foreground(muted)
 	}
-	if displaywidth.String(value) > r.W-3 {
+	caret, cursorText := -1, " "
+	if focused && m.Input() != nil {
+		pos := m.cursor(value)
+		if *m.Input() == "" {
+			pos, value = 0, ""
+		}
+		start := 0
+		for displaywidth.String(value[start:pos]) >= max(1, r.W-3) {
+			start = nextBoundary(value, start)
+		}
+		caret = displaywidth.String(value[start:pos])
+		if pos < len(value) {
+			cursorText = value[pos:nextBoundary(value, pos)]
+		}
+		value = value[start:]
+	} else if displaywidth.String(value) > r.W-3 {
 		value = tail(value, r.W-3)
 	}
 	f.Line(r.X+1, r.Y, r.W-2, value, s)
+	if caret >= 0 {
+		f.Put(r.X+1+caret, r.Y, cursorText, s.Underline(true).Bold(true))
+	}
 	f.Add(r, app.Action{Kind: "input", ID: id})
 }
 func tail(value string, width int) string {
@@ -435,7 +454,7 @@ func tail(value string, width int) string {
 }
 func (m *Model) modal(f *Frame) {
 	modal := m.Modal
-	height := 7 + len(modal.Fields)*2 + len(modal.Choices)*2 + len(modal.Body)
+	height := 7 + m.modalContentHeight()
 	height = min(f.H-4, max(9, height))
 	width := min(f.W-6, 86)
 	r := Rect{(f.W - width) / 2, (f.H - height) / 2, width, height}
@@ -443,7 +462,7 @@ func (m *Model) modal(f *Frame) {
 	f.Clip = Rect{0, 0, f.W, f.H}
 	f.Box(r, modal.Title)
 	f.Clip = Rect{r.X + 1, r.Y + 2, r.W - 2, r.H - 4}
-	y := r.Y + 3
+	y := r.Y + 3 - modal.Scroll
 	isLocal := false
 	for _, field := range modal.Fields {
 		if field.Key == "type" && field.Text == "Local" {
@@ -464,7 +483,7 @@ func (m *Model) modal(f *Frame) {
 		y++
 	}
 	for i, choice := range modal.Choices {
-		f.Button(Rect{r.X + 2, y + i*2 - modal.Scroll, r.W - 4, 1}, choice.Label, choice.Action, false)
+		f.Button(Rect{r.X + 2, y + i*2, r.W - 4, 1}, choice.Label, choice.Action, false)
 	}
 	for i, line := range modal.Body {
 		f.Line(r.X+2, y+i, r.W-4, line, cardStyle.Foreground(muted))
