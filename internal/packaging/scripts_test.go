@@ -36,7 +36,40 @@ func setup(t *testing.T, manager, linger string) fixture {
 	if err := os.Mkdir(bin, 0700); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(bin, "systemctl"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$MIHOMO_SERVICE_LOG\"\nif [ \"$2\" = show-environment ]; then [ \"$MIHOMO_MANAGER_AVAILABLE\" = yes ]; else exit 0; fi\n", 0700)
+	write(t, filepath.Join(bin, "systemctl"), `#!/bin/sh
+printf '%s\n' "$*" >> "$MIHOMO_SERVICE_LOG"
+[ "${1:-}" != --user ] || shift
+start_test_service() {
+    [ "${MIHOMO_MANAGED_TEST_SERVICE:-no}" = yes ] || return 0
+    "$MIHOMO_SERVICE_PREFIX/mihomo-tui" run > "$MIHOMO_SERVICE_PREFIX/test-service.log" 2>&1 &
+    echo "$!" > "$MIHOMO_SERVICE_PREFIX/test-supervisor.pid"
+    attempts=0
+    while [ ! -f "$MIHOMO_SERVICE_PREFIX/data/runtime/status.json" ]; do
+        attempts=$((attempts + 1))
+        [ "$attempts" -lt 100 ] || return 1
+        sleep 0.05
+    done
+}
+stop_test_service() {
+    [ "${MIHOMO_MANAGED_TEST_SERVICE:-no}" = yes ] || return 0
+    [ -f "$MIHOMO_SERVICE_PREFIX/test-supervisor.pid" ] || return 0
+    kill "$(cat "$MIHOMO_SERVICE_PREFIX/test-supervisor.pid")" 2>/dev/null || true
+    attempts=0
+    while [ -f "$MIHOMO_SERVICE_PREFIX/data/runtime/status.json" ]; do
+        attempts=$((attempts + 1))
+        [ "$attempts" -lt 100 ] || return 1
+        sleep 0.05
+    done
+    rm -f "$MIHOMO_SERVICE_PREFIX/test-supervisor.pid"
+}
+case "${1:-}" in
+    show-environment) [ "$MIHOMO_MANAGER_AVAILABLE" = yes ] ;;
+    show) printf '%s\n' "${MIHOMO_ACTIVE_STATE:-active}" ;;
+    enable|start) start_test_service ;;
+    disable|stop) stop_test_service ;;
+    *) exit 0 ;;
+esac
+`, 0700)
 	write(t, filepath.Join(bin, "loginctl"), "#!/bin/sh\nprintf '%s\\n' \"$MIHOMO_LINGER\"\n", 0700)
 	// All service files stay inside the project test directory. Real host
 	// systemd and GNOME tools are never invoked by these integration tests.
@@ -348,6 +381,89 @@ func TestShellIntegrationCanBeDisabled(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(f.prefix, "proxy.env")); err != nil {
 		t.Fatal("--shell none did not prepare the proxy env")
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+}
+
+func TestInstallerUpdatesExistingInstallationAfterConfirmation(t *testing.T) {
+	f := setup(t, "yes", "yes")
+	f.env = append(f.env, "MIHOMO_MANAGED_TEST_SERVICE=yes", "MIHOMO_SERVICE_PREFIX="+f.prefix)
+	t.Cleanup(func() {
+		cmd := exec.Command(filepath.Join(f.root, "tools/systemctl"), "--user", "stop", "mihomo-tui.service")
+		cmd.Env = f.env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("test supervisor cleanup: %v\n%s", err, out)
+		}
+	})
+	f.run(t, "install.sh", "", true, "--yes")
+	settingsPath := filepath.Join(f.prefix, "data/settings.json")
+	settings, rc, unit := read(t, settingsPath), read(t, f.rc), read(t, f.unit)
+	// Changes to owned documentation make actual replacement observable even
+	// when the test bundle and installed app have the same version string.
+	write(t, filepath.Join(f.prefix, "README.md"), "old documentation", 0600)
+	write(t, f.log, "", 0600)
+	for _, input := range []string{"n\n", ""} {
+		out := f.run(t, "install.sh", input, true)
+		if !strings.Contains(out, "mihomo-tui update") || !strings.Contains(out, "Update cancelled.") {
+			t.Fatal(out)
+		}
+		if read(t, settingsPath) != settings || read(t, f.rc) != rc || read(t, filepath.Join(f.prefix, "README.md")) != "old documentation" {
+			t.Fatal("cancelled update modified installation")
+		}
+		if strings.Contains(read(t, f.log), "stop") || strings.Contains(read(t, f.log), "start") {
+			t.Fatal("cancelled update touched the service")
+		}
+	}
+	out := f.run(t, "install.sh", "yes\n", true)
+	if !strings.Contains(out, "Updated in") || read(t, filepath.Join(f.prefix, "README.md")) != read(t, filepath.Join(f.bundle, "README.md")) {
+		t.Fatal(out)
+	}
+	if read(t, settingsPath) != settings || read(t, f.rc) != rc || read(t, f.unit) != unit {
+		t.Fatal("update changed proxy data, shell integration or service configuration")
+	}
+	if !strings.Contains(read(t, f.log), "--user stop mihomo-tui.service") || !strings.Contains(read(t, f.log), "--user start mihomo-tui.service") {
+		t.Fatal("update did not restart the running service")
+	}
+	if strings.Contains(read(t, f.log), "enable") || strings.Contains(read(t, f.log), "disable") {
+		t.Fatal("update changed enablement")
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+}
+
+func TestInstallerUpdatesLegacyForegroundInstallation(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes", "--shell", "none")
+	if err := os.Remove(filepath.Join(f.prefix, ".mihomo-tui-install")); err != nil {
+		t.Fatal(err)
+	}
+	settings := read(t, filepath.Join(f.prefix, "data/settings.json"))
+	f.run(t, "install.sh", "", true, "--yes")
+	if read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
+		t.Fatal("legacy update reinitialized settings")
+	}
+	if !strings.Contains(read(t, f.rc), "mihomo_on()") {
+		t.Fatal("legacy update did not register new shell functions")
+	}
+	if strings.Contains(read(t, f.log), "enable") {
+		t.Fatal("foreground update installed a service")
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+}
+
+func TestUpdateRejectsInstallationModeAndServiceChanges(t *testing.T) {
+	f := setup(t, "yes", "yes")
+	f.run(t, "install.sh", "", true, "--yes", "--no-service")
+	settings := read(t, filepath.Join(f.prefix, "data/settings.json"))
+	out := f.run(t, "install.sh", "", false, "--yes", "--mode", "system")
+	if !strings.Contains(out, "System mode requires root") && !strings.Contains(out, "does not match") {
+		t.Fatal(out)
+	}
+	out = f.run(t, "install.sh", "", false, "--yes", "--service")
+	if !strings.Contains(out, "preserves the existing service") {
+		t.Fatal(out)
+	}
+	if read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
+		t.Fatal("rejected update changed data")
 	}
 	f.run(t, "uninstall.sh", "", true, "--purge")
 }

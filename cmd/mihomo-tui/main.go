@@ -13,6 +13,7 @@ import (
 
 	"mihomo-tui/internal/app"
 	"mihomo-tui/internal/core"
+	"mihomo-tui/internal/installation"
 	"mihomo-tui/internal/profile"
 	"mihomo-tui/internal/service"
 	"mihomo-tui/internal/shellenv"
@@ -20,7 +21,7 @@ import (
 	"mihomo-tui/internal/tui"
 )
 
-const version = "0.1.0"
+const version = "0.1.1"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -46,6 +47,34 @@ func run(args []string) error {
 	if len(args) > 0 && args[0] == "version" {
 		fmt.Println(version)
 		return nil
+	}
+	// Bundle installation helpers must not initialize or rewrite existing data
+	// while inspecting an installation before the user's confirmation.
+	if len(args) > 0 && args[0] == "installation" {
+		if len(args) < 2 {
+			return errors.New("usage: installation inspect|update --prefix DIR [--rc-file FILE]")
+		}
+		f := flag.NewFlagSet("installation", flag.ContinueOnError)
+		prefix := f.String("prefix", "", "existing installation directory")
+		rc := f.String("rc-file", "", "shell rc to refresh")
+		if err := f.Parse(args[2:]); err != nil {
+			return err
+		}
+		switch args[1] {
+		case "inspect":
+			x, err := installation.Inspect(*prefix)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n%s\n%s\n%s\n", x.Mode, x.Unit, x.RC, x.Core)
+			return nil
+		case "update":
+			ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer cancel()
+			return installation.Update(ctx, filepath.Dir(filepath.Dir(executable)), *prefix, *rc)
+		default:
+			return errors.New("unknown installation helper")
+		}
 	}
 	if len(args) > 0 && args[0] == "proxy-status" {
 		abs, err := filepath.Abs(*root)

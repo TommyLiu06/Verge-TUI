@@ -5,8 +5,8 @@ The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo c
 Extract the archive, enter its directory and install:
 
 ```sh
-tar -xzf mihomo-tui-0.1.0-linux-amd64.tar.gz
-cd mihomo-tui-0.1.0-linux-amd64
+tar -xzf mihomo-tui-0.1.1-linux-amd64.tar.gz
+cd mihomo-tui-0.1.1-linux-amd64
 sh install.sh --prefix "$HOME/.local/share/mihomo-tui" --mode user
 "$HOME/.local/share/mihomo-tui/mihomo-tui"
 ```
@@ -15,7 +15,7 @@ Before installation, the script displays the selected mode, destination, bundled
 
 User mode always checks for a working user systemd manager and reports whether lingering is enabled. When the manager is available, the default is to enable a user service; otherwise, the installer selects foreground operation. A working user manager without lingering does not guarantee operation after logout. Use `--no-service` to choose foreground operation even when systemd is available, or `--service` to require a service and fail if its manager is unavailable. System mode requires a working systemd manager and always uses a service.
 
-After confirmation, the installer checks the bundle's hashes, imports its bundled core into the application's own version directory, initializes private credentials and creates a selected local DIRECT profile. The destination must not exist. Configuration is stored in `<prefix>/data`, with private directory and file permissions. Existing installations can import another core with `core import`, rather than rerunning the installer into the same directory.
+For a fresh installation, after confirmation the installer checks the bundle's hashes, imports its bundled core into the application's own version directory, initializes private credentials and creates a selected local DIRECT profile. Configuration is stored in `<prefix>/data`, with private directory and file permissions. An existing installation is updated instead of reinitialized.
 
 For a user service, add `--service`:
 
@@ -35,6 +35,28 @@ sudo /opt/mihomo-tui/mihomo-tui
 
 System mode requires root and a system service. Its unit is written to `/etc/systemd/system/mihomo-tui.service`. Enable **TUN Mode** on Home after selecting your subscription. The unit grants network administration capabilities; actual TUN availability depends on the host kernel and container permissions. All local users can connect to `127.0.0.1:<mixed-port>` without proxy credentials, while only root manages this installation and its authenticated API. Run `sudo /opt/mihomo-tui/mihomo-tui status` to see the selected ports without exposing the API secret.
 
+## Updating an existing installation
+
+Extract the new offline bundle and rerun the original install command. For the default system installation:
+
+```sh
+sudo sh install.sh --mode system
+```
+
+For a custom directory, keep the original `--prefix`. Its recorded mode is detected automatically:
+
+```sh
+sudo sh install.sh --prefix /your/installation/directory
+```
+
+The installer displays **mihomo-tui update**, the detected mode, current core, destination and shell rc, then asks for confirmation. No installation files, shell rc or service state change before confirmation. The bundled helper is checksum-verified before it reads installation metadata. Declining or providing no input cancels the update. `--yes` skips confirmation explicitly.
+
+Updates replace the application, uninstaller, documentation and licenses, while preserving subscriptions, selected profile and core, every managed core version, credentials, ports, proxy mode, TUN settings and any GNOME proxy backup. The bundled core is used for fresh installations; updating the application does not replace or select it. Use `core import` and `core use` separately to change the core.
+
+Existing service configuration and enablement are preserved. A running service is stopped for replacement and restarted afterward; a stopped service stays stopped. Foreground cores must be stopped first, and an open TUI should be closed before updating. Updates inherit the registered shell rc and refresh the proxy env and function block without duplicates. `--shell none` skips rc changes and keeps any existing registration. Service or installation mode changes are refused during updates.
+
+Failed replacement or service startup restores the previous application files, generated env and shell integration, and restarts a previously running service. If rollback itself fails, the installer reports the error and retains recovery files in the installation directory. Externally modified service units, moved installations, symlinked installation files and unrelated directories are rejected. Early bundles without an installation marker are recognized by their application directory structure and saved settings; a successful update adds the marker for future updates and uninstallation.
+
 ## Shell proxy functions
 
 The installer prepares `<prefix>/proxy.env` and adds a marked block defining `mihomo_on`, `mihomo_off` and `mihomo_status` to the invoking shell's rc. It detects Bash or Zsh from the parent process, falling back to `$SHELL`. Zsh uses `${ZDOTDIR:-$HOME}/.zshrc`; Bash uses `$HOME/.bashrc`. The displayed rc path lets you check this choice before confirming. Override it with `--shell bash|zsh --rc-file /absolute/path`, or use `--shell none` to create the env file without changing an rc.
@@ -53,7 +75,7 @@ mihomo_off
 
 User-mode env files have mode `0600`; passwords never appear in the rc block. System mode keeps `data/` private while allowing all users to read the credential-free `proxy.env` and execute the TUI binary. A regular user can run `proxy-status` to check the shared listener and their environment, while detailed API status requires the administrator. Under `sudo`, the default rc belongs to the installing account; to register functions for another user, explicitly select their rc with `--rc-file`. Existing rc ownership and permissions are preserved, including symlinked rc files.
 
-For an existing installation, stop the core before copying the updated bundle's `bin/mihomo-tui` and `uninstall.sh` into the installation directory. Then prepare and register the functions, for example in Zsh:
+Rerunning the installer also adds shell functions to early installations that did not have them. To register functions manually, for example in Zsh:
 
 ```sh
 "$HOME/.local/share/mihomo-tui/mihomo-tui" env-file
@@ -131,4 +153,4 @@ Developers can create a package using an already downloaded, extracted core:
 sh scripts/package.sh /absolute/path/to/mihomo v1.19.32
 ```
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/mihomo-tui-0.1.0-linux-amd64.tar.gz` and an archive checksum, without downloading a core or installing a service. The online GitHub installer and publication workflow are deferred.
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/mihomo-tui-0.1.1-linux-amd64.tar.gz` and an archive checksum, without downloading a core or installing a service. The online GitHub installer and publication workflow are deferred.

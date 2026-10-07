@@ -10,6 +10,7 @@ fail() { echo "Error: $*" >&2; exit 1; }
 bundle_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 prefix=
 mode=user
+requested_mode=
 service_choice=auto
 assume_yes=no
 shell_choice=auto
@@ -17,7 +18,7 @@ rc_file=
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix) [ "$#" -ge 2 ] || fail 'Missing --prefix value'; prefix=$2; shift 2 ;;
-        --mode) [ "$#" -ge 2 ] || fail 'Missing --mode value'; mode=$2; shift 2 ;;
+        --mode) [ "$#" -ge 2 ] || fail 'Missing --mode value'; mode=$2; requested_mode=$2; shift 2 ;;
         --service) service_choice=yes; shift ;;
         --no-service) service_choice=no; shift ;;
         --yes|-y) assume_yes=yes; shift ;;
@@ -28,6 +29,11 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 case "$mode" in user|system) ;; *) fail 'Mode must be user or system' ;; esac
+# With no explicit mode/prefix, root can rerun the installer for the default
+# system installation. Explicit paths inherit their recorded mode below.
+if [ -z "$prefix" ] && [ -z "$requested_mode" ] && [ "$(id -u)" -eq 0 ] && [ -d /opt/mihomo-tui ]; then
+    prefix=/opt/mihomo-tui
+fi
 if [ "$mode" = system ]; then
     [ "$(id -u)" -eq 0 ] || fail 'System mode requires root'
     [ -n "$prefix" ] || prefix=/opt/mihomo-tui
@@ -37,7 +43,31 @@ fi
 case "$prefix" in /*) ;; *) fail 'Prefix must be an absolute path' ;; esac
 case "$prefix" in *'
 '*|*"$(printf '\r')"*) fail 'Prefix must be a single-line path' ;; esac
-[ ! -e "$prefix" ] && [ ! -L "$prefix" ] || fail 'Destination already exists; use core import to add a version'
+command -v sha256sum >/dev/null 2>&1 || fail 'Install sha256sum (GNU coreutils) first'
+updating=no
+recorded_unit=
+recorded_rc=
+selected_core=
+if [ -e "$prefix" ] || [ -L "$prefix" ]; then
+    # Verify the helper before executing it. Inspection itself is read-only.
+    (cd "$bundle_dir" && sha256sum --status -c SHA256SUMS) || fail 'Bundle checksum verification failed; update stopped'
+    existing=$("$bundle_dir/bin/mihomo-tui" installation inspect --prefix "$prefix") || fail 'Existing installation cannot be updated'
+    recorded_mode=$(printf '%s\n' "$existing" | sed -n '1p')
+    recorded_unit=$(printf '%s\n' "$existing" | sed -n '2p')
+    recorded_rc=$(printf '%s\n' "$existing" | sed -n '3p')
+    selected_core=$(printf '%s\n' "$existing" | sed -n '4p')
+    [ -z "$requested_mode" ] || [ "$requested_mode" = "$recorded_mode" ] || fail 'Requested mode does not match the installation'
+    mode=$recorded_mode
+    updating=yes
+    existing_service=no
+    [ -z "$recorded_unit" ] || existing_service=yes
+    [ "$service_choice" = auto ] || [ "$service_choice" = "$existing_service" ] || fail 'Update preserves the existing service configuration'
+    service_choice=$existing_service
+    if [ -n "$recorded_rc" ] && [ "$shell_choice" = auto ] && [ -z "$rc_file" ]; then
+        shell_choice=registered
+        rc_file=$recorded_rc
+    fi
+fi
 
 if [ "$shell_choice" = auto ]; then
     parent_shell=
@@ -49,6 +79,7 @@ fi
 case "$shell_choice" in
     bash) [ -n "$rc_file" ] || rc_file="$HOME/.bashrc" ;;
     zsh) [ -n "$rc_file" ] || rc_file="${ZDOTDIR:-$HOME}/.zshrc" ;;
+    registered) ;;
     none) [ -z "$rc_file" ] || fail '--rc-file cannot be combined with --shell none' ;;
     *) fail 'Cannot determine a supported shell; select --shell bash, zsh or none' ;;
 esac
@@ -59,7 +90,6 @@ if [ -n "$rc_file" ]; then
 fi
 
 # Verify files before executing the bundled program or core.
-command -v sha256sum >/dev/null 2>&1 || fail 'Install sha256sum (GNU coreutils) first'
 core_id=$(cat "$bundle_dir/CORE_VERSION")
 case "$core_id" in ''|*[!A-Za-z0-9._-]*) fail 'Invalid bundled core identifier' ;; esac
 case "$(uname -s)/$(uname -m)" in Linux/x86_64) ;; *) fail 'This bundle requires Linux amd64' ;; esac
@@ -81,10 +111,15 @@ fi
 install_service=$service_choice
 if [ "$install_service" = auto ]; then install_service=$manager_available; fi
 
-printf '\n%s\n' 'mihomo-tui installation'
+if [ "$updating" = yes ]; then printf '\n%s\n' 'mihomo-tui update'; else printf '\n%s\n' 'mihomo-tui installation'; fi
 printf '  Mode:         %s\n' "$mode"
 printf '  Destination:  %s\n' "$prefix"
 printf '  Bundled core: %s (Linux amd64)\n' "$core_id"
+if [ "$updating" = yes ]; then
+    printf '  Current core: %s (preserved)\n' "$selected_core"
+    echo '  Data:         profiles, credentials, ports and TUN settings preserved'
+    echo '  Service:      configuration and running/enabled state preserved'
+fi
 printf '  Proxy env:    %s/proxy.env\n' "$prefix"
 if [ "$shell_choice" != none ]; then
     printf '  Shell:        %s\n  Shell rc:     %s\n' "$shell_choice" "$rc_file"
@@ -101,11 +136,11 @@ if [ "$mode" = user ]; then
     esac
 fi
 if [ "$install_service" = yes ]; then
-    echo '  Background:   enabled systemd service'
+    if [ "$updating" = yes ]; then echo '  Background:   existing systemd service'; else echo '  Background:   enabled systemd service'; fi
 else
     echo '  Background:   no service; keep the TUI or foreground core running'
 fi
-echo '  Proxy ports:  random high ports, checked before startup'
+if [ "$updating" = yes ]; then echo '  Proxy ports:  existing ports preserved'; else echo '  Proxy ports:  random high ports, checked before startup'; fi
 if [ "$mode" = user ]; then echo '  Proxy access: private credentials'; else echo '  Proxy access: shared on loopback; authenticated control API'; fi
 
 if [ "$mode" = system ] && [ "$install_service" != yes ]; then
@@ -114,21 +149,40 @@ fi
 [ "$install_service" != yes ] || [ "$manager_available" = yes ] || fail 'Requested service manager is unavailable'
 unit_path=
 if [ "$install_service" = yes ]; then
-    if [ "$mode" = user ]; then unit_path="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/mihomo-tui.service"; else unit_path=/etc/systemd/system/mihomo-tui.service; fi
+    if [ "$updating" = yes ]; then
+        unit_path=$recorded_unit
+    elif [ "$mode" = user ]; then unit_path="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/mihomo-tui.service"; else unit_path=/etc/systemd/system/mihomo-tui.service; fi
     case "$unit_path" in /*) ;; *) fail 'Service configuration directory must be absolute' ;; esac
     case "$unit_path" in *'
 '*|*"$(printf '\r')"*) fail 'Service path must be a single-line path' ;; esac
-    [ ! -e "$unit_path" ] && [ ! -L "$unit_path" ] || fail 'Service unit already exists'
+    if [ "$updating" != yes ]; then
+        [ ! -e "$unit_path" ] && [ ! -L "$unit_path" ] || fail 'Service unit already exists'
+    fi
 fi
 
 if [ "$assume_yes" != yes ]; then
-    printf '\nProceed with installation? [y/N] '
-    if ! IFS= read -r answer; then echo; echo 'Installation cancelled.'; exit 0; fi
-    case "$answer" in y|Y|yes|YES|Yes) ;; *) echo 'Installation cancelled.'; exit 0 ;; esac
+    action=installation
+    cancelled='Installation cancelled.'
+    if [ "$updating" = yes ]; then action=update; cancelled='Update cancelled.'; fi
+    printf '\nProceed with %s? [y/N] ' "$action"
+    if ! IFS= read -r answer; then echo; echo "$cancelled"; exit 0; fi
+    case "$answer" in y|Y|yes|YES|Yes) ;; *) echo "$cancelled"; exit 0 ;; esac
 fi
 echo 'Verifying offline files...'
 cd "$bundle_dir"
 sha256sum --status -c SHA256SUMS || fail 'Bundle checksum verification failed; installation stopped'
+if [ "$updating" = yes ]; then
+    echo 'Updating application; keeping selected core and proxy data...'
+    if [ "$shell_choice" = none ]; then
+        "$bundle_dir/bin/mihomo-tui" installation update --prefix "$prefix"
+    else
+        "$bundle_dir/bin/mihomo-tui" installation update --prefix "$prefix" --rc-file "$rc_file"
+    fi
+    echo "Updated in $prefix"
+    echo "Launch: \"$prefix/mihomo-tui\""
+    if [ "$shell_choice" != none ]; then echo "Open a new shell or source the existing rc: $rc_file"; fi
+    exit 0
+fi
 echo 'Installing application and managed core...'
 
 mkdir -m 700 -p -- "$prefix"
