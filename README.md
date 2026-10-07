@@ -43,4 +43,6 @@ Use **Core** to install or select a managed version. For an offline replacement:
 
 Stop a service before replacing its selected core, then restart the service. Core downloads use HTTP(S) proxy environment variables and verify the release SHA-256. Subscription downloads use a direct connection. The application stores binaries under `data/cores/<version>/mihomo`; no system-wide mihomo is used.
 
-See [offline installation](docs/offline-installation.md) for self-contained packages, user services and system services. Online script installation is deferred. End users do not need Go.
+The installer displays the installation mode and checks user systemd availability and lingering before asking for confirmation. It selects a service when a working manager is available. Use `--no-service` for foreground operation or `--yes` for automation. The included `uninstall.sh` removes the application and its own service, preserves data by default, and supports `--purge` to remove data too.
+
+See [offline installation](docs/offline-installation.md) for self-contained packages, user services, system services and uninstallation. Online script installation is deferred. End users do not need Go.

@@ -47,6 +47,26 @@ type Backend struct {
 func New(s *state.Store, version string) *Backend {
 	return &Backend{Store: s, Manager: &core.Manager{Store: s}, Desktop: desktop.GNOME{Store: s}, Version: version}
 }
+func (b *Backend) PrepareUninstall(ctx context.Context) error {
+	running, err := core.Running(b.Store)
+	if err != nil {
+		return err
+	}
+	if running {
+		return errors.New("core is still running; quit the TUI or stop the foreground supervisor before uninstalling")
+	}
+	backup := filepath.Join(b.Store.Root, "gnome-proxy-backup.ini")
+	if _, err := os.Lstat(backup); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	c, err := b.Store.Read()
+	if err != nil {
+		return err
+	}
+	return b.Desktop.Disable(ctx, c)
+}
 func (b *Backend) Close(ctx context.Context) error {
 	if !b.Manager.Owned() {
 		return nil

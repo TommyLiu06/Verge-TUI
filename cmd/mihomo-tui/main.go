@@ -37,7 +37,7 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("mihomo-tui", flag.ContinueOnError)
 	root := flags.String("data-dir", filepath.Join(filepath.Dir(executable), "data"), "application-owned data directory")
 	flags.Usage = func() {
-		fmt.Println("mihomo-tui [--data-dir DIR] [command]\n\nCommands: tui (default), core install|import|list|use, profile import|new|list|select, run, env, service, configure, status, preview, version\n\nGo and a system-wide mihomo installation are not required.")
+		fmt.Println("mihomo-tui [--data-dir DIR] [command]\n\nCommands: tui (default), core install|import|list|use, profile import|new|list|select, run, env, service, configure, status, preview, version, prepare-uninstall\n\nGo and a system-wide mihomo installation are not required.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -58,6 +58,8 @@ func run(args []string) error {
 		args = []string{"tui"}
 	}
 	switch args[0] {
+	case "prepare-uninstall":
+		return app.New(s, version).PrepareUninstall(ctx)
 	case "tui":
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
@@ -291,9 +293,9 @@ func run(args []string) error {
 			return err
 		}
 		b, _ := json.Marshal(struct {
-			Mode, Core, Profile string
-			MixedPort, APIPort  int
-		}{c.Mode, c.Core, c.Current, c.MixedPort, c.APIPort})
+			InstallMode, Mode, Core, Profile string
+			MixedPort, APIPort               int
+		}{c.InstallMode, c.Mode, c.Core, c.Current, c.MixedPort, c.APIPort})
 		fmt.Println(string(b))
 		return nil
 	}

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +39,9 @@ func TestSubscriptionWorkflowWithRealCore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Close(ctx)
+	if err := b.PrepareUninstall(ctx); err == nil || !strings.Contains(err.Error(), "still running") {
+		t.Fatal("uninstaller accepted a running foreground core")
+	}
 	data := profile.DefaultConfig
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
@@ -93,6 +98,52 @@ func TestSubscriptionWorkflowWithRealCore(t *testing.T) {
 	}
 	if err := b.Execute(ctx, Action{Kind: "tun"}); err == nil {
 		t.Fatal("user mode allowed TUN")
+	}
+}
+
+func TestPrepareUninstallRestoresDesktopBackup(t *testing.T) {
+	s, err := state.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := New(s, "test")
+	backup := filepath.Join(s.Root, "gnome-proxy-backup.ini")
+	original := "[/]\nmode='none'\n"
+	if err := state.Write(backup, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CURRENT_DESKTOP", "")
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "")
+	if err := b.PrepareUninstall(context.Background()); err == nil {
+		t.Fatal("uninstaller ignored an inaccessible desktop backup")
+	}
+	if _, err := os.Stat(backup); err != nil {
+		t.Fatal("uninstaller removed a backup before restoration")
+	}
+	reset, restored := false, false
+	b.Desktop.Run = func(_ context.Context, name string, args []string, input string) (string, error) {
+		if name == "gsettings" {
+			return "'none'", nil
+		}
+		if name != "dconf" {
+			t.Fatal("unexpected desktop command")
+		}
+		if args[0] == "reset" {
+			reset = true
+		}
+		if args[0] == "load" {
+			restored = reset && input == original
+		}
+		return "", nil
+	}
+	if err := b.PrepareUninstall(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !restored {
+		t.Fatal("original desktop proxy settings were not restored")
+	}
+	if _, err := os.Stat(backup); !os.IsNotExist(err) {
+		t.Fatal("restored desktop backup was not removed")
 	}
 }
 

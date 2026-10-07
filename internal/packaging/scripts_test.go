@@ -1,0 +1,252 @@
+package packaging_test
+
+import (
+	"bytes"
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"mihomo-tui/internal/core"
+	"mihomo-tui/internal/state"
+)
+
+type fixture struct {
+	bundle, root, prefix, unit, log string
+	env                             []string
+}
+
+func setup(t *testing.T, manager, linger string) fixture {
+	t.Helper()
+	bundle := os.Getenv("MIHOMO_TEST_BUNDLE")
+	if bundle == "" {
+		t.Skip("set MIHOMO_TEST_BUNDLE to an extracted offline bundle")
+	}
+	root := t.TempDir()
+	f := fixture{bundle: bundle, root: root, prefix: filepath.Join(root, "My Proxy"), unit: filepath.Join(root, "config", "systemd", "user", "mihomo-tui.service"), log: filepath.Join(root, "service.log")}
+	bin := filepath.Join(root, "tools")
+	if err := os.Mkdir(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(bin, "systemctl"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$MIHOMO_SERVICE_LOG\"\nif [ \"$2\" = show-environment ]; then [ \"$MIHOMO_MANAGER_AVAILABLE\" = yes ]; else exit 0; fi\n", 0700)
+	write(t, filepath.Join(bin, "loginctl"), "#!/bin/sh\nprintf '%s\\n' \"$MIHOMO_LINGER\"\n", 0700)
+	// All service files stay inside the project test directory. Real host
+	// systemd and GNOME tools are never invoked by these integration tests.
+	for _, value := range os.Environ() {
+		name, _, _ := strings.Cut(value, "=")
+		switch name {
+		case "PATH", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CURRENT_DESKTOP", "DBUS_SESSION_BUS_ADDRESS", "MIHOMO_SERVICE_LOG", "MIHOMO_MANAGER_AVAILABLE", "MIHOMO_LINGER":
+			continue
+		}
+		f.env = append(f.env, value)
+	}
+	f.env = append(f.env, "PATH="+bin+":"+os.Getenv("PATH"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "XDG_DATA_HOME="+filepath.Join(root, "data-home"), "XDG_CURRENT_DESKTOP=", "DBUS_SESSION_BUS_ADDRESS=", "MIHOMO_SERVICE_LOG="+f.log, "MIHOMO_MANAGER_AVAILABLE="+manager, "MIHOMO_LINGER="+linger)
+	return f
+}
+
+func write(t *testing.T, path, content string, mode os.FileMode) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), mode); err != nil {
+		t.Fatal(err)
+	}
+}
+func read(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+func (f fixture) run(t *testing.T, script, input string, succeeds bool, args ...string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sh", append([]string{filepath.Join(f.bundle, script), "--prefix", f.prefix}, args...)...)
+	cmd.Env = f.env
+	cmd.Stdin = strings.NewReader(input)
+	b, err := cmd.CombinedOutput()
+	if (err == nil) != succeeds {
+		t.Fatalf("%s: %v\n%s", script, err, b)
+	}
+	return string(b)
+}
+func absent(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Lstat(path); !os.IsNotExist(err) {
+		t.Fatalf("path still exists: %s (%v)", path, err)
+	}
+}
+
+func TestConfirmationBeforeInstallation(t *testing.T) {
+	for _, input := range []string{"n\n", ""} {
+		t.Run(strings.TrimSpace(input), func(t *testing.T) {
+			f := setup(t, "yes", "no")
+			out := f.run(t, "install.sh", input, true)
+			for _, want := range []string{"Mode:         user", "User systemd: yes", "lingering disabled", "Proceed with installation?", "Installation cancelled."} {
+				if !strings.Contains(out, want) {
+					t.Fatalf("missing installation information %q: %s", want, out)
+				}
+			}
+			absent(t, f.prefix)
+			if strings.Contains(read(t, f.log), "enable") || strings.Contains(out, "Verifying offline files") {
+				t.Fatal("installation started before confirmation")
+			}
+		})
+	}
+}
+
+func TestAutomaticUserServiceAndDataPreservingUninstall(t *testing.T) {
+	f := setup(t, "yes", "yes")
+	out := f.run(t, "install.sh", "yes\n", true)
+	if !strings.Contains(out, "lingering enabled") || !strings.Contains(read(t, f.log), "--user enable --now mihomo-tui.service") || strings.Contains(out, ": OK") {
+		t.Fatal("service detection or concise installation output failed")
+	}
+	settings := read(t, filepath.Join(f.prefix, "data", "settings.json"))
+	unit := read(t, f.unit)
+	write(t, f.unit, unit+"\n# Replaced externally\n", 0600)
+	out = f.run(t, "uninstall.sh", "", false)
+	if !strings.Contains(out, "differs from this installation") || strings.Contains(read(t, f.log), "disable") {
+		t.Fatal("uninstaller changed an externally modified service")
+	}
+	write(t, f.unit, unit, 0600)
+	f.run(t, "uninstall.sh", "", true)
+	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
+	absent(t, f.unit)
+	if read(t, filepath.Join(f.prefix, "data", "settings.json")) != settings {
+		t.Fatal("data-preserving uninstall changed subscription settings or credentials")
+	}
+	if _, err := os.Stat(filepath.Join(f.prefix, "data", "cores", "v1.19.32", "mihomo")); err != nil {
+		t.Fatal("data-preserving uninstall removed its managed core")
+	}
+	if !strings.Contains(read(t, f.log), "--user disable --now mihomo-tui.service") {
+		t.Fatal("service was not stopped and disabled")
+	}
+	// A later installation's service must survive a purge of retained data.
+	write(t, f.unit, "another installation's unit", 0600)
+	f.run(t, "uninstall.sh", "", true, "--purge")
+	absent(t, f.prefix)
+	if read(t, f.unit) != "another installation's unit" {
+		t.Fatal("purging retained data affected a new service")
+	}
+}
+
+func TestUnavailableManagerAndExplicitServiceChoice(t *testing.T) {
+	f := setup(t, "no", "no")
+	out := f.run(t, "install.sh", "", false, "--service", "--yes")
+	if !strings.Contains(out, "Requested service manager is unavailable") {
+		t.Fatal(out)
+	}
+	absent(t, f.prefix)
+	out = f.run(t, "install.sh", "", true, "--yes")
+	if !strings.Contains(out, "User systemd: no") || !strings.Contains(out, "no service") {
+		t.Fatal(out)
+	}
+	absent(t, f.unit)
+	f.run(t, "uninstall.sh", "", false, "--mode", "system", "--purge")
+	if _, err := os.Stat(filepath.Join(f.prefix, "mihomo-tui")); err != nil {
+		t.Fatal("mode mismatch removed the application")
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+	absent(t, f.prefix)
+}
+
+func TestNoServiceOverride(t *testing.T) {
+	f := setup(t, "yes", "yes")
+	f.run(t, "install.sh", "", true, "--yes", "--no-service")
+	absent(t, f.unit)
+	if strings.Contains(read(t, f.log), "enable") {
+		t.Fatal("--no-service still enabled a service")
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+}
+
+func TestUninstallRefusesUnmarkedDirectory(t *testing.T) {
+	f := setup(t, "no", "no")
+	if err := os.Mkdir(f.prefix, 0700); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(f.prefix, "unrelated.txt")
+	write(t, file, "keep", 0600)
+	f.run(t, "uninstall.sh", "", false, "--purge")
+	f.run(t, "uninstall.sh", "", false, "--purge", "--legacy")
+	if read(t, file) != "keep" {
+		t.Fatal("unmarked directory was modified")
+	}
+}
+
+func TestExplicitLegacyUninstall(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes")
+	if err := os.Remove(filepath.Join(f.prefix, ".mihomo-tui-install")); err != nil {
+		t.Fatal(err)
+	}
+	f.run(t, "uninstall.sh", "", false, "--purge")
+	f.run(t, "uninstall.sh", "", true, "--purge", "--legacy")
+	absent(t, f.prefix)
+}
+
+func TestUninstallPreservesInaccessibleDesktopBackup(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes")
+	backup := filepath.Join(f.prefix, "data", "gnome-proxy-backup.ini")
+	write(t, backup, "[/]\nmode='none'\n", 0600)
+	f.run(t, "uninstall.sh", "", false, "--purge")
+	if read(t, backup) != "[/]\nmode='none'\n" {
+		t.Fatal("desktop backup was discarded")
+	}
+	if _, err := os.Stat(filepath.Join(f.prefix, "mihomo-tui")); err != nil {
+		t.Fatal("application was removed before proxy restoration")
+	}
+}
+
+func TestUninstallRequiresForegroundCoreToStop(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes")
+	s, err := state.Open(filepath.Join(f.prefix, "data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(filepath.Join(f.prefix, "mihomo-tui"), "run")
+	cmd.Env = f.env
+	var logs bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &logs, &logs
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	stopped := false
+	defer func() {
+		if !stopped {
+			cmd.Process.Signal(syscall.SIGTERM)
+			cmd.Wait()
+		}
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if !core.ReadStatus(s).Started.IsZero() {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("foreground core did not become ready")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	out := f.run(t, "uninstall.sh", "", false, "--purge")
+	if !strings.Contains(out, "core is still running") {
+		t.Fatal(out)
+	}
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	err = cmd.Wait()
+	stopped = true
+	if err != nil {
+		t.Fatalf("foreground shutdown: %v\n%s", err, logs.String())
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+	absent(t, f.prefix)
+}
