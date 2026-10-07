@@ -206,6 +206,18 @@ func Runtime(s *state.Store, c state.Settings, id string) ([]byte, error) {
 	} else {
 		doc, _ = Parse([]byte(DefaultConfig))
 	}
+	return RuntimeDocument(c, doc)
+}
+
+func RuntimeData(c state.Settings, data []byte) ([]byte, error) {
+	doc, err := Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	return RuntimeDocument(c, doc)
+}
+
+func RuntimeDocument(c state.Settings, doc map[string]any) ([]byte, error) {
 	for _, key := range []string{"external-controller-unix", "external-controller-pipe", "external-controller-tls", "external-ui", "external-ui-url", "external-doh-server", "external-controller-cors", "listeners", "tunnels"} {
 		delete(doc, key)
 	}
@@ -225,6 +237,7 @@ func Runtime(s *state.Store, c state.Settings, id string) ([]byte, error) {
 	doc["mode"] = c.Mode
 	doc["profile"] = map[string]any{"store-selected": true}
 	doc["log-level"] = "warning"
+	doc["find-process-mode"] = "off"
 	doc["tun"] = map[string]any{"enable": c.Tun && c.InstallMode == "system", "stack": "system", "auto-route": true, "auto-detect-interface": true, "dns-hijack": []string{"any:53"}}
 	if dns, ok := doc["dns"].(map[string]any); ok {
 		delete(dns, "listen")
