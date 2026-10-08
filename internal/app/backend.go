@@ -173,6 +173,12 @@ func (b *Backend) Execute(ctx context.Context, a Action) error {
 		return b.executeRemote(ctx, a)
 	}
 	switch a.Kind {
+	case "connection-close", "provider-update", "providers-update":
+		return b.pageAction(ctx, a)
+	case "profile-info-save":
+		return b.editProfileInfo(a)
+	case "profile-file-save":
+		return b.editProfileFile(ctx, a)
 	case "geo-update":
 		c, err := b.Store.Read()
 		if err != nil {

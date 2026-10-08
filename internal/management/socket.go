@@ -81,7 +81,13 @@ type streamMessage struct {
 }
 
 func (c *Client) Delay(ctx context.Context, input any, progress func(json.RawMessage) error) error {
-	resp, err := c.request(ctx, http.MethodPost, "/delay", input)
+	return c.stream(ctx, http.MethodPost, "/delay", input, progress)
+}
+func (c *Client) Logs(ctx context.Context, progress func(json.RawMessage) error) error {
+	return c.stream(ctx, http.MethodGet, "/logs", nil, progress)
+}
+func (c *Client) stream(ctx context.Context, method, path string, input any, progress func(json.RawMessage) error) error {
+	resp, err := c.request(ctx, method, path, input)
 	if err != nil {
 		return err
 	}
@@ -107,6 +113,8 @@ func (c *Client) Delay(ctx context.Context, input any, progress func(json.RawMes
 }
 
 type Handlers struct {
+	ReadData   func(context.Context, string, string) (any, error)
+	Logs       func(context.Context, func(any) error) error
 	View       func(context.Context) (any, error)
 	Inspect    func(context.Context, string) (any, error)
 	Action     func(context.Context, json.RawMessage) error
@@ -151,6 +159,42 @@ func Serve(ctx context.Context, s *state.Store, handlers Handlers) (*Server, err
 		return nil, err
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /data/{kind}", func(w http.ResponseWriter, r *http.Request) {
+		if handlers.ReadData == nil {
+			http.Error(w, "page unavailable", http.StatusBadRequest)
+			return
+		}
+		data, err := handlers.ReadData(r.Context(), r.PathValue("kind"), r.URL.Query().Get("id"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(data)
+	})
+	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
+		if handlers.Logs == nil {
+			http.Error(w, "logs unavailable", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		flusher := w.(http.Flusher)
+		flusher.Flush()
+		encoder := json.NewEncoder(w)
+		err := handlers.Logs(r.Context(), func(entry any) error {
+			data, err := json.Marshal(entry)
+			if err == nil {
+				err = encoder.Encode(streamMessage{Result: data})
+				flusher.Flush()
+			}
+			return err
+		})
+		msg := streamMessage{Complete: true}
+		if err != nil {
+			msg.Error = err.Error()
+		}
+		encoder.Encode(msg)
+	})
 	mux.HandleFunc("GET /inspect/{kind}", func(w http.ResponseWriter, r *http.Request) {
 		if handlers.Inspect == nil {
 			http.Error(w, "viewer unavailable", http.StatusBadRequest)

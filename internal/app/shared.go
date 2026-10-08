@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"verge-tui/internal/controller"
 	"verge-tui/internal/core"
 	"verge-tui/internal/desktop"
 	"verge-tui/internal/management"
@@ -27,7 +28,7 @@ func NewRemote(s *state.Store, version string) *Backend {
 
 func sharedAction(a Action) error {
 	switch a.Kind {
-	case "refresh", "mode", "tun", "core-install", "core-use", "profile-import", "profile-new", "profile-select", "profile-update", "profile-delete", "home-group", "node-select", "delay", "settings-save", "geo-update":
+	case "connection-close", "provider-update", "providers-update", "profile-info-save", "profile-file-save", "refresh", "mode", "tun", "core-install", "core-use", "profile-import", "profile-new", "profile-select", "profile-update", "profile-delete", "home-group", "node-select", "delay", "settings-save", "geo-update":
 		if a.File != "" {
 			return errors.New("local profile files must be uploaded by the calling user")
 		}
@@ -131,6 +132,14 @@ func (b *Backend) SharedHandlers(mu *sync.RWMutex) management.Handlers {
 		return a, sharedAction(a)
 	}
 	return management.Handlers{
+		ReadData: func(ctx context.Context, kind, id string) (any, error) {
+			mu.RLock()
+			defer mu.RUnlock()
+			return b.ReadPage(ctx, kind, id)
+		},
+		Logs: func(ctx context.Context, emit func(any) error) error {
+			return b.Logs(ctx, func(entry controller.Log) error { return emit(entry) })
+		},
 		Inspect: func(ctx context.Context, kind string) (any, error) {
 			mu.RLock()
 			defer mu.RUnlock()
