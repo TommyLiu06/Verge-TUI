@@ -18,7 +18,7 @@ source={l:{k:v for sec in sections for k,v in flatten(json.loads((root/l/f'{sec}
 en=source['en']; index={}
 for k,v in en.items():
  if '{{' not in v:index.setdefault(v,k)
-aliases={'TUN Mode':'Tun Mode','TUN Settings':'Tun Mode','DNS Settings':'DNS Settings','Proxy Groups':'Proxies','Proxy Environment':'Copy Env','Network Settings':'Network Settings','Clash Core':'Clash Core','Theme':'Theme Mode','Descriptions':'Descriptions','Subscription URL':'Subscription URL','Test URL':'Test URL','Test':'Delay check','New Profile':'Create Profile','Off':'Disabled','On':'Enabled'}
+aliases={'TUN Mode':'Tun Mode','DNS Settings':'DNS Settings','Proxy Groups':'Proxies','Proxy Environment':'Copy Env','Network Settings':'Network Settings','Clash Core':'Clash Core','Theme':'Theme Mode','Descriptions':'Descriptions','Subscription URL':'Subscription URL','Test URL':'Test URL','Test':'Delay check','New Profile':'Create Profile','Off':'Disabled','On':'Enabled'}
 # Reuse upstream translations, with "Theme" replacing the upstream English name.
 for a,v in aliases.items():
  if v in index:index[a]=index[v]
@@ -42,6 +42,15 @@ for a,v in aliases.items():
 for label in ['debug','info','warning','error','silent']:
  key=f'settings.sections.clash.form.options.logLevel.{label}'
  index[en[key]]=key
+for label, key in {
+ 'Proxy Host': 'settings.modals.sysproxy.fields.proxyHost',
+ 'Always use Default Bypass': 'settings.modals.sysproxy.fields.alwaysUseDefaultBypass',
+ 'Proxy Bypass Settings: ': 'settings.modals.sysproxy.fields.proxyBypass',
+ 'Enable Status': 'settings.modals.sysproxy.fields.enableStatus',
+ 'Server Addr': 'settings.modals.sysproxy.fields.serverAddr',
+ 'Bypass': 'settings.modals.sysproxy.fields.bypass',
+}.items():
+ index[label]=key
 texts=set()
 for p in Path('internal/tui').glob('*.go'):
  if '_test' not in p.name:
@@ -54,6 +63,8 @@ for v in list(texts):
 # Keep only strings relevant to the implemented TUI; no web framework is bundled.
 for lang in langs:
  out={v:source[lang].get(index[v],en[index[v]]) for v in sorted(texts) if v in index}
+ for prefix in ['Enable Status', 'Server Addr', 'Bypass']:
+  if prefix in out: out[prefix]=out[prefix].rstrip(' :：')
  if lang=='en':
   out['Theme']='Theme'
   # Directory actions display paths in a terminal rather than opening a GUI.

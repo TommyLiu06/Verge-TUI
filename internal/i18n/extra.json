@@ -29,7 +29,9 @@
     "Change Options": "Change Options",
     "Scroll": "Scroll",
     "Quit": "Quit",
-    "Not installed": "Not installed"
+    "Not installed": "Not installed",
+    "TUN Settings": "TUN Settings",
+    "TUN Mode": "TUN Mode"
   },
   "ru": {
     "Theme": "Тема",
@@ -61,7 +63,8 @@
     "Change Options": "Изменить выбор",
     "Scroll": "Прокрутка",
     "Quit": "Выход",
-    "Not installed": "Не установлено"
+    "Not installed": "Не установлено",
+    "TUN Settings": "Настройки TUN"
   },
   "zh": {
     "Theme": "主题",
@@ -122,7 +125,8 @@
     "Install Mode": "安装模式",
     "Data Directory": "数据目录",
     "Verge TUI Version": "Verge TUI 版本",
-    "TUI Version": "TUI 版本"
+    "TUI Version": "TUI 版本",
+    "TUN Settings": "TUN 设置"
   },
   "fa": {
     "Theme": "پوسته",
@@ -154,7 +158,8 @@
     "Change Options": "تغییر گزینه",
     "Scroll": "پیمایش",
     "Quit": "خروج",
-    "Not installed": "نصب نشده"
+    "Not installed": "نصب نشده",
+    "TUN Settings": "تنظیمات TUN"
   },
   "tt": {
     "Theme": "Тема",
@@ -186,7 +191,8 @@
     "Change Options": "Параметрны үзгәртү",
     "Scroll": "Әйләндерү",
     "Quit": "Чыгу",
-    "Not installed": "Урнаштырылмаган"
+    "Not installed": "Урнаштырылмаган",
+    "TUN Settings": "TUN көйләүләре"
   },
   "id": {
     "Theme": "Tema",
@@ -218,7 +224,8 @@
     "Change Options": "Ubah Opsi",
     "Scroll": "Gulir",
     "Quit": "Keluar",
-    "Not installed": "Belum terpasang"
+    "Not installed": "Belum terpasang",
+    "TUN Settings": "Pengaturan TUN"
   },
   "ar": {
     "Theme": "السمة",
@@ -250,7 +257,8 @@
     "Change Options": "تغيير الخيارات",
     "Scroll": "تمرير",
     "Quit": "خروج",
-    "Not installed": "غير مثبت"
+    "Not installed": "غير مثبت",
+    "TUN Settings": "إعدادات TUN"
   },
   "ko": {
     "Theme": "테마",
@@ -282,7 +290,8 @@
     "Change Options": "옵션 변경",
     "Scroll": "스크롤",
     "Quit": "종료",
-    "Not installed": "설치되지 않음"
+    "Not installed": "설치되지 않음",
+    "TUN Settings": "TUN 설정"
   },
   "tr": {
     "Theme": "Tema",
@@ -314,7 +323,8 @@
     "Change Options": "Seçenekleri Değiştir",
     "Scroll": "Kaydır",
     "Quit": "Çıkış",
-    "Not installed": "Yüklü değil"
+    "Not installed": "Yüklü değil",
+    "TUN Settings": "TUN Ayarları"
   },
   "de": {
     "Theme": "Design",
@@ -346,7 +356,8 @@
     "Change Options": "Option ändern",
     "Scroll": "Scrollen",
     "Quit": "Beenden",
-    "Not installed": "Nicht installiert"
+    "Not installed": "Nicht installiert",
+    "TUN Settings": "TUN-Einstellungen"
   },
   "es": {
     "Theme": "Tema",
@@ -378,7 +389,8 @@
     "Change Options": "Cambiar opciones",
     "Scroll": "Desplazar",
     "Quit": "Salir",
-    "Not installed": "No instalado"
+    "Not installed": "No instalado",
+    "TUN Settings": "Configuración TUN"
   },
   "jp": {
     "Theme": "テーマ",
@@ -410,7 +422,8 @@
     "Change Options": "選択肢を変更",
     "Scroll": "スクロール",
     "Quit": "終了",
-    "Not installed": "未インストール"
+    "Not installed": "未インストール",
+    "TUN Settings": "TUN 設定"
   },
   "zhtw": {
     "Theme": "主題",
@@ -460,6 +473,7 @@
     "Delete this profile?": "刪除此設定檔？",
     "The core will switch to the built-in DIRECT configuration.": "核心將切換至內建 DIRECT 設定。",
     "Verge TUI Version": "Verge TUI 版本",
-    "TUI Version": "TUI 版本"
+    "TUI Version": "TUI 版本",
+    "TUN Settings": "TUN 設定"
   }
 }

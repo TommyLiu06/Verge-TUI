@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"net"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/clipperhouse/displaywidth"
 
 	"verge-tui/internal/app"
 	"verge-tui/internal/i18n"
@@ -59,11 +62,11 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 		tunState = toggle(m.View.Snapshot.Config.Tun.Enable)
 	}
 	if c.InstallMode != "system" {
-		tunState, tunAction = "System mode", app.Action{Kind: "settings-info", ID: "tun"}
+		tunState, tunAction = "Off", app.Action{Kind: "settings-info", ID: "tun"}
 	}
 	proxyState, proxyAction := toggle(m.View.Desktop.Enabled), app.Action{Kind: "system-proxy"}
 	if !m.View.Desktop.Available {
-		proxyState, proxyAction = "Unavailable", app.Action{Kind: "settings-info", ID: "system-proxy"}
+		proxyAction = app.Action{Kind: "settings-info", ID: "system-proxy"}
 	}
 	columns := "Auto"
 	if p.ProxyColumns > 0 {
@@ -71,7 +74,7 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 	}
 	sections := []settingSection{
 		{"System Setting", []settingRow{
-			{"TUN Mode", tunState, tunAction}, {"TUN Settings", "Configure", edit("tun")},
+			{"TUN Mode", tunState, tunAction},
 			{"System Proxy", proxyState, proxyAction}, {"Auto Launch", "systemd", app.Action{Kind: "service-info"}},
 		}},
 		{"Clash Setting", []settingRow{
@@ -112,6 +115,14 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 		f.Box(Rect{sx, sy, sw, height}, m.tr(section.title))
 		for i, row := range section.rows {
 			r := Rect{sx + 2, sy + 3 + i*2, sw - 4, 1}
+			if row.label == "TUN Mode" || row.label == "System Proxy" {
+				section := "tun"
+				if row.label == "System Proxy" {
+					section = "system-proxy"
+				}
+				m.proxySettingRow(f, r, row, edit(section))
+				continue
+			}
 			style := f.Theme.Card
 			if row.action.Kind != "" && f.Focus == Key(row.action) {
 				style = style.Reverse(true).Bold(true)
@@ -138,6 +149,30 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 		y = draw(section, x, y, width)
 	}
 	return y
+}
+
+// Match Verge's single row with separate configuration and toggle controls.
+func (m *Model) proxySettingRow(f *Frame, r Rect, row settingRow, configure app.Action) {
+	label, config, status := m.tr(row.label), m.tr("Configure"), m.tr(row.value)
+	configWidth, statusWidth := displaywidth.String(config), displaywidth.String(status)
+	valueWidth := min(r.W-8, configWidth+3+statusWidth)
+	configWidth = min(configWidth, valueWidth-3-min(statusWidth, (valueWidth-3)/2))
+	statusWidth = valueWidth - 3 - configWidth
+	f.Fill(r, f.Theme.Card)
+	f.Line(r.X, r.Y, r.W-valueWidth-1, label, f.Theme.Card)
+	cx := r.X + r.W - valueWidth
+	control := func(rect Rect, text string, action app.Action) {
+		style := f.Theme.Card.Foreground(f.Theme.Accent)
+		if f.Focus == Key(action) {
+			style = f.Theme.Card.Reverse(true).Bold(true)
+		}
+		f.Fill(rect, style)
+		f.Line(rect.X, rect.Y, rect.W, text, style)
+		f.Add(rect, action)
+	}
+	control(Rect{cx, r.Y, configWidth, 1}, config, configure)
+	f.Put(cx+configWidth, r.Y, " | ", f.Theme.Card.Foreground(f.Theme.Muted))
+	control(Rect{cx + configWidth + 3, r.Y, statusWidth, 1}, status, row.action)
 }
 
 func (m *Model) settingsAction(a app.Action) (bool, *app.Action) {
@@ -194,6 +229,17 @@ func (m *Model) settingsForm(section string) {
 		}
 		m.selectionList("Log Level", "settings-save", section, "level", current, []string{"debug", "info", "warning", "error", "silent"})
 		return
+	case "system-proxy":
+		kind, title = "preferences-save", "System Proxy"
+		bypass := p.SystemProxy.Bypass
+		if bypass == "" {
+			bypass = strings.Join(state.DefaultProxyBypass(), ", ")
+		}
+		fields = []Field{
+			{Key: "proxy-host", Label: "Proxy Host", Text: p.SystemProxy.Host},
+			booleanField("use-default-bypass", "Always use Default Bypass", p.SystemProxy.UseDefaultBypass),
+			{Key: "proxy-bypass", Label: "Proxy Bypass Settings: ", Text: bypass},
+		}
 	case "ports":
 		title = "Port Config"
 		fields = []Field{{Key: "mixed-port", Label: "Mixed Port (HTTP + SOCKS)", Text: strconv.Itoa(c.MixedPort)}, {Key: "http-port", Label: "HTTP Port (0 = disabled)", Text: strconv.Itoa(c.HTTPPort)}, {Key: "socks-port", Label: "SOCKS Port (0 = disabled)", Text: strconv.Itoa(c.SOCKSPort)}}
@@ -237,6 +283,17 @@ func (m *Model) settingsForm(section string) {
 	m.openSettingsForm(title, kind, section, fields)
 	if section == "dns" {
 		m.Modal.Body = []string{"Applies to the active profile. Saving enables DNS Overwrite."}
+	}
+	if section == "system-proxy" {
+		address := m.View.Desktop.Address
+		if address == "" {
+			address = net.JoinHostPort(p.SystemProxy.Host, strconv.Itoa(c.MixedPort))
+		}
+		m.Modal.Body = []string{
+			"Enable Status: " + m.tr(toggle(m.View.Desktop.Enabled)),
+			"Server Addr: " + address,
+			"Bypass: " + strings.Join(state.DefaultProxyBypass(), ", "),
+		}
 	}
 }
 

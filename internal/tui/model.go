@@ -565,6 +565,13 @@ func bytesString(n uint64) string {
 }
 
 func (m *Model) fieldDisabled(key string) bool {
+	if m.Modal != nil && m.Modal.Section == "system-proxy" && key == "proxy-bypass" {
+		for _, f := range m.Modal.Fields {
+			if f.Key == "use-default-bypass" {
+				return f.Text == "true"
+			}
+		}
+	}
 	if m.Modal == nil || m.Modal.Section != "controller" || key == "enabled" {
 		return false
 	}
