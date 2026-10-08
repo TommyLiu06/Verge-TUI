@@ -5,8 +5,8 @@ The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo c
 Extract the archive, enter its directory and install:
 
 ```sh
-tar -xzf verge-tui-0.1.11-linux-amd64.tar.gz
-cd verge-tui-0.1.11-linux-amd64
+tar -xzf verge-tui-0.1.12-linux-amd64.tar.gz
+cd verge-tui-0.1.12-linux-amd64
 sh install.sh --prefix "$HOME/.local/share/verge-tui" --mode user
 "$HOME/.local/share/verge-tui/verge-tui"
 ```
@@ -190,7 +190,7 @@ sh scripts/package.sh /absolute/path/to/mihomo v1.19.32 /absolute/path/to/geodat
 
 The geodata directory must contain Country.mmdb, GeoIP.dat and GeoSite.dat matching the hashes in `packaging/geodata/manifest.json`. The default directory is `.local/geodata-source`. The source release URLs are moving `latest` URLs; keep the verified snapshot files, or explicitly update the manifest when choosing a newer snapshot. Packaging verifies all hashes and tests all three formats with the supplied core before creating an archive.
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.11-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.12-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
 
 Shell installation adds the executable directory to PATH in the same managed rc block as the proxy functions. It avoids duplicate entries; shell removal and uninstallation remove the entire block. Source the rc printed by the installer to activate it in the current shell.
 
