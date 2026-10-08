@@ -49,8 +49,11 @@ func TestExternalControllerLifecycleWithRealCore(t *testing.T) {
 	if _, err := client.Snapshot(ctx); err != nil {
 		t.Fatal("internal IPC failed with external controller off", err)
 	}
+	// A second TUI can edit a user-service-owned core through private IPC.
+	second := New(b.Store, "test")
+	ownerDone := b.Manager.Done()
 	for _, secret := range []string{"first-secret", "changed-secret"} {
-		if err := b.Execute(ctx, Action{Kind: "settings-save", ID: "controller", Fields: map[string]string{"enabled": "true", "address": address, "secret": secret}}); err != nil {
+		if err := second.Execute(ctx, Action{Kind: "settings-save", ID: "controller", Fields: map[string]string{"enabled": "true", "address": address, "secret": secret}}); err != nil {
 			t.Fatal(err)
 		}
 		deadline := time.Now().Add(3 * time.Second)
@@ -74,11 +77,14 @@ func TestExternalControllerLifecycleWithRealCore(t *testing.T) {
 		}
 		external.Close()
 	}
-	if err := b.Execute(ctx, Action{Kind: "settings-save", ID: "controller", Fields: map[string]string{"enabled": "false"}}); err != nil {
+	if err := second.Execute(ctx, Action{Kind: "settings-save", ID: "controller", Fields: map[string]string{"enabled": "false"}}); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(100 * time.Millisecond)
 	assertClosed()
+	if b.Manager.Done() != ownerDone {
+		t.Fatal("core restart lost the supervisor process handle")
+	}
 	if err := b.Execute(ctx, Action{Kind: "mode", Value: "direct"}); err != nil {
 		t.Fatal("core control lost after disabling controller", err)
 	}

@@ -286,9 +286,7 @@ func (m *Manager) Apply(ctx context.Context, mutate func(*state.Settings) error)
 			return err
 		}
 		restart = running && (previous.ControllerEnabled != c.ControllerEnabled || previous.ControllerAddress != c.ControllerAddress || previous.Secret != c.Secret)
-		if restart && !m.Owned() {
-			return errors.New("controller changes require the owning service; use its TUI connection")
-		}
+
 		if running && !restart {
 			if err := client.Reload(ctx, payload); err != nil {
 				return err
@@ -298,6 +296,18 @@ func (m *Manager) Apply(ctx context.Context, mutate func(*state.Settings) error)
 	})
 	if err != nil || !restart {
 		return err
+	}
+	if !m.Owned() {
+		client := controller.New(before)
+		defer client.Close()
+		if err := client.Request(ctx, "POST", "/restart", nil, nil); err != nil {
+			return err
+		}
+		current, err := m.Store.Read()
+		if err != nil {
+			return err
+		}
+		return waitController(ctx, before, current)
 	}
 	if err := m.Stop(); err != nil {
 		return err
@@ -363,4 +373,59 @@ func (m *Manager) Use(ctx context.Context, id string) error {
 		return errors.Join(err, restoreErr, errors.New("previous core selection restored; core stopped"))
 	}
 	return nil
+}
+
+// The Linux core restart API uses exec, keeping the owning supervisor's PID
+// and process handle intact. Confirm the new TCP policy and private IPC.
+func waitController(ctx context.Context, before, current state.Settings) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	internal := controller.New(current)
+	defer internal.Close()
+	external := controller.New(state.Settings{APIPort: current.APIPort, Secret: current.Secret})
+	defer external.Close()
+	localAddress := func(address string) string {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return net.JoinHostPort("127.0.0.1", strconv.Itoa(current.APIPort))
+		}
+		if host == "0.0.0.0" {
+			host = "127.0.0.1"
+		}
+		if host == "::" {
+			host = "::1"
+		}
+		return net.JoinHostPort(host, port)
+	}
+	external.Base = "http://" + localAddress(current.ControllerAddress)
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		ready := false
+		if current.ControllerEnabled {
+			probe, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+			ready = external.Request(probe, "GET", "/version", nil, nil) == nil
+			cancel()
+		} else {
+			conn, err := net.DialTimeout("tcp", localAddress(before.ControllerAddress), 100*time.Millisecond)
+			if err != nil {
+				ready = true
+			} else {
+				conn.Close()
+			}
+		}
+		if ready {
+			probe, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+			err := internal.Request(probe, "GET", "/version", nil, nil)
+			cancel()
+			if err == nil {
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("core controller restart did not become ready: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
