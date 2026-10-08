@@ -13,20 +13,20 @@ import (
 )
 
 func (m *Model) Render(w, h int) *Frame {
-	f := NewFrame(max(1, w), max(1, h))
+	f := themedFrame(max(1, w), max(1, h), paletteFor(m.View.Preferences.Theme))
 	f.Focus = m.Focus
 	m.Frame = f
 	if w < 60 || h < 18 {
-		f.Line(1, 1, w-2, "Please resize the terminal to at least 60 x 18.", baseStyle)
+		f.Line(1, 1, w-2, "Please resize the terminal to at least 60 x 18.", f.Theme.Base)
 		return f
 	}
 	side := 20
 	if w < 90 {
 		side = 16
 	}
-	f.Fill(Rect{0, 0, side, h - 1}, cardStyle)
-	f.Line(2, 1, side-4, "VERGE TUI", cardStyle.Foreground(accent).Bold(true))
-	f.Line(2, 2, side-4, "v"+m.View.Version, cardStyle.Foreground(muted))
+	f.Fill(Rect{0, 0, side, h - 1}, f.Theme.Sidebar)
+	f.Line(2, 1, side-4, "VERGE TUI", f.Theme.Card.Foreground(f.Theme.Accent).Bold(true))
+	f.Line(2, 2, side-4, "v"+m.View.Version, f.Theme.Card.Foreground(f.Theme.Muted))
 	navStep := 3
 	if h < 25 {
 		navStep = 2
@@ -39,8 +39,8 @@ func (m *Model) Render(w, h int) *Frame {
 		stateText = "Core Running"
 	}
 	if h >= 25 {
-		f.Line(2, h-7, side-4, stateText, cardStyle.Foreground(muted))
-		f.Line(2, h-6, side-4, m.View.Settings.Core, cardStyle.Foreground(muted))
+		f.Line(2, h-7, side-4, stateText, f.Theme.Card.Foreground(f.Theme.Muted))
+		f.Line(2, h-6, side-4, m.View.Settings.Core, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
 	label, kind := "Start Core", "start"
 	if m.View.Online {
@@ -52,10 +52,10 @@ func (m *Model) Render(w, h int) *Frame {
 	f.Button(Rect{1, h - 4, side - 2, 2}, label, app.Action{Kind: kind}, false)
 	x, width := side+2, w-side-4
 	title := []string{"Home", "Proxy Groups", "Profiles", "Settings"}[m.Tab]
-	f.Line(x, 1, width-27, title, baseStyle.Bold(true))
+	f.Line(x, 1, width-27, title, f.Theme.Base.Bold(true))
 	f.Button(Rect{w - 27, 1, 14, 1}, "Refresh", app.Action{Kind: "refresh"}, false)
 	f.Button(Rect{w - 13, 1, 11, 1}, "Core", app.Action{Kind: "cores"}, false)
-	f.Line(x, 3, width, strings.Repeat("─", width), baseStyle.Foreground(border))
+	f.Line(x, 3, width, strings.Repeat("─", width), f.Theme.Base.Foreground(f.Theme.Border))
 	f.Clip = Rect{x, 4, width, h - 6}
 	bottom := 4
 	switch m.Tab {
@@ -78,9 +78,9 @@ func (m *Model) Render(w, h int) *Frame {
 	if m.Busy {
 		status = "Working…  " + status
 	}
-	f.Fill(Rect{0, h - 1, w, 1}, cardStyle)
-	f.Line(1, h-1, max(0, w-45), status, cardStyle.Foreground(muted))
-	f.Line(max(1, w-43), h-1, 42, "1/2/3/4 Pages  Tab Focus  F1 Help  q Quit", cardStyle.Foreground(muted))
+	f.Fill(Rect{0, h - 1, w, 1}, f.Theme.Card)
+	f.Line(1, h-1, max(0, w-45), status, f.Theme.Card.Foreground(f.Theme.Muted))
+	f.Line(max(1, w-43), h-1, 42, "1/2/3/4 Pages  Tab Focus  F1 Help  q Quit", f.Theme.Card.Foreground(f.Theme.Muted))
 	if m.Modal != nil {
 		m.modal(f)
 	}
@@ -117,7 +117,7 @@ func (m *Model) homeProfile(f *Frame, r Rect) {
 	}
 	f.Box(r, title)
 	if !found {
-		f.Line(r.X+2, r.Y+4, r.W-4, "No active subscription", cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+4, r.W-4, "No active subscription", f.Theme.Card.Foreground(f.Theme.Muted))
 		f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, "Go to Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
 		return
 	}
@@ -145,7 +145,7 @@ func (m *Model) homeProfile(f *Frame, r Rect) {
 		lines = append(lines, "Usage / expiry: not provided")
 	}
 	for i, line := range lines {
-		f.Line(r.X+2, r.Y+3+i, r.W-4, line, cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+3+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
 	f.Button(Rect{r.X + 2, r.Y + r.H - 3, 14, 1}, "Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
 	if p.Type == "remote" {
@@ -156,23 +156,23 @@ func (m *Model) homeNode(f *Frame, r Rect) {
 	f.Box(r, "Current Node")
 	mode := m.mode()
 	if mode == "direct" {
-		f.Line(r.X+2, r.Y+4, r.W-4, "DIRECT", cardStyle.Foreground(green).Bold(true))
-		f.Line(r.X+2, r.Y+6, r.W-4, "Direct Mode", cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+4, r.W-4, "DIRECT", f.Theme.Card.Foreground(f.Theme.Green).Bold(true))
+		f.Line(r.X+2, r.Y+6, r.W-4, "Direct Mode", f.Theme.Card.Foreground(f.Theme.Muted))
 		return
 	}
 	g := app.HomeGroup(m.View)
 	if !m.View.Online || g.Name == "" {
-		f.Line(r.X+2, r.Y+4, r.W-4, "No active proxy node", cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+4, r.W-4, "No active proxy node", f.Theme.Card.Foreground(f.Theme.Muted))
 		return
 	}
 	if mode == "global" {
-		f.Line(r.X+2, r.Y+3, r.W-4, "Global Mode", cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+3, r.W-4, "Global Mode", f.Theme.Card.Foreground(f.Theme.Muted))
 	} else {
 		f.Button(Rect{r.X + 2, r.Y + 3, r.W - 4, 1}, "Group: "+g.Name, app.Action{Kind: "home-groups"}, false)
 	}
 	f.Button(Rect{r.X + 2, r.Y + 5, r.W - 4, 1}, "Proxy: "+g.Now, app.Action{Kind: "home-nodes"}, true)
 	node := m.View.Snapshot.Proxies[g.Now]
-	f.Line(r.X+2, r.Y+7, r.W-4, m.delayLabel(node), cardStyle.Foreground(m.delayColor(node)))
+	f.Line(r.X+2, r.Y+7, r.W-4, m.delayLabel(node), f.Theme.Card.Foreground(m.delayColor(node)))
 	f.Button(Rect{r.X + 2, r.Y + 9, r.W - 4, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name, Node: g.Now}, false)
 }
 func (m *Model) homeNetwork(f *Frame, r Rect) {
@@ -188,7 +188,7 @@ func (m *Model) homeNetwork(f *Frame, r Rect) {
 		if !m.View.Desktop.Available {
 			status = "GNOME proxy unavailable"
 		}
-		f.Line(r.X+2, r.Y+5, r.W-4, status, cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+5, r.W-4, status, f.Theme.Card.Foreground(f.Theme.Muted))
 		if m.View.Desktop.Available {
 			label := "System Proxy: OFF"
 			if m.View.Desktop.Enabled {
@@ -210,7 +210,7 @@ func (m *Model) homeNetwork(f *Frame, r Rect) {
 		if m.View.Settings.InstallMode != "system" {
 			status = "TUN Mode Service Required"
 		}
-		f.Line(r.X+2, r.Y+5, r.W-4, status, cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+5, r.W-4, status, f.Theme.Card.Foreground(f.Theme.Muted))
 		label := "TUN Mode: OFF"
 		if enabled {
 			label = "TUN Mode: ON"
@@ -242,7 +242,7 @@ func (m *Model) homeMode(f *Frame, r Rect) {
 		lines = []string{"Bypass the proxy and connect", "to the internet directly."}
 	}
 	for i, line := range lines {
-		f.Line(r.X+2, r.Y+6+i, r.W-4, line, cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+6+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
 }
 func (m *Model) homeClash(f *Frame, r Rect) {
@@ -268,7 +268,7 @@ func (m *Model) homeClash(f *Frame, r Rect) {
 	}
 	lines := []string{"Core Version: " + version, "System Proxy Address: " + address, "Mixed Port: " + strconv.Itoa(m.View.Settings.MixedPort), "Uptime: " + uptime, "Rules Count: " + rules}
 	for i, line := range lines {
-		f.Line(r.X+2, r.Y+3+i, r.W-4, line, cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+3+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
 	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, "Core Version", app.Action{Kind: "cores"}, false)
 }
@@ -286,7 +286,7 @@ func (m *Model) homeSystem(f *Frame, r Rect) {
 	}
 	lines := []string{"OS Info: " + m.View.OS, "Auto Launch: service controlled", "Running Mode: " + mode, "Last Check Update: -", "TUI Version: " + m.View.Version}
 	for i, line := range lines {
-		f.Line(r.X+2, r.Y+3+i, r.W-4, line, cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+3+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
 	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, "Auto Launch", app.Action{Kind: "service-info"}, false)
 }
@@ -305,7 +305,7 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 		} else if !m.View.Online {
 			message = "Core temporarily unavailable"
 		}
-		f.Line(x+2, y+2, width-4, message, baseStyle.Foreground(muted))
+		f.Line(x+2, y+2, width-4, message, f.Theme.Base.Foreground(f.Theme.Muted))
 		f.Button(Rect{x + 2, y + 5, 23, 1}, "Go to Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
 		return y + 8
 	}
@@ -331,7 +331,7 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 			f.Button(Rect{x + 1, y + 1, max(10, width-31), 1}, arrow+" "+g.Name+" · "+g.Type, app.Action{Kind: "collapse", ID: g.Name}, false)
 			f.Button(Rect{x + width - 30, y + 1, 16, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name}, false)
 			f.Button(Rect{x + width - 14, y + 1, 13, 1}, "Test URL", app.Action{Kind: "test-url", ID: g.Name}, false)
-			f.Line(x+2, y+2, width-4, fmt.Sprintf("%d nodes  ·  Selected: %s", len(g.All), g.Now), cardStyle.Foreground(muted))
+			f.Line(x+2, y+2, width-4, fmt.Sprintf("%d nodes  ·  Selected: %s", len(g.All), g.Now), f.Theme.Card.Foreground(f.Theme.Muted))
 			if !m.Collapsed[g.Name] {
 				for i, name := range g.All {
 					nx, ny := x+(i%cols)*(cw+2)+1, y+4+(i/cols)*4
@@ -344,7 +344,7 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 						mark = "● "
 					}
 					f.Button(Rect{nx, ny, cw - 2, 1}, mark+name, app.Action{Kind: "node-select", ID: g.Name, Node: name}, name == g.Now)
-					f.Line(nx+1, ny+1, max(1, cw-17), node.Type, cardStyle.Foreground(muted))
+					f.Line(nx+1, ny+1, max(1, cw-17), node.Type, f.Theme.Card.Foreground(f.Theme.Muted))
 					f.DelayButton(Rect{nx + cw - 16, ny + 1, 14, 1}, m.delayLabel(node), app.Action{Kind: "delay", ID: g.Name, Node: name}, m.delayColor(node))
 				}
 			}
@@ -374,7 +374,7 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 	f.Button(Rect{buttonX + 11, buttonY, 8, 1}, "New", app.Action{Kind: "new"}, false)
 	y = buttonY + 3
 	if len(m.View.Settings.Profiles) == 0 {
-		f.Line(x+2, y+2, width-4, "Click to import subscription", baseStyle.Foreground(muted))
+		f.Line(x+2, y+2, width-4, "Click to import subscription", f.Theme.Base.Foreground(f.Theme.Muted))
 		return y + 5
 	}
 	f.Clip = Rect{x, y, width, max(0, f.H-y-2)}
@@ -395,9 +395,9 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 		if p.ID == m.View.Settings.Current {
 			mark = "● "
 		}
-		f.Line(r.X+2, r.Y+1, r.W-17, mark+p.Name, cardStyle.Foreground(accent).Bold(true))
+		f.Line(r.X+2, r.Y+1, r.W-17, mark+p.Name, f.Theme.Card.Foreground(f.Theme.Accent).Bold(true))
 		f.Button(Rect{r.X + r.W - 14, r.Y + 1, 12, 1}, "Options", app.Action{Kind: "profile-menu", ID: p.ID}, false)
-		f.Line(r.X+2, r.Y+3, r.W-4, strings.ToUpper(p.Type), cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+3, r.W-4, strings.ToUpper(p.Type), f.Theme.Card.Foreground(f.Theme.Muted))
 		source := p.Description
 		if source == "" {
 			source = "Local YAML"
@@ -405,8 +405,8 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 				source = u.Host
 			}
 		}
-		f.Line(r.X+2, r.Y+4, r.W-4, source, cardStyle.Foreground(muted))
-		f.Line(r.X+2, r.Y+5, r.W-4, p.Updated.Local().Format("2006-01-02 15:04"), cardStyle.Foreground(muted))
+		f.Line(r.X+2, r.Y+4, r.W-4, source, f.Theme.Card.Foreground(f.Theme.Muted))
+		f.Line(r.X+2, r.Y+5, r.W-4, p.Updated.Local().Format("2006-01-02 15:04"), f.Theme.Card.Foreground(f.Theme.Muted))
 		f.Button(Rect{r.X + 2, r.Y + 7, 12, 1}, "Select", app.Action{Kind: "profile-select", ID: p.ID}, p.ID == m.View.Settings.Current)
 		if p.Type == "remote" {
 			f.Button(Rect{r.X + 15, r.Y + 7, r.W - 17, 1}, "Update", app.Action{Kind: "profile-update", ID: p.ID}, false)
@@ -415,15 +415,15 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 	return y + ((len(m.View.Settings.Profiles)+cols-1)/cols)*10 - 1
 }
 func (m *Model) input(f *Frame, r Rect, placeholder, value, id string) {
-	s := cardStyle.Foreground(text)
+	s := f.Theme.Card.Foreground(f.Theme.Text)
 	focused := f.Focus == Key(app.Action{Kind: "input", ID: id})
 	if focused {
-		s = cardStyle.Reverse(true)
+		s = f.Theme.Card.Reverse(true)
 	}
 	f.Fill(r, s)
 	if value == "" {
 		value = placeholder
-		s = s.Foreground(muted)
+		s = s.Foreground(f.Theme.Muted)
 	}
 	caret, cursorText := -1, " "
 	if focused && m.Input() != nil {
@@ -481,17 +481,17 @@ func (m *Model) modal(f *Frame) {
 		if isLocal && field.Key == "source" {
 			label = "YAML File (optional)"
 		}
-		f.Line(r.X+2, y, r.W-4, label, cardStyle.Foreground(muted))
+		f.Line(r.X+2, y, r.W-4, label, f.Theme.Card.Foreground(f.Theme.Muted))
 		y++
 		if m.fieldDisabled(field.Key) {
-			f.Line(r.X+3, y, r.W-6, field.Text, cardStyle.Foreground(muted))
+			f.Line(r.X+3, y, r.W-6, field.Text, f.Theme.Card.Foreground(f.Theme.Muted))
 		} else {
-			m.input(f, Rect{r.X + 2, y, r.W - 4, 1}, label, field.Text, field.Key)
+			m.input(f, Rect{r.X + 2, y, r.W - 4, 1}, label, m.optionLabel(field), field.Key)
 		}
 		y++
 	}
 	for i, line := range modal.Body {
-		f.Line(r.X+2, y+i, r.W-4, line, cardStyle.Foreground(muted))
+		f.Line(r.X+2, y+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
 	y += len(modal.Body)
 	for i, choice := range modal.Choices {

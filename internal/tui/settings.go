@@ -33,12 +33,6 @@ func booleanField(key, label string, value bool) Field {
 
 func (m *Model) applyPreferences() {
 	m.Dark = darkTerminal()
-	switch m.View.Preferences.Theme {
-	case "light":
-		m.Dark = false
-	case "dark":
-		m.Dark = true
-	}
 }
 
 func (m *Model) delayTimeout() int {
@@ -94,7 +88,7 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 		}},
 		{"Verge Basic Setting", []settingRow{
 			{"Language", "English", app.Action{}},
-			{"Theme Mode", p.Theme, edit("theme")},
+			{"Theme", themeLabel(p.Theme), edit("theme")},
 			{"Proxy Environment", "View / Copy", app.Action{Kind: "environment"}},
 			{"Start Page", p.StartPage, edit("start-page")},
 			{"Proxy Layout Columns", columns, edit("misc")},
@@ -117,14 +111,14 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 		f.Box(Rect{sx, sy, sw, height}, section.title)
 		for i, row := range section.rows {
 			r := Rect{sx + 2, sy + 3 + i*2, sw - 4, 1}
-			style := cardStyle
+			style := f.Theme.Card
 			if row.action.Kind != "" && f.Focus == Key(row.action) {
 				style = style.Reverse(true).Bold(true)
 			}
 			f.Fill(r, style)
 			valueWidth := min(16, max(10, r.W/3))
 			f.Line(r.X, r.Y, r.W-valueWidth-1, row.label, style)
-			f.Line(r.X+r.W-valueWidth, r.Y, valueWidth, row.value, style.Foreground(accent))
+			f.Line(r.X+r.W-valueWidth, r.Y, valueWidth, row.value, style.Foreground(f.Theme.Accent))
 			if row.action.Kind != "" {
 				f.Add(r, row.action)
 			}
@@ -218,8 +212,8 @@ func (m *Model) settingsForm(section string) {
 		}
 		fields = []Field{optionField("mode", "Enhanced Mode", dns.Mode, "fake-ip", "redir-host"), booleanField("ipv6", "DNS IPv6", dns.IPv6), {Key: "nameservers", Label: "Nameservers (comma separated)", Text: strings.Join(dns.Nameservers, ", ")}, {Key: "default-nameservers", Label: "Default Nameservers (comma separated)", Text: strings.Join(dns.DefaultNameservers, ", ")}, {Key: "fallback", Label: "Fallback Nameservers (comma separated)", Text: strings.Join(dns.Fallback, ", ")}, {Key: "fake-ip-range", Label: "Fake IP Range", Text: dns.FakeIPRange}}
 	case "theme":
-		kind, title = "preferences-save", "Theme Mode"
-		fields = []Field{optionField("theme", "Latency Color Palette", p.Theme, "terminal", "light", "dark")}
+		kind, title = "preferences-save", "Theme"
+		fields = []Field{optionField("theme", "Theme", p.Theme, state.Themes...)}
 	case "start-page":
 		kind, title = "preferences-save", "Start Page"
 		fields = []Field{optionField("start-page", "Start Page", p.StartPage, "home", "proxies", "profiles", "settings")}
@@ -234,7 +228,7 @@ func (m *Model) settingsForm(section string) {
 		m.Modal.Body = []string{"Applies to the active profile. Saving enables DNS Overwrite."}
 	}
 	if section == "theme" {
-		m.Modal.Body = []string{"Text and background continue to use your terminal theme."}
+		m.Modal.Body = []string{"Default Follow Terminal uses your terminal colors. Other themes change the entire interface. Latency colors remain unchanged."}
 	}
 }
 
@@ -277,4 +271,11 @@ func (m *Model) showSettingsView(kind string, body []string) {
 		body = append([]string{"Managed configuration; credentials and provider URLs are redacted."}, body...)
 	}
 	m.Modal, m.Focus = &Modal{Title: title, Body: body}, ""
+}
+
+func (m *Model) optionLabel(field Field) string {
+	if field.Key == "theme" {
+		return themeLabel(field.Text)
+	}
+	return field.Text
 }

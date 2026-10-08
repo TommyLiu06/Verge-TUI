@@ -6,7 +6,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 )
+
+var Themes = []string{"terminal", "dark", "light", "mist-dark", "mist-light", "modern-dark", "modern-light", "vivid-dark", "vivid-light"}
 
 // Preferences belong to the calling user, independently of shared core settings.
 type Preferences struct {
@@ -22,7 +25,7 @@ func DefaultPreferences() Preferences {
 }
 
 func (p Preferences) Validate() error {
-	if p.Theme != "terminal" && p.Theme != "light" && p.Theme != "dark" {
+	if !slices.Contains(Themes, p.Theme) {
 		return errors.New("invalid theme")
 	}
 	if p.StartPage != "home" && p.StartPage != "proxies" && p.StartPage != "profiles" && p.StartPage != "settings" {

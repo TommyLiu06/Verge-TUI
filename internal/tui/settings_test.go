@@ -110,7 +110,7 @@ func TestPreferencesAndDNSFormsCaptureProfileAndStartupPage(t *testing.T) {
 	v.Preferences.Theme = "dark"
 	v.Preferences.DelayTimeout = 12000
 	m.Complete(v, app.Action{Kind: "refresh"}, nil)
-	if m.Tab != 3 || !m.Dark {
+	if m.Tab != 3 || paletteFor(v.Preferences.Theme).Base.GetBackground() == color.Default {
 		t.Fatal("saved startup page or palette not applied")
 	}
 	m.Tab = 1

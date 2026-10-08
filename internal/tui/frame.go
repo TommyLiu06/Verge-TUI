@@ -11,18 +11,6 @@ import (
 	"verge-tui/internal/app"
 )
 
-var (
-	// Leave normal text and every background to the terminal's own theme.
-	// ANSI accents use the user's palette instead of fixed RGB colors.
-	border    = color.Default
-	accent    = color.PaletteColor(5)
-	text      = color.Default
-	muted     = color.Default
-	green     = color.PaletteColor(2)
-	baseStyle = tcell.StyleDefault
-	cardStyle = tcell.StyleDefault
-)
-
 type Rect struct{ X, Y, W, H int }
 
 func (r Rect) Contains(x, y int) bool { return x >= r.X && y >= r.Y && x < r.X+r.W && y < r.Y+r.H }
@@ -47,12 +35,14 @@ type Frame struct {
 	Hits  []Hit
 	Clip  Rect
 	Focus string
+	Theme Palette
 }
 
-func NewFrame(w, h int) *Frame {
-	f := &Frame{W: w, H: h, Cells: make([]Cell, w*h), Clip: Rect{0, 0, w, h}}
+func NewFrame(w, h int) *Frame { return themedFrame(w, h, paletteFor("terminal")) }
+func themedFrame(w, h int, palette Palette) *Frame {
+	f := &Frame{W: w, H: h, Cells: make([]Cell, w*h), Clip: Rect{0, 0, w, h}, Theme: palette}
 	for i := range f.Cells {
-		f.Cells[i] = Cell{" ", baseStyle, 1}
+		f.Cells[i] = Cell{" ", f.Theme.Base, 1}
 	}
 	return f
 }
@@ -93,15 +83,15 @@ func (f *Frame) Fill(r Rect, style tcell.Style) {
 	}
 }
 func (f *Frame) Box(r Rect, title string) {
-	f.Fill(r, cardStyle)
-	s := cardStyle.Foreground(border)
+	f.Fill(r, f.Theme.Card)
+	s := f.Theme.Card.Foreground(f.Theme.Border)
 	f.Put(r.X, r.Y, "╭"+strings.Repeat("─", max(0, r.W-2))+"╮", s)
 	f.Put(r.X, r.Y+r.H-1, "╰"+strings.Repeat("─", max(0, r.W-2))+"╯", s)
 	for y := r.Y + 1; y < r.Y+r.H-1; y++ {
 		f.Put(r.X, y, "│", s)
 		f.Put(r.X+r.W-1, y, "│", s)
 	}
-	f.Line(r.X+2, r.Y+1, r.W-4, title, cardStyle.Bold(true))
+	f.Line(r.X+2, r.Y+1, r.W-4, title, f.Theme.Card.Bold(true))
 }
 func Key(a app.Action) string { return a.Kind + "|" + a.ID + "|" + a.Node + "|" + a.Value }
 func (f *Frame) Add(r Rect, a app.Action) {
@@ -111,12 +101,12 @@ func (f *Frame) Add(r Rect, a app.Action) {
 	}
 }
 func (f *Frame) Button(r Rect, label string, a app.Action, selected bool) {
-	s := cardStyle.Foreground(muted)
+	s := f.Theme.Card.Foreground(f.Theme.Muted)
 	if selected {
-		s = s.Foreground(accent).Bold(true)
+		s = s.Foreground(f.Theme.Accent).Bold(true)
 	}
 	if f.Focus == Key(a) {
-		s = cardStyle.Reverse(true).Bold(true)
+		s = f.Theme.Card.Reverse(true).Bold(true)
 	}
 	f.Fill(r, s)
 	f.Line(r.X+1, r.Y+(r.H-1)/2, r.W-2, "["+label+"]", s)
@@ -124,7 +114,7 @@ func (f *Frame) Button(r Rect, label string, a app.Action, selected bool) {
 }
 
 func (f *Frame) DelayButton(r Rect, label string, a app.Action, foreground color.Color) {
-	s := cardStyle.Foreground(foreground)
+	s := f.Theme.Card.Foreground(foreground)
 	if f.Focus == Key(a) {
 		// Keep the latency foreground visible while focusing the test control.
 		s = s.Underline(true).Bold(true)

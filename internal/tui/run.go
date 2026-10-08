@@ -31,7 +31,7 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 	if err != nil {
 		return err
 	}
-	screen.SetStyle(baseStyle)
+	screen.SetStyle(tcell.StyleDefault)
 	screen.HideCursor()
 	screen.EnableMouse(tcell.MouseButtonEvents)
 	screen.EnablePaste()
