@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -24,6 +25,18 @@ type DelayResult struct {
 // TestDelay bounds both requests and queued results. Progress is called serially
 // as nodes finish, before returning, including for timeouts and failed requests.
 func (b *Backend) TestDelay(ctx context.Context, a Action, progress func(DelayResult)) error {
+	if b.Remote != nil {
+		return b.Remote.Delay(ctx, a, func(data json.RawMessage) error {
+			var update DelayResult
+			if err := json.Unmarshal(data, &update); err != nil {
+				return err
+			}
+			if progress != nil {
+				progress(update)
+			}
+			return nil
+		})
+	}
 	c, err := b.Store.Read()
 	if err != nil {
 		return err

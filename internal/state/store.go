@@ -60,15 +60,23 @@ func Open(root string) (*Store, error) {
 		return nil, err
 	}
 	s := &Store{Root: abs}
+	rootMode := os.FileMode(0700)
+	if c, err := s.Read(); err == nil && c.InstallMode == "system" {
+		rootMode = 0711
+	}
 	for _, dir := range []string{"", "profiles", "cores", "runtime"} {
 		path := filepath.Join(abs, dir)
+		mode := os.FileMode(0700)
+		if dir == "" {
+			mode = rootMode
+		}
 		if info, err := os.Lstat(path); err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir()) {
 			return nil, fmt.Errorf("data directory must be a real directory: %s", path)
 		}
-		if err := os.MkdirAll(path, 0700); err != nil {
+		if err := os.MkdirAll(path, mode); err != nil {
 			return nil, err
 		}
-		if err := os.Chmod(path, 0700); err != nil {
+		if err := os.Chmod(path, mode); err != nil {
 			return nil, err
 		}
 	}

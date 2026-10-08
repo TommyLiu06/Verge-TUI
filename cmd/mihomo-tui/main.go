@@ -13,6 +13,7 @@ import (
 
 	"mihomo-tui/internal/app"
 	"mihomo-tui/internal/core"
+	"mihomo-tui/internal/desktop"
 	"mihomo-tui/internal/geodata"
 	"mihomo-tui/internal/installation"
 	"mihomo-tui/internal/profile"
@@ -22,7 +23,7 @@ import (
 	"mihomo-tui/internal/tui"
 )
 
-const version = "0.1.3"
+const version = "0.1.4"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -49,6 +50,8 @@ func run(args []string) error {
 		fmt.Println(version)
 		return nil
 	}
+	// Commands that only need the shared environment or this user's rc must
+	// never initialize/chmod the administrator's private data directory.
 	// Bundle installation helpers must not initialize or rewrite existing data
 	// while inspecting an installation before the user's confirmation.
 	if len(args) > 0 && args[0] == "installation" {
@@ -113,6 +116,59 @@ func run(args []string) error {
 		fmt.Print(out)
 		return nil
 	}
+	if len(args) > 0 && args[0] == "shell" {
+		abs, err := filepath.Abs(*root)
+		if err != nil {
+			return err
+		}
+		s := &state.Store{Root: abs}
+		if len(args) < 2 {
+			return errors.New("usage: shell install|remove [--rc-file FILE] | shell remove --all")
+		}
+		f := flag.NewFlagSet("shell", flag.ContinueOnError)
+		rc := f.String("rc-file", "", "shell rc path (defaults to the current shell)")
+		all := f.Bool("all", false, "remove all registered users' functions (uninstallation)")
+		if err := f.Parse(args[2:]); err != nil {
+			return err
+		}
+		switch args[1] {
+		case "remove":
+			if *rc != "" {
+				return errors.New("shell remove uses this user's registered rc; --rc-file is only valid for shell install")
+			}
+			if *all {
+				return shellenv.RemoveAll(s, executable)
+			}
+			return shellenv.Remove(s)
+		case "install":
+			if *all {
+				return errors.New("--all is only valid for shell remove")
+			}
+			if *rc == "" {
+				*rc, err = shellenv.CurrentRC()
+				if err != nil {
+					return err
+				}
+			}
+			path, err := shellenv.Register(s, executable, *rc)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Shell functions: mihomo_on, mihomo_off, mihomo_status\nLoad in this shell: . %s\n", shellenv.Quote(path))
+			return nil
+		default:
+			return errors.New("unknown shell command")
+		}
+	}
+	if remote, err := sharedBackend(*root); err != nil {
+		return err
+	} else if remote != nil && len(args) > 0 && args[0] == "desktop-restore" {
+		defer remote.Close(context.Background())
+		return desktop.RestoreUser(context.Background(), remote.Store)
+	} else if remote != nil {
+		defer remote.Close(context.Background())
+		return runShared(args, remote)
+	}
 	s, err := state.Open(*root)
 	if err != nil {
 		return err
@@ -125,32 +181,13 @@ func run(args []string) error {
 	switch args[0] {
 	case "env-file":
 		return shellenv.Write(s)
-	case "shell":
-		if len(args) < 2 {
-			return errors.New("usage: shell install --rc-file FILE | shell remove")
-		}
-		if args[1] == "remove" {
-			return shellenv.Remove(s)
-		}
-		if args[1] != "install" {
-			return errors.New("unknown shell command")
-		}
-		f := flag.NewFlagSet("shell install", flag.ContinueOnError)
-		rc := f.String("rc-file", "", "absolute shell rc path")
-		if err := f.Parse(args[2:]); err != nil {
-			return err
-		}
-		if *rc == "" {
-			return errors.New("shell install requires --rc-file")
-		}
-		path, err := shellenv.Register(s, executable, *rc)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Shell functions: mihomo_on, mihomo_off, mihomo_status\nLoad in this shell: . %s\n", shellenv.Quote(path))
-		return nil
 	case "prepare-uninstall":
-		return app.New(s, version).PrepareUninstall(ctx)
+		if err := app.New(s, version).PrepareUninstall(ctx); err != nil {
+			return err
+		}
+		return desktop.RestoreAll(s, executable)
+	case "desktop-restore":
+		return desktop.RestoreUser(ctx, s)
 	case "tui":
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
@@ -298,17 +335,7 @@ func run(args []string) error {
 	case "run":
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
-		if err := m.Start(ctx); err != nil {
-			return err
-		}
-		defer m.Stop()
-		fmt.Println("Managed core running")
-		select {
-		case <-ctx.Done():
-			return nil
-		case err := <-m.Done():
-			return fmt.Errorf("core stopped unexpectedly: %v", err)
-		}
+		return runManaged(ctx, m, s)
 	case "env":
 		c, err := s.Read()
 		if err != nil {

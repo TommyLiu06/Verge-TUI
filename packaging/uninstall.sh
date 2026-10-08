@@ -98,7 +98,7 @@ fi
 # Check the supervisor lock instead of trusting a stale PID, and restore any
 # GNOME proxy backup before deleting application files or credentials.
 "$app_bin" --data-dir "$prefix/data" prepare-uninstall
-"$app_bin" --data-dir "$prefix/data" shell remove
+"$app_bin" --data-dir "$prefix/data" shell remove --all
 
 if [ -n "$unit_path" ] && [ -f "$unit_path" ]; then
     rm -- "$unit_path"

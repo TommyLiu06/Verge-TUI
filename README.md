@@ -22,7 +22,7 @@ Run the application after importing a core:
 ./bin/mihomo-tui --data-dir "$PWD/.local/dev"
 ```
 
-Select **Start Core**, then open **Profiles** to import a subscription URL or create a local profile. Select the profile before choosing a node on **Proxies**. New local profiles default to DIRECT until you provide proxy configuration. Switching profiles validates and reloads the core. Importing a profile does not select it automatically.
+Select **Start Core**, then open **Profiles** to import a subscription URL or create a local profile. Select the profile before choosing a node on **Proxies**. New local profiles default to DIRECT until you provide proxy configuration. Switching profiles validates and reloads the core. Importing a profile does not select it automatically. Each profile's **Options** menu includes **Delete**, followed by a confirmation. Deleting the selected profile validates and reloads the built-in DIRECT configuration before removing its YAML; a failed switch preserves the profile.
 
 - `1`, `2`, `3`: Home, Proxies, Profiles.
 - `Tab` / `Shift+Tab` or arrows: move focus; `Enter` / `Space`: activate.
@@ -42,11 +42,20 @@ mihomo_status  # Check the core, proxy listener and exported environment separat
 
 Open a new shell or source the rc shown by the installer to load the functions in an existing shell. User-mode `proxy.env` is private and includes proxy credentials; rc files only contain paths. The environment file is refreshed when `configure` changes ports or installation mode. Status output never prints credentials. Clearing environment variables leaves the core and TUN running.
 
+For a system installation, each ordinary user can register or remove the functions in their own current Bash/Zsh rc without sudo:
+
+```sh
+/opt/mihomo-tui/mihomo-tui shell install
+/opt/mihomo-tui/mihomo-tui shell remove
+```
+
+`shell install` prints the rc to source. Use `--rc-file /absolute/path` to override detection. Registrations are kept separately per user. The root installer still registers its own rc; uninstallation removes all registered users' blocks while preserving unrelated settings and file ownership. It runs each user's cleanup with that user's privileges.
+
 The UI is event driven: there are no periodic API requests or redraws while idle. Delay checks use at most four concurrent requests and update each node as its result arrives, with a completed/total counter. Each request has a five-second core timeout. Timeout and error results replace previous latencies, including after the final snapshot reload. Quitting cancels outstanding requests and waits for the workers to exit. Core logs are capped at 2 MiB per start. Traffic charts, connections and monitoring are excluded from this release. Core resource usage still depends on your subscription and mihomo configuration.
 
-**Network Settings** supports GNOME System Proxy through `gsettings` and `dconf`, with a private backup restored when disabled. These host tools and a GNOME session are only required for that switch. On headless servers, use the displayed proxy environment or `eval "$(./mihomo-tui env)"`. User mode requires proxy credentials and keeps the API token private. Both listeners bind to loopback; ports are randomly chosen from 20000–59999 and checked again before startup.
+**Network Settings** supports GNOME System Proxy through `gsettings` and `dconf`, with a private backup restored when disabled. In a shared system installation this switch affects the calling user's GNOME session and keeps a separate backup per user. These host tools and a GNOME session are only required for that switch. On headless servers, use the displayed proxy environment or `eval "$(./mihomo-tui env)"`. User mode requires proxy credentials and keeps the API token private. Both listeners bind to loopback. User-mode ports are randomly chosen from 20000–59999; fresh system installations default to mixed port 7890 and controller API port 9090. Requested ports are checked before creating the installation, and TCP/UDP ports are checked again before startup. Override fresh-install ports with `--mixed-port` and `--api-port`. Updates preserve existing ports.
 
-The core runs either under the TUI or under a systemd service. Quitting the TUI stops a core it started; a service keeps running. User services need an available user systemd manager. Continuing after logout or starting at boot requires lingering enabled by the server administrator. System mode runs with root service privileges, permits TUN and shares the loopback proxy without proxy credentials; the control API remains authenticated. Management of system-mode data requires root.
+The core runs either under the TUI or under a systemd service. Quitting the TUI stops a core it started; a service keeps running. User services need an available user systemd manager. Continuing after logout or starting at boot requires lingering enabled by the server administrator. System mode runs with root service privileges, permits TUN and shares the loopback proxy without proxy credentials; the control API remains authenticated. All local users can run the TUI and manage shared profiles, nodes, delay checks, proxy mode, TUN and managed core versions through a local Unix socket. The service keeps its API secret and private files inaccessible to other users. The service must be running for shared management; only root installs, removes, starts or stops that service. The system TUI's **System Service** button shows the administrative commands. There are no polling loops in the shared management server.
 
 Use **Core** to install or select a managed version. For an offline replacement:
 
@@ -55,7 +64,7 @@ Use **Core** to install or select a managed version. For an offline replacement:
 ./mihomo-tui core use vNEXT
 ```
 
-Stop a service before replacing its selected core, then restart the service. Core downloads use HTTP(S) proxy environment variables and verify the release SHA-256. Subscription downloads use a direct connection. The application stores binaries under `data/cores/<version>/mihomo`; no system-wide mihomo is used.
+In system mode, ordinary users can import and select versions while the service is running. The binary is uploaded from the calling user's file permissions, and selecting a new version restarts the core within the same supervisor. For user services, stop the service before selecting a different core and restart it afterward. Core downloads use HTTP(S) proxy environment variables and verify the release SHA-256. Subscription downloads use a direct connection. The application stores binaries under `data/cores/<version>/mihomo`; no system-wide mihomo is used.
 
 The installer displays the installation mode and checks user systemd availability and lingering before asking for confirmation. It selects a service when a working manager is available. Rerun the same command from a new offline bundle to update an existing installation: its configuration, subscriptions, credentials, core selection and service configuration are preserved. A running service is restarted; a stopped service stays stopped. Failed updates restore the previous application. Use `--no-service` for fresh foreground installations or `--yes` for automation. The included `uninstall.sh` removes the application and its own service, preserves data by default, and supports `--purge` to remove data too.
 

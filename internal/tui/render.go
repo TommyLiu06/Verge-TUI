@@ -40,6 +40,9 @@ func (m *Model) Render(w, h int) *Frame {
 	if m.View.Online {
 		label, kind = "Stop Core", "stop"
 	}
+	if m.View.Settings.InstallMode == "system" && !m.View.Owned {
+		label, kind = "System Service", "service-info"
+	}
 	f.Button(Rect{1, h - 4, side - 2, 2}, label, app.Action{Kind: kind}, false)
 	x, width := side+2, w-side-4
 	title := []string{"Home", "Proxy Groups", "Profiles"}[m.Tab]

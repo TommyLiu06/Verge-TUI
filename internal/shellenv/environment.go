@@ -59,6 +59,9 @@ func Write(s *state.Store) error {
 	mode := os.FileMode(0600)
 	if c.InstallMode == "system" {
 		mode = 0644
+		if err := state.PrepareShared(s); err != nil {
+			return err
+		}
 	}
 	return state.Write(path, []byte(data), mode)
 }

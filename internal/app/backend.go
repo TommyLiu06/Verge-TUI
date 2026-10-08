@@ -13,6 +13,7 @@ import (
 	"mihomo-tui/internal/controller"
 	"mihomo-tui/internal/core"
 	"mihomo-tui/internal/desktop"
+	"mihomo-tui/internal/management"
 	"mihomo-tui/internal/profile"
 	"mihomo-tui/internal/shellenv"
 	"mihomo-tui/internal/state"
@@ -34,12 +35,14 @@ type Action struct {
 	Kind, ID, Node, Value string
 	Profile               state.Profile
 	File                  string
+	Data                  []byte `json:",omitempty"`
 }
 type Backend struct {
 	Store   *state.Store
 	Manager *core.Manager
 	Desktop desktop.GNOME
 	Version string
+	Remote  *management.Client
 }
 
 func New(s *state.Store, version string) *Backend {
@@ -66,6 +69,10 @@ func (b *Backend) PrepareUninstall(ctx context.Context) error {
 	return b.Desktop.Disable(ctx, c)
 }
 func (b *Backend) Close(ctx context.Context) error {
+	if b.Remote != nil {
+		b.Remote.Close()
+		return nil
+	}
 	if !b.Manager.Owned() {
 		return nil
 	}
@@ -95,6 +102,17 @@ func OSInfo() string {
 	return str(u.Sysname[:]) + " " + str(u.Release[:]) + " / " + str(u.Machine[:])
 }
 func (b *Backend) Load(ctx context.Context) (View, error) {
+	if b.Remote != nil {
+		var v View
+		err := b.Remote.Call(ctx, "GET", "/view", nil, &v)
+		if err != nil {
+			v = View{Version: b.Version, OS: OSInfo()}
+			v.Settings, _ = shellenv.ReadFile(shellenv.FilePath(b.Store))
+			v.Settings.Mode = "rule"
+		}
+		v.Desktop = b.Desktop.Read(ctx, v.Settings)
+		return v, err
+	}
 	v := View{OS: OSInfo(), Version: b.Version, Owned: b.Manager.Owned()}
 	c, err := b.Store.Read()
 	if err != nil {
@@ -131,6 +149,9 @@ func (b *Backend) Load(ctx context.Context) (View, error) {
 	return v, err
 }
 func (b *Backend) Execute(ctx context.Context, a Action) error {
+	if b.Remote != nil {
+		return b.executeRemote(ctx, a)
+	}
 	switch a.Kind {
 	case "refresh":
 		return nil
@@ -204,6 +225,10 @@ func (b *Backend) Execute(ctx context.Context, a Action) error {
 	case "profile-new":
 		if a.Profile.Type == "remote" {
 			_, err := profile.Remote(ctx, b.Store, a.Profile)
+			return err
+		}
+		if a.Data != nil {
+			_, err := profile.Add(b.Store, state.Profile{Type: "local", Name: a.Profile.Name, Description: a.Profile.Description}, a.Data)
 			return err
 		}
 		_, err := profile.Local(b.Store, a.Profile.Name, a.Profile.Description, a.File)

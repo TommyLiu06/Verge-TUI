@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"mihomo-tui/internal/controller"
+	"mihomo-tui/internal/management"
 	"mihomo-tui/internal/state"
 )
 
@@ -35,7 +36,15 @@ func Status(ctx context.Context, s *state.Store, environ []string) (string, erro
 	var version struct{ Version string }
 	err = client.Request(ctx, "GET", "/version", nil, &version)
 	if public {
-		if err != nil && strings.Contains(err.Error(), "HTTP 401") {
+		shared := management.NewClient(s)
+		defer shared.Close()
+		var view struct {
+			Online   bool
+			Snapshot controller.Snapshot
+		}
+		if shared.Call(ctx, "GET", "/view", nil, &view) == nil && view.Online {
+			fmt.Fprintf(&out, "Core: running (%s)\nProxy mode: %s\nTUN: %t\n", view.Snapshot.Version, view.Snapshot.Config.Mode, view.Snapshot.Config.Tun.Enable)
+		} else if err != nil && strings.Contains(err.Error(), "HTTP 401") {
 			out.WriteString("Core: API reachable (administrator authentication required)\n")
 		} else {
 			out.WriteString("Core: private API status unavailable to this user\n")

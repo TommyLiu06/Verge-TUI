@@ -5,8 +5,8 @@ The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo c
 Extract the archive, enter its directory and install:
 
 ```sh
-tar -xzf mihomo-tui-0.1.3-linux-amd64.tar.gz
-cd mihomo-tui-0.1.3-linux-amd64
+tar -xzf mihomo-tui-0.1.4-linux-amd64.tar.gz
+cd mihomo-tui-0.1.4-linux-amd64
 sh install.sh --prefix "$HOME/.local/share/mihomo-tui" --mode user
 "$HOME/.local/share/mihomo-tui/mihomo-tui"
 ```
@@ -30,10 +30,14 @@ For system mode and TUN:
 
 ```sh
 sudo sh install.sh --prefix /opt/mihomo-tui --mode system --service
-sudo /opt/mihomo-tui/mihomo-tui
+/opt/mihomo-tui/mihomo-tui
 ```
 
-System mode requires root and a system service. Its unit is written to `/etc/systemd/system/mihomo-tui.service`. Enable **TUN Mode** on Home after selecting your subscription. The unit grants network administration capabilities; actual TUN availability depends on the host kernel and container permissions. All local users can connect to `127.0.0.1:<mixed-port>` without proxy credentials, while only root manages this installation and its authenticated API. Run `sudo /opt/mihomo-tui/mihomo-tui status` to see the selected ports without exposing the API secret.
+System installation and service management require root. The unit is written to `/etc/systemd/system/mihomo-tui.service`. Ordinary users can launch the TUI and manage shared subscriptions, profiles, nodes, delay tests, proxy mode, TUN and core versions while the service is running. These operations use a local Unix socket owned by the root service, without exposing its controller API token. Closing an ordinary user's TUI leaves the service running. Enable **TUN Mode** on Home after selecting your subscription. The unit grants network administration capabilities; actual TUN availability depends on the host kernel and container permissions. All local users can connect to `127.0.0.1:<mixed-port>` without proxy credentials. `mihomo-tui status` reports ports without printing the API secret.
+
+Fresh system installations default to **7890** for HTTP/SOCKS proxy traffic and **9090** for the authenticated, loopback-only mihomo controller API. The shared TUI interface does not reserve another TCP port. Requested ports are checked before creating the installation; conflicts stop installation and leave the destination untouched. Use `--mixed-port PORT --api-port PORT` to override them. Fresh user installations retain random high ports unless explicitly overridden. Updating an installation preserves its current ports. Changing existing ports requires stopping the service first, then running `configure` and restarting it.
+
+System settings, subscriptions and core files remain private. The data directory permits search access to its deliberately shared subdirectory, with a Unix socket and sticky directories containing private per-user shell registrations and desktop backups. The socket pathname must fit Linux's 107-byte Unix socket limit; use a shorter system installation prefix if the service reports this limit.
 
 ## Updating an existing installation
 
@@ -81,7 +85,19 @@ mihomo_off
 
 `mihomo_status` queries the core API, checks the loopback proxy listener and compares each exported environment variable with the current installation. It reports unset, matching, empty and different variables without printing passwords or foreign proxy values. It does not contact an external test site or collect traffic statistics. Unexported shell variables are not visible to child processes.
 
-User-mode env files have mode `0600`; passwords never appear in the rc block. System mode keeps `data/` private while allowing all users to read the credential-free `proxy.env` and execute the TUI binary. A regular user can run `proxy-status` to check the shared listener and their environment, while detailed API status requires the administrator. Under `sudo`, the default rc belongs to the installing account; to register functions for another user, explicitly select their rc with `--rc-file`. Existing rc ownership and permissions are preserved, including symlinked rc files.
+User-mode env files have mode `0600`; passwords never appear in the rc block. System mode permits all users to read the credential-free `proxy.env`, execute the TUI and query shared status. Under `sudo`, the installer still registers the installing account's rc. Each ordinary user can register their own current Bash/Zsh rc without sudo:
+
+```sh
+/opt/mihomo-tui/mihomo-tui shell install
+```
+
+The command detects the current shell (including `ZDOTDIR`) and prints the rc to source. Override detection with `--rc-file /absolute/path`. Open a new shell or source the printed file before invoking the functions. To remove the calling user's registered functions:
+
+```sh
+/opt/mihomo-tui/mihomo-tui shell remove
+```
+
+Registrations are separate for each user; removing your functions leaves other users' rc files alone. Uninstallation removes all registered blocks, running ordinary users' cleanup with their own UID/GID. Existing rc ownership and permissions are preserved, including symlinked rc files. Loaded functions in already-open shells remain until explicitly unset or the shell exits.
 
 Rerunning the installer also adds shell functions to early installations that did not have them. To register functions manually, for example in Zsh:
 
@@ -97,7 +113,7 @@ Registering the same installation twice updates its block instead of duplicating
 eval "$("$HOME/.local/share/mihomo-tui/mihomo-tui" env)"
 ```
 
-These variables include the proxy password. The application does not print them during installation or include credentials in status output. Both installation modes use loopback listeners and select uncommon ports; startup checks TCP and UDP availability. A detected collision stops startup. The prepared env file is regenerated when you choose new ports while the core is stopped:
+User-mode variables include the proxy password. The application does not print them during installation or include credentials in status output. Both installation modes use loopback listeners; startup checks TCP and UDP availability. A detected collision stops startup. The prepared env file is regenerated when you choose new ports while the core is stopped:
 
 ```sh
 ./mihomo-tui configure --install-mode user --mixed-port 43128 --api-port 43129
@@ -112,7 +128,14 @@ systemctl --user stop mihomo-tui.service
 systemctl --user start mihomo-tui.service
 ```
 
-Use `sudo` and omit `--user` for system mode. Imported binaries are checked by executing their version command and validating the current configuration; only import binaries you intend to run.
+For a running system service, ordinary users can instead import an offline core and select it without stopping the service:
+
+```sh
+/opt/mihomo-tui/mihomo-tui core import vNEXT /path/to/mihomo
+/opt/mihomo-tui/mihomo-tui core use vNEXT
+```
+
+The client uploads the file using the calling user's permissions. The service imports it into its managed directory and restarts the core within the same supervisor when selected. The systemd service stays running. Service start/stop and installation/uninstallation still require root. Imported binaries are checked by executing their version command and validating the current configuration; only import binaries you intend to run.
 
 ## Uninstallation
 
@@ -133,7 +156,7 @@ sh "$HOME/.local/share/mihomo-tui/uninstall.sh"
 sudo sh /opt/mihomo-tui/uninstall.sh
 ```
 
-The uninstaller displays the recorded mode, destination, service and data retention policy, then asks for confirmation. Answering no or providing no input cancels without stopping services or changing installation files or rc content. `--yes` skips confirmation for automation. It checks the installation marker and verifies that any service unit belongs to this directory before disabling, stopping and removing it. A foreground core must be stopped by quitting the TUI or terminating its supervisor first. Any GNOME proxy backup is restored and the owned shell rc block is removed before application files are deleted; run from the same GNOME session when such a backup exists. Missing session access, incomplete rc markers or externally changed proxy settings stops uninstallation and preserves application files.
+The uninstaller displays the recorded mode, destination, service and data retention policy, then asks for confirmation. Answering no or providing no input cancels without stopping services or changing installation files or rc content. `--yes` skips confirmation for automation. It checks the installation marker and verifies that any service unit belongs to this directory before disabling, stopping and removing it. A foreground core must be stopped by quitting the TUI or terminating its supervisor first. GNOME proxy backups are restored and all registered users' shell rc blocks are removed before application files are deleted. Each ordinary user's desktop switch affects their own GNOME session and stores a private backup; cleanup runs with that user's UID/GID and the saved session address. Disable System Proxy in the user's TUI first if that GNOME session is no longer available. Missing session access, incomplete rc markers or externally changed proxy settings stops uninstallation and preserves application files.
 
 By default, the program and installed service are removed, while profiles, credentials, managed cores and geography databases remain in `<prefix>/data`. Add `--purge` to remove the entire installation directory, including this data:
 
@@ -165,4 +188,4 @@ sh scripts/package.sh /absolute/path/to/mihomo v1.19.32 /absolute/path/to/geodat
 
 The geodata directory must contain Country.mmdb, GeoIP.dat and GeoSite.dat matching the hashes in `packaging/geodata/manifest.json`. The default directory is `.local/geodata-source`. The source release URLs are moving `latest` URLs; keep the verified snapshot files, or explicitly update the manifest when choosing a newer snapshot. Packaging verifies all hashes and tests all three formats with the supplied core before creating an archive.
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/mihomo-tui-0.1.3-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/mihomo-tui-0.1.4-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
