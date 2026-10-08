@@ -51,41 +51,44 @@ func (b *Backend) preferencesRoot() string {
 	return b.Store.Root
 }
 
+func (b *Backend) ReadPreferences() (state.Preferences, error) {
+	return state.ReadPreferences(b.preferencesRoot())
+}
+
 func (b *Backend) savePreferences(fields map[string]string) error {
-	p, err := state.ReadPreferences(b.preferencesRoot())
-	if err != nil {
-		return err
-	}
-	for key, value := range fields {
-		switch key {
-		case "language":
-			p.Language = value
-		case "theme":
-			p.Theme = value
-		case "start-page":
-			p.StartPage = value
-		case "proxy-columns":
-			p.ProxyColumns, err = strconv.Atoi(value)
-		case "delay-url":
-			p.DelayURL = value
-		case "delay-timeout":
-			p.DelayTimeout, err = strconv.Atoi(value)
-		default:
-			return errors.New("unknown application setting")
-		}
-		if err != nil {
-			return fmt.Errorf("invalid %s", key)
-		}
-	}
-	if err := p.Validate(); err != nil {
-		return err
-	}
 	if b.Remote != nil {
 		if err := desktop.PrepareUser(&state.Store{Root: b.preferencesRoot()}); err != nil {
 			return err
 		}
 	}
-	return state.WritePreferences(b.preferencesRoot(), p)
+	return state.UpdatePreferences(b.preferencesRoot(), func(p *state.Preferences) error {
+		var err error
+		for key, value := range fields {
+			switch key {
+			case "language":
+				p.Language = value
+			case "theme":
+				p.Theme = value
+			case "start-page":
+				p.StartPage = value
+			case "proxy-columns":
+				p.ProxyColumns, err = strconv.Atoi(value)
+			case "delay-url":
+				p.DelayURL = value
+			case "delay-timeout":
+				p.DelayTimeout, err = strconv.Atoi(value)
+			default:
+				return errors.New("unknown application setting")
+			}
+			if err != nil {
+				return fmt.Errorf("invalid %s", key)
+			}
+		}
+		if err := p.Validate(); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (b *Backend) saveSystemProxy(ctx context.Context, fields map[string]string) error {
@@ -142,7 +145,7 @@ func (b *Backend) saveSystemProxy(ctx context.Context, fields map[string]string)
 			return err
 		}
 	}
-	if err := state.WritePreferences(root, next); err != nil {
+	if err := state.UpdatePreferences(root, func(p *state.Preferences) error { p.SystemProxy = next.SystemProxy; return nil }); err != nil {
 		if owned {
 			return errors.Join(err, b.Desktop.Reconfigure(ctx, c, next.SystemProxy, previous.SystemProxy))
 		}

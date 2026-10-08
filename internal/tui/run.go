@@ -6,18 +6,22 @@ import (
 	"sync"
 	"time"
 	"verge-tui/internal/controller"
+	"verge-tui/internal/state"
 
 	"github.com/gdamore/tcell/v3"
 	"verge-tui/internal/app"
 )
 
 type result struct {
-	View   app.View
-	Action app.Action
-	Err    error
-	Delay  *app.DelayResult
-	Body   []string
-	Page   *app.PageData
+	Preferences      *state.Preferences
+	PreferencesEpoch uint64
+	TaskID           uint64
+	View             app.View
+	Action           app.Action
+	Err              error
+	Delay            *app.DelayResult
+	Body             []string
+	Page             *app.PageData
 }
 
 func Run(ctx context.Context, b *app.Backend) (runErr error) {
@@ -40,66 +44,18 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 	screen.EnablePaste()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	jobs := make(chan app.Action, 1)
-	results := make(chan result, app.DelayConcurrency)
-	var worker sync.WaitGroup
-	var shutdownErr error
-	worker.Go(func() {
-		defer func() { shutdownErr = b.Close(context.Background()) }()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case action := <-jobs:
-				var err error
-				var body []string
-				var page *app.PageData
-				if action.Kind == "profile-info" || action.Kind == "profile-file" || action.Kind == "page-refresh" {
-					kind := action.Kind
-					id := action.ID
-					if action.Kind == "page-refresh" {
-						kind = action.ID
-						id = ""
-					}
-					data, e := b.ReadPage(ctx, kind, id)
-					err = e
-					page = &data
-				} else if action.Kind == "delay" {
-					err = b.TestDelay(ctx, action, func(update app.DelayResult) {
-						select {
-						case results <- result{Delay: &update}:
-						case <-ctx.Done():
-						}
-					})
-				} else if action.Kind == "settings-view" {
-					body, err = b.Inspect(ctx, action.ID)
-				} else {
-					err = b.Execute(ctx, action)
-				}
-				var view app.View
-				if page == nil {
-					var loadErr error
-					view, loadErr = b.Load(ctx)
-					err = errors.Join(err, loadErr)
-					if action.Kind == "provider-update" || action.Kind == "providers-update" {
-						data, e := b.ReadPage(ctx, "rules", "")
-						page = &data
-						err = errors.Join(err, e)
-					}
-				}
-				select {
-				case results <- result{View: view, Action: action, Err: err, Body: body, Page: page}:
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
-	})
-	defer func() { cancel(); worker.Wait(); runErr = errors.Join(runErr, shutdownErr) }()
+	runner := newTaskRunner(ctx, b)
+	defer func() {
+		cancel()
+		runner.cancelDelay()
+		runner.workers.Wait()
+		runErr = errors.Join(runErr, b.Close(context.Background()))
+	}()
 	m := New(app.View{Version: b.Version})
-	m.Busy = true
+	initial := app.Action{Kind: "refresh"}
+	m.beginTask(initial)
 	m.Message = "Loading"
-	jobs <- app.Action{Kind: "refresh"}
+	runner.submit(initial)
 	updates := make(chan pageUpdate, 128)
 	var watchers sync.WaitGroup
 	var stopPage context.CancelFunc
@@ -171,12 +127,15 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 			}
 			m.AppendLogs(pendingLogs)
 			pendingLogs = nil
-		case done := <-results:
+		case done := <-runner.results:
+			if (done.Delay != nil || done.Action.Kind == "delay") && done.TaskID != runner.DelayID {
+				continue
+			}
 			if done.Delay != nil {
 				m.ApplyDelay(*done.Delay)
 			} else {
 				if done.Page != nil && (done.Action.Kind == "profile-info" || done.Action.Kind == "profile-file" || done.Action.Kind == "page-refresh") {
-					m.Busy = false
+					m.finishTask(done.Action)
 					if done.Action.Kind == "page-refresh" {
 						for _, p := range navigation {
 							if p.Kind == done.Action.ID && p.Tab >= 4 {
@@ -190,7 +149,13 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 						m.Modal = &Modal{Title: "Action Failed", Body: []string{done.Err.Error()}}
 					}
 				} else {
-					m.Complete(done.View, done.Action, done.Err)
+					m.completeTask(done)
+					if done.Action.Kind == "delay" {
+						runner.cancelDelay()
+					}
+					if !m.DelayActive && runner.DelayID != 0 {
+						runner.cancelDelay()
+					}
 					if done.Page != nil {
 						m.applyPage(5, *done.Page, done.Err)
 					}
@@ -234,10 +199,14 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 					}
 				}
 			}
-			if action := m.Handle(ev); action != nil && !m.Busy {
-				m.Busy = true
-				m.Message = action.Kind
-				jobs <- *action
+			if action := m.Handle(ev); action != nil {
+				if invalidatesDelay(*action, m.View) {
+					runner.cancelDelay()
+					m.cancelDelay()
+				}
+				if m.beginTask(*action) {
+					runner.submit(*action)
+				}
 			}
 		}
 		syncPage()

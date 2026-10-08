@@ -84,6 +84,9 @@ func (m *Model) Render(w, h int) *Frame {
 	}
 	f.Clip = Rect{0, 0, w, h}
 	status := m.tr(m.Message)
+	if m.DelayActive && m.DelayMessage != "" && m.Message != m.DelayMessage {
+		status += " | " + m.tr(m.DelayMessage)
+	}
 	if m.Busy {
 		status = m.tr("Working…  ") + status
 	}

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+
+	"golang.org/x/sys/unix"
 	"verge-tui/internal/i18n"
 )
 
@@ -76,4 +78,26 @@ func WritePreferences(root string, p Preferences) error {
 		return err
 	}
 	return Write(filepath.Join(root, "preferences.json"), append(data, '\n'), 0600)
+}
+
+// Keep independent UI and desktop preference changes from overwriting each
+// other. Only the small read/modify/write operation holds this private lock.
+func UpdatePreferences(root string, update func(*Preferences) error) error {
+	f, err := os.OpenFile(filepath.Join(root, "preferences.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
+		return err
+	}
+	defer unix.Flock(int(f.Fd()), unix.LOCK_UN)
+	p, err := ReadPreferences(root)
+	if err != nil {
+		return err
+	}
+	if err := update(&p); err != nil {
+		return err
+	}
+	return WritePreferences(root, p)
 }

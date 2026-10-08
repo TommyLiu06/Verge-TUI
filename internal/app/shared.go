@@ -192,8 +192,8 @@ func (b *Backend) SharedHandlers(mu *sync.RWMutex) management.Handlers {
 			if a.Kind != "delay" {
 				return errors.New("expected delay action")
 			}
-			mu.RLock()
-			defer mu.RUnlock()
+			// TestDelay uses a settings snapshot and its own HTTP client; holding
+			// the supervisor lock for network probes would block all mutations.
 			return b.TestDelay(ctx, a, func(update DelayResult) { progress(update) })
 		},
 	}

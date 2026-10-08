@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"verge-tui/internal/controller"
 	"verge-tui/internal/management"
@@ -34,6 +35,53 @@ func shortenStore(t *testing.T, s *state.Store) {
 		t.Fatal(err)
 	}
 	s.Root = path
+}
+
+func TestSharedDelayDoesNotLockConfigurationChanges(t *testing.T) {
+	started := make(chan struct{}, 1)
+	b := delayBackend(t, []string{"Node"}, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/delay") {
+			started <- struct{}{}
+			<-r.Context().Done()
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	shortenStore(t, b.Store)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var mu sync.RWMutex
+	server, err := management.Serve(ctx, b.Store, b.SharedHandlers(&mu))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { cancel(); server.Close() }()
+	remote := NewRemote(b.Store, "test")
+	defer remote.Remote.Close()
+	delayCtx, stopDelay := context.WithCancel(ctx)
+	defer stopDelay()
+	finished := make(chan error, 1)
+	go func() { finished <- remote.TestDelay(delayCtx, Action{Kind: "delay", ID: "Proxy", Node: "Node"}, nil) }()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("delay did not start")
+	}
+	changeCtx, stopChange := context.WithTimeout(ctx, 2*time.Second)
+	defer stopChange()
+	if err := remote.Execute(changeCtx, Action{Kind: "mode", Value: "direct"}); err != nil {
+		t.Fatal("delay blocked configuration update", err)
+	}
+	c, err := b.Store.Read()
+	if err != nil || c.Mode != "direct" {
+		t.Fatal("mode change did not take effect before test finished", err)
+	}
+	stopDelay()
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("delay did not cancel")
+	}
 }
 
 func TestSharedTUIManagesProfilesNodesAndDelayWithoutToken(t *testing.T) {

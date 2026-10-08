@@ -192,7 +192,7 @@ func (m *Model) settingsAction(a app.Action) (bool, *app.Action) {
 			m.Message = "Select a profile before configuring DNS"
 			return true, nil
 		}
-		if !m.Busy {
+		if m.canRun(a) {
 			m.Modal, m.Focus = nil, ""
 			return true, &a
 		}

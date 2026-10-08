@@ -35,6 +35,11 @@ type Modal struct {
 	ParentFocus        string
 }
 type Model struct {
+	PreferencesEpoch  uint64
+	Tasks             map[string]app.Action
+	DelayActive       bool
+	DelayMessage      string
+	Latencies         map[string]app.DelayResult
 	SearchError       [7]string
 	HiddenColumns     map[string]bool
 	TableSort         string
@@ -397,7 +402,7 @@ func (m *Model) Activate(a app.Action) *app.Action {
 	case "collapse":
 		m.Collapsed[a.ID] = !m.Collapsed[a.ID]
 	case "import":
-		if !m.Busy && strings.TrimSpace(m.URL) != "" {
+		if strings.TrimSpace(m.URL) != "" && m.canRun(app.Action{Kind: "profile-import"}) {
 			return &app.Action{Kind: "profile-import", Profile: state.Profile{URL: strings.TrimSpace(m.URL)}}
 		}
 	case "submit":
@@ -448,7 +453,7 @@ func (m *Model) Activate(a app.Action) *app.Action {
 	case "copy-environment":
 		m.Message = "Proxy environment copied to clipboard"
 	default:
-		if !m.Busy {
+		if m.canRun(a) {
 			m.Modal = nil
 			m.Focus = ""
 			if a.Kind == "delay" {
@@ -477,7 +482,7 @@ func (m *Model) newProfile() {
 	m.Focus = Key(app.Action{Kind: "input", ID: "type"})
 }
 func (m *Model) submit() *app.Action {
-	if m.Modal == nil || m.Busy {
+	if m.Modal == nil {
 		return nil
 	}
 	if m.Modal.List {
@@ -491,6 +496,17 @@ func (m *Model) submit() *app.Action {
 	values := map[string]string{}
 	for _, f := range m.Modal.Fields {
 		values[f.Key] = strings.TrimSpace(f.Text)
+	}
+	target := app.Action{Kind: m.Modal.Kind, ID: m.Modal.Section, Node: m.Modal.ProfileID}
+	if target.Kind == "profile-info-save" {
+		target.ID = m.Modal.ProfileID
+	}
+	if target.Kind == "core-import" {
+		target.ID = values["id"]
+		target.Node = ""
+	}
+	if target.Kind != "test-url" && !m.canRun(target) {
+		return nil
 	}
 	switch m.Modal.Kind {
 	case "profile-info-save":
@@ -537,8 +553,20 @@ func (m *Model) submit() *app.Action {
 	return nil
 }
 func (m *Model) Complete(v app.View, a app.Action, err error) {
-	m.Busy = false
-	m.View = v
+	m.finishTask(a)
+	if a.Kind == "delay" {
+		m.DelayActive = false
+		m.DelayMessage = ""
+	} else {
+		if v.Settings.Current != m.View.Settings.Current || v.Settings.Core != m.View.Settings.Core || err == nil && invalidatesDelay(a, m.View) {
+			m.cancelDelay()
+			m.Latencies = nil
+		}
+		m.View = v
+	}
+	for _, update := range m.Latencies {
+		m.setDelay(update)
+	}
 	m.applyPreferences()
 	if !m.Loaded && a.Kind == "refresh" && err == nil {
 		for _, page := range navigation {
@@ -548,14 +576,9 @@ func (m *Model) Complete(v app.View, a app.Action, err error) {
 		}
 		m.Loaded = true
 	}
-	// The core may keep an older history after a failed health check. Retain the
-	// actual results of this batch when the completion snapshot is loaded.
 	if a.Kind == "delay" {
-		for _, update := range m.Delays {
-			m.setDelay(update)
-		}
+		m.Delays = nil
 	}
-	m.Delays = nil
 	if err != nil {
 		m.Message = "Error: " + err.Error()
 		if a.Kind == "profile-file-save" {
@@ -612,8 +635,15 @@ func (m *Model) ApplyDelay(update app.DelayResult) {
 		m.Delays = make(map[string]app.DelayResult)
 	}
 	m.Delays[update.Name] = update
+	if m.Latencies == nil {
+		m.Latencies = make(map[string]app.DelayResult)
+	}
+	m.Latencies[update.Name] = update
 	m.setDelay(update)
-	m.Message = fmt.Sprintf("Delay check: %d/%d", update.Done, update.Total)
+	m.DelayMessage = fmt.Sprintf("Delay check: %d/%d", update.Done, update.Total)
+	if len(m.Tasks) <= 1 {
+		m.Message = m.DelayMessage
+	}
 }
 func bytesString(n uint64) string {
 	units := []string{"B", "KiB", "MiB", "GiB", "TiB"}

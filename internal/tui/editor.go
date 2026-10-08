@@ -148,7 +148,7 @@ func columnByte(line string, column int) int {
 	return pos
 }
 func (m *Model) saveEditor() *app.Action {
-	if m.Editor == nil || m.Busy {
+	if m.Editor == nil || !m.canRun(app.Action{Kind: "profile-file-save"}) {
 		return nil
 	}
 	e := m.Editor
