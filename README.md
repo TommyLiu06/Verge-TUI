@@ -30,6 +30,8 @@ Select **Start Core**, then open **Profiles** to import a subscription URL or cr
 - `F1` / `?`: shortcut help; `Esc`: close a dialog or return from help.
 - `r`: refresh; `n`: new profile; `i`: focus the import field; `q`: quit.
 - Mouse: select cards and controls, scroll pages and choice dialogs. Wheel scrolling clears keyboard focus, including at scroll boundaries; click or press `Tab` to focus again.
+
+The TUI requests mouse reporting and temporarily disables xterm alternate-scroll mode, which can translate the wheel into arrow keys. The previous mode is restored on exit. If a terminal still sends arrow keys for the wheel, enable its mouse reporting: identical arrow-key input cannot reliably be distinguished from a physical keyboard. In MobaXterm, check the terminal mouse reporting settings.
 - Text fields: paste, arrows and `Home` / `End` to move the cursor, `Backspace` / `Delete` to edit, `Ctrl+U` to clear, `Ctrl+W` to delete a word. `Ctrl+S` saves a dialog.
 
 The installer creates `<prefix>/proxy.env` and adds three functions to your Bash or Zsh rc:

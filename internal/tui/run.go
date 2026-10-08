@@ -25,6 +25,11 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 		return err
 	}
 	defer screen.Fini()
+	restoreWheel, err := prepareWheel(screen)
+	defer func() { runErr = errors.Join(runErr, restoreWheel()) }()
+	if err != nil {
+		return err
+	}
 	screen.SetStyle(baseStyle)
 	screen.HideCursor()
 	screen.EnableMouse(tcell.MouseButtonEvents)
@@ -87,7 +92,7 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 			if e, ok := ev.(*tcell.EventError); ok {
 				return e
 			}
-			if mouse, ok := ev.(*tcell.EventMouse); ok && mouse.Buttons()&tcell.Button1 != 0 && !m.MouseDown && m.Frame != nil {
+			if mouse, ok := ev.(*tcell.EventMouse); ok && mouse.Buttons()&mouseWheelMask == 0 && mouse.Buttons()&tcell.Button1 != 0 && !m.MouseDown && m.Frame != nil {
 				x, y := mouse.Position()
 				for i := len(m.Frame.Hits) - 1; i >= 0; i-- {
 					hit := m.Frame.Hits[i]

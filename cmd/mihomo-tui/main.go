@@ -23,7 +23,7 @@ import (
 	"mihomo-tui/internal/tui"
 )
 
-const version = "0.1.5"
+const version = "0.1.6"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {

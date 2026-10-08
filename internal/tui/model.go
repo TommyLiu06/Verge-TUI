@@ -11,6 +11,8 @@ import (
 	"mihomo-tui/internal/state"
 )
 
+const mouseWheelMask = tcell.WheelDown | tcell.WheelUp | tcell.WheelLeft | tcell.WheelRight
+
 type Field struct {
 	Key, Label, Text string
 	Options          []string
@@ -118,15 +120,18 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 	case *tcell.EventMouse:
 		x, y := e.Position()
 		buttons := e.Buttons()
-		if buttons&(tcell.WheelDown|tcell.WheelUp|tcell.WheelLeft|tcell.WheelRight) != 0 {
+		if buttons&mouseWheelMask != 0 {
 			m.Focus = ""
-		}
-		if buttons&tcell.WheelDown != 0 {
-			m.scroll(3)
-			return nil
-		}
-		if buttons&tcell.WheelUp != 0 {
-			m.scroll(-3)
+			m.HelpFocus = ""
+			m.MouseDown = buttons&tcell.Button1 != 0
+			switch {
+			case buttons&tcell.WheelDown != 0:
+				m.scroll(3)
+			case buttons&tcell.WheelUp != 0:
+				m.scroll(-3)
+			}
+			// Wheel packets can include held buttons. Never interpret them as
+			// clicks, even for horizontal wheels or at a scroll boundary.
 			return nil
 		}
 		pressed := buttons&tcell.Button1 != 0
