@@ -127,7 +127,7 @@ func run(args []string) error {
 		}
 		s := &state.Store{Root: abs}
 		if len(args) < 2 {
-			return errors.New("usage: shell install|remove [--rc-file FILE] | shell remove --all")
+			return errors.New("usage: shell install [--rc-file FILE] | shell uninstall [--all]")
 		}
 		f := flag.NewFlagSet("shell", flag.ContinueOnError)
 		rc := f.String("rc-file", "", "shell rc path (defaults to the current shell)")
@@ -136,9 +136,9 @@ func run(args []string) error {
 			return err
 		}
 		switch args[1] {
-		case "remove":
+		case "uninstall", "remove":
 			if *rc != "" {
-				return errors.New("shell remove uses this user's registered rc; --rc-file is only valid for shell install")
+				return errors.New("shell uninstall uses this user's registered rc; --rc-file is only valid for shell install")
 			}
 			if *all {
 				return shellenv.RemoveAll(s, executable)
@@ -146,7 +146,7 @@ func run(args []string) error {
 			return shellenv.Remove(s)
 		case "install":
 			if *all {
-				return errors.New("--all is only valid for shell remove")
+				return errors.New("--all is only valid for shell uninstall")
 			}
 			if *rc == "" {
 				*rc, err = shellenv.CurrentRC()

@@ -94,7 +94,7 @@ User-mode env files have mode `0600`; passwords never appear in the rc block. Sy
 The command detects the current shell (including `ZDOTDIR`) and prints the rc to source. Override detection with `--rc-file /absolute/path`. Open a new shell or source the printed file before invoking the functions. To remove the calling user's registered functions:
 
 ```sh
-/opt/verge-tui/verge-tui shell remove
+/opt/verge-tui/verge-tui shell uninstall
 ```
 
 Registrations are separate for each user; removing your functions leaves other users' rc files alone. Uninstallation removes all registered blocks, running ordinary users' cleanup with their own UID/GID. Existing rc ownership and permissions are preserved, including symlinked rc files. Loaded functions in already-open shells remain until explicitly unset or the shell exits.

@@ -229,7 +229,7 @@ func removeAt(s *state.Store, metaPath string) error {
 // process running as that user, so root never edits an untrusted rc path.
 func RemoveAll(s *state.Store, executable string) error {
 	return removeAll(s, os.Geteuid(), func(uid, gid uint32) error {
-		cmd := exec.Command(executable, "--data-dir", s.Root, "shell", "remove")
+		cmd := exec.Command(executable, "--data-dir", s.Root, "shell", "uninstall")
 		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uid, Gid: gid}}
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("remove shell functions for uid %d: %w: %s", uid, err, strings.TrimSpace(string(out)))

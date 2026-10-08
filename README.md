@@ -48,7 +48,7 @@ For a system installation, each ordinary user can register or remove the functio
 
 ```sh
 /opt/verge-tui/verge-tui shell install
-/opt/verge-tui/verge-tui shell remove
+/opt/verge-tui/verge-tui shell uninstall
 ```
 
 `shell install` prints the rc to source. Use `--rc-file /absolute/path` to override detection. Registrations are kept separately per user. The root installer still registers its own rc; uninstallation removes all registered users' blocks while preserving unrelated settings and file ownership. It runs each user's cleanup with that user's privileges.
@@ -90,4 +90,4 @@ After uninstalling with data retained, rerun the installer with the same mode an
 
 See [offline installation](docs/offline-installation.md) for self-contained packages, user services, system services and uninstallation. Online script installation is deferred. End users do not need Go.
 
-`verge-tui shell install` also adds its executable directory to PATH in the registered rc block, without duplicating existing entries. Source the rc once to use it in the current shell; new shells load it automatically. `shell remove` and `uninstall.sh` remove the same managed block.
+`verge-tui shell install` also adds its executable directory to PATH in the registered rc block, without duplicating existing entries. Source the rc once to use it in the current shell; new shells load it automatically. `shell uninstall` and `uninstall.sh` remove the same managed block.

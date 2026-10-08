@@ -24,7 +24,7 @@ Commands:
   profile          Import, create, list or select profiles
   env              Print shell exports for the proxy; does not change the parent shell
   env-file         Write proxy.env beside the data directory
-  shell            Install/remove PATH configuration and verge_on/off/status functions
+  shell            Install/uninstall PATH configuration and verge_on/off/status functions
   proxy-status     Show core, proxy listener and current exported environment status
   service          Print a systemd unit; does not install or enable the service
   configure        Configure installation mode and ports while the core is stopped
@@ -50,7 +50,7 @@ Shell integration:
   shell install writes an owned rc block with PATH and verge_on, verge_off, verge_status.
   Source the printed rc path once for this shell; new shells load it automatically.
   verge_on loads proxy.env; verge_off clears proxy variables; verge_status checks status.
-  shell remove and uninstall.sh remove the registered block.
+  shell uninstall and uninstall.sh remove the registered block.
 
 System mode:
   Ordinary users manage shared profiles, nodes, TUN and cores through the running service.
@@ -76,9 +76,9 @@ var helpTopics = map[string]string{
 	"profile delete":             "Usage: verge-tui profile delete ID\n\nCLI deletion is available to system-service clients.\nUse Profile Options > Delete in the TUI for either installation mode.\nDeleting the active profile switches the core to the built-in DIRECT configuration.\n",
 	"env":                        "Usage: verge-tui env\n\nPrint export statements for HTTP/SOCKS proxy environment variables.\nThis command cannot modify its parent shell. Prefer verge_on after shell install.\nFor explicit loading: eval \"$(verge-tui env)\"\nUser-mode exports include proxy credentials.\n",
 	"env-file":                   "Usage: verge-tui env-file\n\nWrite proxy.env beside the application's data directory.\nUser mode uses private permissions and credentials; system mode uses shared loopback access.\n",
-	"shell":                      "Usage: verge-tui shell install [--rc-file FILE]\n       verge-tui shell remove [--all]\n\n  install         Add the executable directory to PATH and install verge_on/off/status.\n  --rc-file FILE  Explicit absolute bash/zsh rc path; default: current shell rc.\n  remove          Remove this user's registered rc block.\n  --all           Remove all registered users' blocks during administrator uninstallation.\n\nRequires a provisioned proxy.env. Repeated installation updates the owned block.\nSource the printed rc path to activate PATH/functions in the current shell.\n",
+	"shell":                      "Usage: verge-tui shell install [--rc-file FILE]\n       verge-tui shell uninstall [--all]\n\n  install         Add the executable directory to PATH and install verge_on/off/status.\n  --rc-file FILE  Explicit absolute bash/zsh rc path; default: current shell rc.\n  uninstall       Remove this user's registered rc block.\n  --all           Remove all registered users' blocks during administrator uninstallation.\n\nInstallation requires a provisioned proxy.env; uninstallation also works without it.\nRepeated installation updates the owned block. remove is an alias for uninstall.\nSource the printed rc path to activate PATH/functions in the current shell.\n",
 	"shell install":              "Usage: verge-tui shell install [--rc-file FILE]\n\nAdd the executable directory to PATH and install verge_on, verge_off, verge_status.\nDefault rc: the detected current user's bash/zsh rc. FILE must be absolute.\nRepeated installation updates one managed block without duplicate PATH entries.\nExample: verge-tui shell install --rc-file \"$HOME/.zshrc\"\nSource the printed rc path once, or open a new shell.\n",
-	"shell remove":               "Usage: verge-tui shell remove [--all]\n\nRemove the registered functions and PATH configuration from rc.\n--all is for administrator uninstallation of every registered user.\nAlready-running shells retain their environment until it is reloaded or restarted.\n",
+	"shell uninstall":            "Usage: verge-tui shell uninstall [--all]\n\nRemove the registered functions and PATH configuration from rc.\n--all is for administrator uninstallation of every registered user.\nAlready-running shells retain their environment until it is reloaded or restarted.\n",
 	"proxy-status":               "Usage: verge-tui proxy-status\n\nReport core/API availability, the proxy listener and exported proxy variables.\nVariables are classified as unset, matching, empty or different; passwords are hidden.\nUnexported parent-shell variables are not visible. No external website is contacted.\n",
 	"service":                    "Usage: verge-tui service [--mode user|system]\n\nPrint a systemd unit for this executable and data directory. Default: user.\nThis command does not install or enable the unit; install.sh handles that.\nUser boot startup depends on user-service/lingering availability.\nSystem service administration requires root.\n",
 	"configure":                  "Usage: verge-tui configure [--install-mode user|system] [--mixed-port PORT] [--api-port PORT]\n\n  --install-mode  Installation mode (default: user); system requires root.\n  --mixed-port    HTTP/SOCKS proxy port; 0 preserves/selects the default.\n  --api-port      Default external-controller port; 0 preserves/selects the default.\n\nStop the core before configuring mode or ports. Port range: 1024–65535.\nFresh system mode defaults: mixed 7890, external controller address 127.0.0.1:9090.\nThe external controller remains disabled until enabled in Settings.\nFresh user mode uses random high ports. Existing ports are preserved by default.\n",
@@ -93,6 +93,7 @@ var helpTopics = map[string]string{
 	"installation check-ports":   "Usage: verge-tui installation check-ports [--mixed-port PORT] [--api-port PORT]\n\nCheck TCP/UDP availability of nonzero requested ports; zero skips that port.\nThe proxy and API ports must differ. Does not create an installation.\n",
 	"installation check-geodata": "Usage: verge-tui installation check-geodata --source-dir DIR --core-file FILE\n\nVerify bundled geography assets and test them using the specified mihomo executable.\n",
 	"installation seed-geodata":  "Usage: verge-tui installation seed-geodata --prefix DIR\n\nProvision bundled geography assets into an installation's runtime directory.\nDIR must be absolute. Valid existing assets are retained.\n",
+	"shell remove":               "Usage: verge-tui shell remove [--all]\n\nAlias for shell uninstall. Removes the registered functions and PATH configuration from rc.\nSee verge-tui shell uninstall --help.\n",
 }
 
 // Help is handled before opening the store or contacting a system service.

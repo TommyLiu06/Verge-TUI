@@ -206,7 +206,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 			rc = resolved
 		}
 		if rc != x.RC {
-			return errors.New("update must keep the registered shell rc; use shell remove before changing it")
+			return errors.New("update must keep the registered shell rc; use shell uninstall before changing it")
 		}
 	}
 	if rc != "" && (!filepath.IsAbs(rc) || strings.ContainsAny(rc, "\r\n\x00")) {

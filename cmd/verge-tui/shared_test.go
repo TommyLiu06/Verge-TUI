@@ -63,12 +63,12 @@ func TestShellCommandsDoNotOpenPrivateSystemSettings(t *testing.T) {
 	if err != nil || !strings.Contains(string(data), "verge_on()") {
 		t.Fatal("current zsh rc was not registered", err)
 	}
-	if err := run([]string{"--data-dir", s.Root, "shell", "remove"}); err != nil {
+	if err := run([]string{"--data-dir", s.Root, "shell", "uninstall"}); err != nil {
 		t.Fatal(err)
 	}
 	data, _ = os.ReadFile(rc)
 	if strings.Contains(string(data), "verge_on") {
-		t.Fatal("shell remove retained functions")
+		t.Fatal("shell uninstall retained functions")
 	}
 	info, _ := os.Stat(settings)
 	if info.Mode().Perm() != 0000 {
