@@ -142,7 +142,10 @@ func (m *Manager) Start(ctx context.Context) error {
 			lock.Close()
 		}
 	}()
-	for _, port := range []int{c.MixedPort, c.APIPort} {
+	for _, port := range []int{c.MixedPort, c.APIPort, c.HTTPPort, c.SOCKSPort} {
+		if port == 0 {
+			continue
+		}
 		if err := state.CheckPort(port); err != nil {
 			return err
 		}
@@ -241,6 +244,7 @@ func (m *Manager) Stop() error {
 }
 func (m *Manager) Apply(ctx context.Context, mutate func(*state.Settings) error) error {
 	return m.Store.Update(func(c *state.Settings) error {
+		previous := *c
 		if err := mutate(c); err != nil {
 			return err
 		}
@@ -254,7 +258,8 @@ func (m *Manager) Apply(ctx context.Context, mutate func(*state.Settings) error)
 		if err := m.Validate(ctx, *c, payload); err != nil {
 			return err
 		}
-		client := controller.New(*c)
+		// Send the reload to the existing controller, even if settings change.
+		client := controller.New(previous)
 		defer client.Close()
 		running, err := Running(m.Store)
 		if err != nil {

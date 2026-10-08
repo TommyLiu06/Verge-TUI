@@ -25,6 +25,10 @@ type DelayResult struct {
 // TestDelay bounds both requests and queued results. Progress is called serially
 // as nodes finish, before returning, including for timeouts and failed requests.
 func (b *Backend) TestDelay(ctx context.Context, a Action, progress func(DelayResult)) error {
+	a, preferencesErr := b.readDelayPreferences(a)
+	if preferencesErr != nil {
+		return preferencesErr
+	}
 	if b.Remote != nil {
 		return b.Remote.Delay(ctx, a, func(data json.RawMessage) error {
 			var update DelayResult
@@ -47,6 +51,7 @@ func (b *Backend) TestDelay(ctx context.Context, a Action, progress func(DelayRe
 	if err != nil {
 		return err
 	}
+	client.HTTP.Timeout = 0 // Delay requests use their own configured deadlines.
 	testURL := a.Value
 	if testURL == "" {
 		testURL = snap.Proxies[a.ID].TestURL
@@ -88,7 +93,7 @@ func (b *Backend) TestDelay(ctx context.Context, a Action, progress func(DelayRe
 				if ctx.Err() != nil {
 					return
 				}
-				delay, err := client.Delay(ctx, names[i], testURL)
+				delay, err := client.DelayWithTimeout(ctx, names[i], testURL, a.DelayTimeout)
 				if err != nil {
 					delay = DelayError
 				}

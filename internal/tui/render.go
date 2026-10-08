@@ -27,15 +27,21 @@ func (m *Model) Render(w, h int) *Frame {
 	f.Fill(Rect{0, 0, side, h - 1}, cardStyle)
 	f.Line(2, 1, side-4, "VERGE TUI", cardStyle.Foreground(accent).Bold(true))
 	f.Line(2, 2, side-4, "v"+m.View.Version, cardStyle.Foreground(muted))
-	for i, name := range []string{"Home", "Proxies", "Profiles"} {
-		f.Button(Rect{1, 5 + i*3, side - 2, 2}, name, app.Action{Kind: "navigate", ID: strconv.Itoa(i)}, m.Tab == i)
+	navStep := 3
+	if h < 25 {
+		navStep = 2
+	}
+	for i, name := range []string{"Home", "Proxies", "Profiles", "Settings"} {
+		f.Button(Rect{1, 5 + i*navStep, side - 2, 2}, name, app.Action{Kind: "navigate", ID: strconv.Itoa(i)}, m.Tab == i)
 	}
 	stateText := "Core Not Running"
 	if m.View.Online {
 		stateText = "Core Running"
 	}
-	f.Line(2, h-7, side-4, stateText, cardStyle.Foreground(muted))
-	f.Line(2, h-6, side-4, m.View.Settings.Core, cardStyle.Foreground(muted))
+	if h >= 25 {
+		f.Line(2, h-7, side-4, stateText, cardStyle.Foreground(muted))
+		f.Line(2, h-6, side-4, m.View.Settings.Core, cardStyle.Foreground(muted))
+	}
 	label, kind := "Start Core", "start"
 	if m.View.Online {
 		label, kind = "Stop Core", "stop"
@@ -45,7 +51,7 @@ func (m *Model) Render(w, h int) *Frame {
 	}
 	f.Button(Rect{1, h - 4, side - 2, 2}, label, app.Action{Kind: kind}, false)
 	x, width := side+2, w-side-4
-	title := []string{"Home", "Proxy Groups", "Profiles"}[m.Tab]
+	title := []string{"Home", "Proxy Groups", "Profiles", "Settings"}[m.Tab]
 	f.Line(x, 1, width-27, title, baseStyle.Bold(true))
 	f.Button(Rect{w - 27, 1, 14, 1}, "Refresh", app.Action{Kind: "refresh"}, false)
 	f.Button(Rect{w - 13, 1, 11, 1}, "Core", app.Action{Kind: "cores"}, false)
@@ -59,6 +65,8 @@ func (m *Model) Render(w, h int) *Frame {
 		bottom = m.proxies(f, x, 5, width)
 	case 2:
 		bottom = m.profiles(f, x, 5, width)
+	case 3:
+		bottom = m.settings(f, x, 5, width)
 	}
 	m.MaxScroll = max(0, bottom+m.Scroll[m.Tab]-(h-2))
 	if m.Scroll[m.Tab] > m.MaxScroll {
@@ -72,7 +80,7 @@ func (m *Model) Render(w, h int) *Frame {
 	}
 	f.Fill(Rect{0, h - 1, w, 1}, cardStyle)
 	f.Line(1, h-1, max(0, w-45), status, cardStyle.Foreground(muted))
-	f.Line(max(1, w-43), h-1, 42, "1/2/3 Pages  Tab Focus  F1 Help  q Quit", cardStyle.Foreground(muted))
+	f.Line(max(1, w-43), h-1, 42, "1/2/3/4 Pages  Tab Focus  F1 Help  q Quit", cardStyle.Foreground(muted))
 	if m.Modal != nil {
 		m.modal(f)
 	}
@@ -164,7 +172,7 @@ func (m *Model) homeNode(f *Frame, r Rect) {
 	}
 	f.Button(Rect{r.X + 2, r.Y + 5, r.W - 4, 1}, "Proxy: "+g.Now, app.Action{Kind: "home-nodes"}, true)
 	node := m.View.Snapshot.Proxies[g.Now]
-	f.Line(r.X+2, r.Y+7, r.W-4, delayLabel(node), cardStyle.Foreground(m.delayColor(node)))
+	f.Line(r.X+2, r.Y+7, r.W-4, m.delayLabel(node), cardStyle.Foreground(m.delayColor(node)))
 	f.Button(Rect{r.X + 2, r.Y + 9, r.W - 4, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name, Node: g.Now}, false)
 }
 func (m *Model) homeNetwork(f *Frame, r Rect) {
@@ -304,6 +312,9 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 	f.Clip = Rect{x, y, width, max(0, f.H-y-2)}
 	y -= m.Scroll[1]
 	cols := max(1, min(3, width/30))
+	if m.View.Preferences.ProxyColumns > 0 {
+		cols = min(m.View.Preferences.ProxyColumns, max(1, width/24))
+	}
 	cw := (width - (cols-1)*2) / cols
 	for _, g := range groups {
 		nodeRows := (len(g.All) + cols - 1) / cols
@@ -334,7 +345,7 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 					}
 					f.Button(Rect{nx, ny, cw - 2, 1}, mark+name, app.Action{Kind: "node-select", ID: g.Name, Node: name}, name == g.Now)
 					f.Line(nx+1, ny+1, max(1, cw-17), node.Type, cardStyle.Foreground(muted))
-					f.DelayButton(Rect{nx + cw - 16, ny + 1, 14, 1}, delayLabel(node), app.Action{Kind: "delay", ID: g.Name, Node: name}, m.delayColor(node))
+					f.DelayButton(Rect{nx + cw - 16, ny + 1, 14, 1}, m.delayLabel(node), app.Action{Kind: "delay", ID: g.Name, Node: name}, m.delayColor(node))
 				}
 			}
 		}

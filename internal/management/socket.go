@@ -108,6 +108,7 @@ func (c *Client) Delay(ctx context.Context, input any, progress func(json.RawMes
 
 type Handlers struct {
 	View       func(context.Context) (any, error)
+	Inspect    func(context.Context, string) (any, error)
 	Action     func(context.Context, json.RawMessage) error
 	Delay      func(context.Context, json.RawMessage, func(any)) error
 	CoreImport func(context.Context, string, string) error
@@ -150,6 +151,19 @@ func Serve(ctx context.Context, s *state.Store, handlers Handlers) (*Server, err
 		return nil, err
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /inspect/{kind}", func(w http.ResponseWriter, r *http.Request) {
+		if handlers.Inspect == nil {
+			http.Error(w, "viewer unavailable", http.StatusBadRequest)
+			return
+		}
+		lines, err := handlers.Inspect(r.Context(), r.PathValue("kind"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(lines)
+	})
 	mux.HandleFunc("GET /view", func(w http.ResponseWriter, r *http.Request) {
 		view, err := handlers.View(r.Context())
 		if err != nil {

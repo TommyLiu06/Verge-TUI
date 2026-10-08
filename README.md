@@ -1,6 +1,6 @@
 # verge-tui
 
-A lightweight English terminal interface following Clash Verge Rev's Home, Proxies and Profiles pages. The application owns its mihomo binaries and profile data.
+A lightweight English terminal interface following Clash Verge Rev's Home, Proxies, Profiles and Settings pages. The application owns its mihomo binaries and profile data.
 
 The source mapping and pinned upstream revision are in [docs/source-reference.md](docs/source-reference.md).
 
@@ -11,7 +11,7 @@ sh scripts/go.sh test ./...
 sh scripts/go.sh build -trimpath -ldflags='-s -w' -o bin/verge-tui ./cmd/verge-tui
 ```
 
-The first release supports Linux. Home, Proxies and Profiles use the upstream sidebar, card order, page labels and basic forms. Mouse clicks, wheel scrolling, keyboard focus and bracketed paste are supported. Use a terminal with Unicode and mouse reporting; 120 × 42 shows all six Home cards, and narrower terminals use a single column.
+The application supports Linux. Home, Proxies, Profiles and Settings use the upstream sidebar, card order, page labels and basic forms. Mouse clicks, wheel scrolling, keyboard focus and bracketed paste are supported. Use a terminal with Unicode and mouse reporting; 120 × 42 shows all six Home cards, and narrower terminals use a single column.
 
 The interface inherits the terminal's foreground and background, so light and dark themes both work. Accents use the terminal's ANSI palette; keyboard focus uses reverse video. Latency labels use Clash Verge Rev's default colors: green below 250 ms, blue from 250 to 399 ms, orange from 400 ms, and red for timeout or error. When `COLORFGBG` reports a dark background, the dark palette is used; otherwise the light palette is used. Focused latency controls keep their color and use bold underline. No background color is forced.
 
@@ -24,7 +24,7 @@ Run the application after importing a core:
 
 Select **Start Core**, then open **Profiles** to import a subscription URL or create a local profile. Select the profile before choosing a node on **Proxies**. New local profiles default to DIRECT until you provide proxy configuration. Switching profiles validates and reloads the core. Importing a profile does not select it automatically. Each profile's **Options** menu includes **Delete**, followed by a confirmation. Deleting the selected profile validates and reloads the built-in DIRECT configuration before removing its YAML; a failed switch preserves the profile.
 
-- `1`, `2`, `3`: Home, Proxies, Profiles.
+- `1`, `2`, `3`, `4`: Home, Proxies, Profiles, Settings.
 - `Tab` / `Shift+Tab` or arrows: move focus; `Enter` / `Space`: activate.
 - `PageUp` / `PageDown`: scroll; `Home` / `End`: jump to page edges.
 - `F1` / `?`: shortcut help; `Esc`: close a dialog or return from help.
@@ -53,11 +53,11 @@ For a system installation, each ordinary user can register or remove the functio
 
 `shell install` prints the rc to source. Use `--rc-file /absolute/path` to override detection. Registrations are kept separately per user. The root installer still registers its own rc; uninstallation removes all registered users' blocks while preserving unrelated settings and file ownership. It runs each user's cleanup with that user's privileges.
 
-The UI is event driven: there are no periodic API requests or redraws while idle. Delay checks use at most four concurrent requests and update each node as its result arrives, with a completed/total counter. Each request has a five-second core timeout. Timeout and error results replace previous latencies, including after the final snapshot reload. Quitting cancels outstanding requests and waits for the workers to exit. Core logs are capped at 2 MiB per start. Traffic charts, connections and monitoring are excluded from this release. Core resource usage still depends on your subscription and mihomo configuration.
+The UI is event driven: there are no periodic API requests or redraws while idle. Delay checks use at most four concurrent requests and update each node as its result arrives, with a completed/total counter. Each request defaults to a five-second core timeout, configurable in Settings. Timeout and error results replace previous latencies, including after the final snapshot reload. Quitting cancels outstanding requests and waits for the workers to exit. Core logs are capped at 2 MiB per start. Traffic charts, connections and monitoring are excluded from this release. Core resource usage still depends on your subscription and mihomo configuration.
 
 Delay check failures appear on the affected nodes and in the status bar without opening an error dialog or interrupting an open form.
 
-**Network Settings** supports GNOME System Proxy through `gsettings` and `dconf`, with a private backup restored when disabled. In a shared system installation this switch affects the calling user's GNOME session and keeps a separate backup per user. These host tools and a GNOME session are only required for that switch. On headless servers, use the displayed proxy environment or `eval "$(./verge-tui env)"`. User mode requires proxy credentials and keeps the API token private. Both listeners bind to loopback. User-mode ports are randomly chosen from 20000–59999; fresh system installations default to mixed port 7890 and controller API port 9090. Requested ports are checked before creating the installation, and TCP/UDP ports are checked again before startup. Override fresh-install ports with `--mixed-port` and `--api-port`. Updates preserve existing ports.
+**Network Settings** supports GNOME System Proxy through `gsettings` and `dconf`, with a private backup restored when disabled. In a shared system installation this switch affects the calling user's GNOME session and keeps a separate backup per user. These host tools and a GNOME session are only required for that switch. On headless servers, use the displayed proxy environment or `eval "$(./verge-tui env)"`. User mode requires proxy credentials and keeps the API token private. All listeners initially bind to loopback; Allow LAN exposes only proxy listeners, while the authenticated controller stays on loopback. User-mode ports are randomly chosen from 20000–59999; fresh system installations default to mixed port 7890 and controller API port 9090. Requested ports are checked before creating the installation, and TCP/UDP ports are checked again before startup. Override fresh-install ports with `--mixed-port` and `--api-port`. Updates preserve existing ports.
 
 The core runs either under the TUI or under a systemd service. Quitting the TUI stops a core it started; a service keeps running. User services need an available user systemd manager. Continuing after logout or starting at boot requires lingering enabled by the server administrator. System mode runs with root service privileges, permits TUN and shares the loopback proxy without proxy credentials; the control API remains authenticated. All local users can run the TUI and manage shared profiles, nodes, delay checks, proxy mode, TUN and managed core versions through a local Unix socket. The service keeps its API secret and private files inaccessible to other users. The service must be running for shared management; only root installs, removes, starts or stops that service. The system TUI's **System Service** button shows the administrative commands. There are no polling loops in the shared management server.
 
@@ -67,6 +67,16 @@ Use **Core** to install or select a managed version. For an offline replacement:
 ./verge-tui core import vNEXT /path/to/extracted/mihomo
 ./verge-tui core use vNEXT
 ```
+
+**Settings** follows the upstream two-column arrangement: System Setting and Clash Setting on the left, Verge Basic Setting and Verge Advanced Setting on the right. Narrow terminals stack the sections, with keyboard and mouse scrolling. Supported controls include:
+
+- System Proxy and TUN switches; TUN stack (system, gVisor, mixed), device, routing, MTU, DNS hijack and excluded routes. TUN requires system mode. Auto Launch shows the systemd commands; system service administration requires root.
+- Allow LAN, IPv6, Unified Delay, Log Level, mixed/HTTP/SOCKS ports, managed core selection, online core installation and local core-file import. Update GeoData explicitly asks the running core to download updated databases; the offline bundle remains self-contained without using this action. Optional HTTP/SOCKS ports use 0 to disable them. Port changes check conflicts, reload the running core and refresh `proxy.env`; disable this user's GNOME System Proxy before changing ports, then enable it again afterward. Other users with an enabled GNOME proxy must re-enable it too. Existing shells need `verge_on` again to reload the new environment.
+- DNS Overwrite with per-profile nameservers, bootstrap resolvers, fallback resolvers, IPv6, enhanced mode and fake-IP range. Saving enables the overwrite for that profile. Disabling restores the profile's DNS configuration; an editor opened for another active profile cannot apply its changes. Original subscription YAML is preserved.
+- Start Page, proxy grid columns and default latency URL/timeout (100–60000 ms). A per-group Test URL takes precedence over the default URL. System-mode UI preferences are private to each user. Theme Mode controls latency palettes and always preserves the terminal's own text/background. Language remains English.
+- On-demand network interface and runtime configuration viewers, directory paths, diagnostic information, keyboard help and version information. Runtime configuration hides credentials and provider URLs. External Controller displays its protected loopback address; disabling or exposing it is not offered.
+
+Desktop tray/window controls, Web UI, tunnel management, backup/restore, automatic application updates, startup scripts and background monitoring are not included. Directory controls show paths inside the terminal instead of launching a file manager. Viewers load only when opened; settings add no background polling or new dependencies.
 
 In system mode, ordinary users can import and select versions while the service is running. The binary is uploaded from the calling user's file permissions, and selecting a new version restarts the core within the same supervisor. For user services, stop the service before selecting a different core and restart it afterward. Core downloads use HTTP(S) proxy environment variables and verify the release SHA-256. Subscription downloads use a direct connection. The application stores binaries under `data/cores/<version>/mihomo`; no system-wide mihomo is used.
 

@@ -26,7 +26,7 @@ func NewRemote(s *state.Store, version string) *Backend {
 
 func sharedAction(a Action) error {
 	switch a.Kind {
-	case "refresh", "mode", "tun", "core-install", "core-use", "profile-import", "profile-new", "profile-select", "profile-update", "profile-delete", "home-group", "node-select", "delay":
+	case "refresh", "mode", "tun", "core-install", "core-use", "profile-import", "profile-new", "profile-select", "profile-update", "profile-delete", "home-group", "node-select", "delay", "settings-save", "geo-update":
 		if a.File != "" {
 			return errors.New("local profile files must be uploaded by the calling user")
 		}
@@ -37,6 +37,18 @@ func sharedAction(a Action) error {
 }
 
 func (b *Backend) executeRemote(ctx context.Context, a Action) error {
+	if a.Kind == "core-import" {
+		return b.Remote.ImportCore(ctx, a.ID, a.File)
+	}
+	if a.Kind == "settings-save" && a.ID == "ports" {
+		v, err := b.Load(ctx)
+		if err != nil {
+			return err
+		}
+		if v.Desktop.Owned {
+			return errors.New("disable System Proxy before changing ports")
+		}
+	}
 	if a.Kind == "system-proxy" {
 		v, err := b.Load(ctx)
 		if err != nil {
@@ -88,6 +100,7 @@ func (b *Backend) executeRemote(ctx context.Context, a Action) error {
 // and subscription URL tokens. Mutable slices/maps are copied before editing.
 func PublicView(v View) View {
 	v.Owned = false
+	v.Preferences = state.DefaultPreferences()
 	v.Settings.Secret, v.Settings.ProxyUser, v.Settings.ProxyPassword = "", "", ""
 	v.Settings.Profiles = append([]state.Profile(nil), v.Settings.Profiles...)
 	for i := range v.Settings.Profiles {
@@ -117,6 +130,11 @@ func (b *Backend) SharedHandlers(mu *sync.RWMutex) management.Handlers {
 		return a, sharedAction(a)
 	}
 	return management.Handlers{
+		Inspect: func(ctx context.Context, kind string) (any, error) {
+			mu.RLock()
+			defer mu.RUnlock()
+			return b.Inspect(ctx, kind)
+		},
 		CoreImport: func(ctx context.Context, id, path string) error {
 			mu.Lock()
 			defer mu.Unlock()

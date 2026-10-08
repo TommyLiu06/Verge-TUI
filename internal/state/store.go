@@ -41,6 +41,8 @@ type Settings struct {
 	InstallMode   string            `json:"install_mode"`
 	Mode          string            `json:"mode"`
 	MixedPort     int               `json:"mixed_port"`
+	HTTPPort      int               `json:"http_port,omitempty"`
+	SOCKSPort     int               `json:"socks_port,omitempty"`
 	APIPort       int               `json:"api_port"`
 	Secret        string            `json:"secret"`
 	ProxyUser     string            `json:"proxy_user"`
@@ -50,6 +52,7 @@ type Settings struct {
 	Current       string            `json:"current_profile"`
 	HomeGroup     map[string]string `json:"home_groups"`
 	Profiles      []Profile         `json:"profiles"`
+	Engine        EngineSettings    `json:"engine"`
 }
 
 type Store struct{ Root string }

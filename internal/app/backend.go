@@ -20,22 +20,27 @@ import (
 )
 
 type View struct {
-	Settings   state.Settings
-	Snapshot   controller.Snapshot
-	Online     bool
-	CoreStatus core.Status
-	Desktop    desktop.Status
-	Cores      []core.Installed
-	OS         string
-	Version    string
-	Owned      bool
-	GroupOrder []string
+	Settings    state.Settings
+	Snapshot    controller.Snapshot
+	Online      bool
+	CoreStatus  core.Status
+	Desktop     desktop.Status
+	Cores       []core.Installed
+	OS          string
+	Version     string
+	Owned       bool
+	GroupOrder  []string
+	Preferences state.Preferences
+	CoreOptions CoreOptions
+	DataRoot    string
 }
 type Action struct {
 	Kind, ID, Node, Value string
 	Profile               state.Profile
 	File                  string
-	Data                  []byte `json:",omitempty"`
+	Data                  []byte            `json:",omitempty"`
+	Fields                map[string]string `json:",omitempty"`
+	DelayTimeout          int               `json:",omitempty"`
 }
 type Backend struct {
 	Store   *state.Store
@@ -111,7 +116,9 @@ func (b *Backend) Load(ctx context.Context) (View, error) {
 			v.Settings.Mode = "rule"
 		}
 		v.Desktop = b.Desktop.Read(ctx, v.Settings)
-		return v, err
+		preferences, loadErr := state.ReadPreferences(b.preferencesRoot())
+		v.Preferences = preferences
+		return v, errors.Join(err, loadErr)
 	}
 	v := View{OS: OSInfo(), Version: b.Version, Owned: b.Manager.Owned()}
 	c, err := b.Store.Read()
@@ -119,9 +126,16 @@ func (b *Backend) Load(ctx context.Context) (View, error) {
 		return v, err
 	}
 	v.Settings = c
+	v.DataRoot = b.Store.Root
+	v.Preferences, err = state.ReadPreferences(b.preferencesRoot())
+	if err != nil {
+		return v, err
+	}
+	v.CoreOptions = coreOptions(c, nil)
 	if path, pathErr := b.Store.ProfilePath(c.Current); pathErr == nil {
 		if data, readErr := os.ReadFile(path); readErr == nil {
 			if doc, parseErr := profile.Parse(data); parseErr == nil {
+				v.CoreOptions = coreOptions(c, doc)
 				if groups, ok := doc["proxy-groups"].([]any); ok {
 					for _, item := range groups {
 						if group, ok := item.(map[string]any); ok {
@@ -149,10 +163,36 @@ func (b *Backend) Load(ctx context.Context) (View, error) {
 	return v, err
 }
 func (b *Backend) Execute(ctx context.Context, a Action) error {
+	if a.Kind == "preferences-save" {
+		return b.savePreferences(a.Fields)
+	}
 	if b.Remote != nil {
 		return b.executeRemote(ctx, a)
 	}
 	switch a.Kind {
+	case "geo-update":
+		c, err := b.Store.Read()
+		if err != nil {
+			return err
+		}
+		client := controller.New(c)
+		defer client.Close()
+		client.HTTP.Timeout = 5 * time.Minute
+		return client.Request(ctx, "POST", "/configs/geo", nil, nil)
+	case "settings-save":
+		return b.saveSettings(ctx, a)
+	case "core-import":
+		if _, err := core.Import(ctx, b.Store, a.ID, a.File); err != nil {
+			return err
+		}
+		c, err := b.Store.Read()
+		if err != nil {
+			return err
+		}
+		if c.Core == "" {
+			return b.Manager.Use(ctx, a.ID)
+		}
+		return nil
 	case "refresh":
 		return nil
 	case "start":

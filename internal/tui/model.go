@@ -22,16 +22,17 @@ type Choice struct {
 	Action app.Action
 }
 type Modal struct {
-	Title, Kind string
-	Fields      []Field
-	Choices     []Choice
-	Body        []string
-	Scroll      int
+	Title, Kind        string
+	Section, ProfileID string
+	Fields             []Field
+	Choices            []Choice
+	Body               []string
+	Scroll             int
 }
 type Model struct {
 	View       app.View
 	Tab        int
-	Scroll     [3]int
+	Scroll     [4]int
 	MaxScroll  int
 	Focus      string
 	URL        string
@@ -50,10 +51,13 @@ type Model struct {
 	HelpFocus  string
 	Delays     map[string]app.DelayResult
 	Dark       bool
+	Loaded     bool
 }
 
 func New(v app.View) *Model {
-	return &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, Cursors: map[string]int{}, NetworkTab: "system", Message: "Ready", Dark: darkTerminal()}
+	m := &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, Cursors: map[string]int{}, NetworkTab: "system", Message: "Ready", Dark: darkTerminal()}
+	m.applyPreferences()
+	return m
 }
 func (m *Model) Input() *string {
 	if m.Focus == Key(app.Action{Kind: "input", ID: "url"}) && m.Modal == nil {
@@ -255,7 +259,7 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 			switch e.Str() {
 			case "q":
 				m.Quit = true
-			case "1", "2", "3":
+			case "1", "2", "3", "4":
 				m.Tab = int(e.Str()[0] - '1')
 				m.Focus = ""
 			case "r":
@@ -282,9 +286,14 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 	return nil
 }
 func (m *Model) Activate(a app.Action) *app.Action {
+	if handled, action := m.settingsAction(a); handled {
+		return action
+	}
 	switch a.Kind {
 	case "navigate":
-		m.Tab, _ = strconv.Atoi(a.ID)
+		if tab, err := strconv.Atoi(a.ID); err == nil && tab >= 0 && tab < 4 {
+			m.Tab = tab
+		}
 		m.Focus = ""
 		m.Modal = nil
 	case "input":
@@ -368,6 +377,7 @@ func (m *Model) Activate(a app.Action) *app.Action {
 			modal.Choices = append(modal.Choices, Choice{c.ID, app.Action{Kind: "core-use", ID: c.ID}})
 		}
 		modal.Choices = append(modal.Choices, Choice{"Install Core", app.Action{Kind: "core-form"}})
+		modal.Choices = append(modal.Choices, Choice{"Import Core File", app.Action{Kind: "core-import-form"}})
 		m.Modal = modal
 		m.Focus = ""
 	case "core-form":
@@ -391,6 +401,10 @@ func (m *Model) Activate(a app.Action) *app.Action {
 			m.Focus = ""
 			if a.Kind == "delay" {
 				a.Value = m.TestURL[a.ID]
+				if a.Value == "" {
+					a.Value = m.View.Preferences.DelayURL
+				}
+				a.DelayTimeout = m.delayTimeout()
 			}
 			return &a
 		}
@@ -419,6 +433,17 @@ func (m *Model) submit() *app.Action {
 		values[f.Key] = strings.TrimSpace(f.Text)
 	}
 	switch m.Modal.Kind {
+	case "settings-save", "preferences-save":
+		section, profileID, kind := m.Modal.Section, m.Modal.ProfileID, m.Modal.Kind
+		m.Modal = nil
+		return &app.Action{Kind: kind, ID: section, Node: profileID, Fields: values}
+	case "core-import":
+		if !state.ValidID(values["id"]) || values["file"] == "" {
+			m.Message = "Enter a valid version ID and core file path"
+			return nil
+		}
+		m.Modal = nil
+		return &app.Action{Kind: "core-import", ID: values["id"], File: values["file"]}
 	case "profile-new":
 		timeout, err := strconv.Atoi(values["timeout"])
 		if err != nil || timeout < 1 || timeout > 300 {
@@ -452,6 +477,15 @@ func (m *Model) submit() *app.Action {
 func (m *Model) Complete(v app.View, a app.Action, err error) {
 	m.Busy = false
 	m.View = v
+	m.applyPreferences()
+	if !m.Loaded && a.Kind == "refresh" && err == nil {
+		for i, page := range []string{"home", "proxies", "profiles", "settings"} {
+			if page == v.Preferences.StartPage {
+				m.Tab = i
+			}
+		}
+		m.Loaded = true
+	}
 	// The core may keep an older history after a failed health check. Retain the
 	// actual results of this batch when the completion snapshot is loaded.
 	if a.Kind == "delay" {
@@ -479,6 +513,12 @@ func (m *Model) Complete(v app.View, a app.Action, err error) {
 		}
 		if a.Kind == "delay" {
 			m.Message = "Delay check completed"
+		}
+		if a.Kind == "settings-save" || a.Kind == "preferences-save" {
+			m.Message = "Settings saved"
+		}
+		if a.Kind == "geo-update" {
+			m.Message = "GeoData updated"
 		}
 	}
 }

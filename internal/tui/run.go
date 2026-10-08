@@ -14,6 +14,7 @@ type result struct {
 	Action app.Action
 	Err    error
 	Delay  *app.DelayResult
+	Body   []string
 }
 
 func Run(ctx context.Context, b *app.Backend) (runErr error) {
@@ -48,6 +49,7 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 				return
 			case action := <-jobs:
 				var err error
+				var body []string
 				if action.Kind == "delay" {
 					err = b.TestDelay(ctx, action, func(update app.DelayResult) {
 						select {
@@ -55,13 +57,15 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 						case <-ctx.Done():
 						}
 					})
+				} else if action.Kind == "settings-view" {
+					body, err = b.Inspect(ctx, action.ID)
 				} else {
 					err = b.Execute(ctx, action)
 				}
 				view, loadErr := b.Load(ctx)
 				err = errors.Join(err, loadErr)
 				select {
-				case results <- result{View: view, Action: action, Err: err}:
+				case results <- result{View: view, Action: action, Err: err, Body: body}:
 				case <-ctx.Done():
 					return
 				}
@@ -84,6 +88,9 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 				m.ApplyDelay(*done.Delay)
 			} else {
 				m.Complete(done.View, done.Action, done.Err)
+				if done.Action.Kind == "settings-view" && done.Err == nil {
+					m.showSettingsView(done.Action.ID, done.Body)
+				}
 			}
 		case ev := <-screen.EventQ():
 			if ev == nil {

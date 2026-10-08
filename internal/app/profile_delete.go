@@ -31,6 +31,7 @@ func (b *Backend) deleteProfile(ctx context.Context, id string) error {
 			if p.ID == id {
 				c.Profiles = append(c.Profiles[:i], c.Profiles[i+1:]...)
 				delete(c.HomeGroup, id)
+				delete(c.Engine.DNS, id)
 				if c.Current == id {
 					c.Current = ""
 				}

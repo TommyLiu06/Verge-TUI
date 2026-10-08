@@ -6,7 +6,7 @@ Commit: `d01f43cc783a9dbd05f064b79ea3ce39dcbfce16`.
 
 | Requested feature | Upstream source | TUI behavior |
 | --- | --- | --- |
-| Navigation | `src/pages/_navigation.tsx`, `src/components/layout/layout-sidebar.tsx` | Left sidebar; Home, Proxies, Profiles in upstream order |
+| Navigation | `src/pages/_navigation.tsx`, `src/components/layout/layout-sidebar.tsx` | Left sidebar; Home, Proxies, Profiles, Settings in upstream order |
 | Home layout | `src/pages/home.tsx` | Profile / Current Node, Network Settings / Proxy Mode, Clash Info / System Info; two columns, one on narrow screens |
 | Subscription information | `src/components/home/home-profile-card.tsx` | Selected profile, source host, update time, subscription usage and expiry |
 | Current node | `src/components/home/current-proxy-card.tsx` | Profile-scoped group selection, selected member, delay check; GLOBAL in global mode, DIRECT in direct mode |
@@ -20,6 +20,13 @@ Commit: `d01f43cc783a9dbd05f064b79ea3ce39dcbfce16`.
 | New profile | `src/components/profile/profile-viewer.tsx`, `file-input.tsx` | Create Profile dialog, Remote / Local, name, description, URL or YAML file, user agent and request timeout |
 | Profile selection | `src/pages/profiles.tsx` (`onSelect`), `src/components/profile/profile-item.tsx` | Click a profile card to select and reload it |
 | Profile deletion | `src/components/profile/profile-item.tsx` (Delete menu, confirmation dialog), `src/pages/profiles.tsx` (`onDelete`) | Options menu, explicit confirmation; deleting the selected profile reloads the built-in DIRECT configuration |
+| Settings layout | `src/pages/settings.tsx` | Two columns: System / Clash on the left, Verge Basic / Advanced on the right; single column on narrow terminals |
+| System settings | `src/components/setting/setting-system.tsx`, `mods/tun-viewer.tsx`, `mods/stack-mode-switch.tsx` | GNOME proxy and system-mode TUN switches; TUN stack, device, route settings, MTU and DNS hijack dialog; systemd administration instructions |
+| Clash settings | `src/components/setting/setting-clash.tsx`, `mods/clash-port-viewer.tsx`, `mods/dns-viewer.tsx`, `mods/controller-viewer.tsx`, `mods/network-interface-viewer.tsx`, `mods/clash-core-viewer.tsx` | LAN, IPv6, Unified Delay, log level, mixed/HTTP/SOCKS ports, profile-scoped DNS overwrite, on-demand interface viewer, protected controller address, managed core operations and manual GeoData update |
+| Basic settings | `src/components/setting/setting-verge-basic.tsx`, `mods/misc-viewer.tsx` | English language, terminal/light/dark latency palettes, proxy environment, start page, grid columns, default test URL/timeout and terminal keyboard help |
+| Advanced settings | `src/components/setting/setting-verge-advanced.tsx`, `mods/config-viewer.tsx` | On-demand redacted runtime configuration, directory paths, diagnostic information, exit and version |
 | English labels | `src/locales/en/{home,profiles,proxies,shared,settings}.json` | Corresponding page and action labels |
 
 This implementation recreates the requested structure in terminal cells. It does not run React, Tauri or a browser. Charts, connection tracking, log viewers, profile extension scripts, proxy chains and automatic subscription updates are outside this first implementation. Subscription usage is response metadata, not a traffic monitor. The new-profile form includes the basic fields requested here; advanced update scheduling and unsafe TLS options are omitted.
+
+Settings expose working terminal-compatible controls, not placeholder switches. Service auto-launch is controlled by systemd; only root administers the system service. Directory controls show paths rather than opening desktop windows. Theme selection changes latency colors while leaving the terminal foreground/background untouched. DNS overwrites are profile scoped and preserve original YAML. The external controller stays authenticated on loopback. Desktop-specific controls, Web UI, tunnel management, backups, startup scripts and automatic application updates are omitted. Supported core fields follow the [mihomo general configuration](https://wiki.metacubex.one/en/config/general/), [TUN configuration](https://wiki.metacubex.one/en/config/inbound/tun/) and [DNS configuration](https://wiki.metacubex.one/en/config/dns/); the application validates changes with the selected managed core before applying them.

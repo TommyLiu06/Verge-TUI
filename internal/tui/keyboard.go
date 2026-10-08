@@ -243,7 +243,7 @@ func (m *Model) help() {
 	m.HelpBack, m.HelpFocus = m.Modal, m.Focus
 	m.Modal = &Modal{Title: "Keyboard Shortcuts", Kind: "help", Body: []string{
 		"Tab / Shift+Tab or arrows: move focus", "Enter / Space: activate; Left / Right: change options",
-		"PageUp / PageDown: scroll; Home / End: page edges", "1 / 2 / 3: Home / Proxies / Profiles",
+		"PageUp / PageDown: scroll; Home / End: page edges", "1 / 2 / 3 / 4: Home / Proxies / Profiles / Settings",
 		"r: Refresh; n: New profile; i: Profile URL", "Input: arrows, Home/End, Backspace, Delete",
 		"Ctrl+A/E: input start/end; Ctrl+U/W: clear / delete word", "Ctrl+S: save dialog; Esc: back; q / Ctrl+C: quit",
 	}}

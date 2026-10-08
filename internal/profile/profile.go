@@ -222,13 +222,18 @@ func RuntimeDocument(c state.Settings, doc map[string]any) ([]byte, error) {
 		delete(doc, key)
 	}
 	doc["mixed-port"] = c.MixedPort
-	for _, key := range []string{"port", "socks-port", "redir-port", "tproxy-port"} {
+	doc["port"] = c.HTTPPort
+	doc["socks-port"] = c.SOCKSPort
+	for _, key := range []string{"redir-port", "tproxy-port"} {
 		doc[key] = 0
 	}
 	doc["external-controller"] = "127.0.0.1:" + strconv.Itoa(c.APIPort)
 	doc["secret"] = c.Secret
-	doc["allow-lan"] = false
+	doc["allow-lan"] = c.Engine.AllowLAN
 	doc["bind-address"] = "127.0.0.1"
+	if c.Engine.AllowLAN {
+		doc["bind-address"] = "*"
+	}
 	doc["skip-auth-prefixes"] = []string{}
 	doc["authentication"] = []string{c.ProxyUser + ":" + c.ProxyPassword}
 	if c.InstallMode == "system" {
@@ -237,8 +242,31 @@ func RuntimeDocument(c state.Settings, doc map[string]any) ([]byte, error) {
 	doc["mode"] = c.Mode
 	doc["profile"] = map[string]any{"store-selected": true}
 	doc["log-level"] = "warning"
+	if c.Engine.LogLevel != "" {
+		doc["log-level"] = c.Engine.LogLevel
+	}
+	if c.Engine.IPv6 != nil {
+		doc["ipv6"] = *c.Engine.IPv6
+	}
+	if c.Engine.UnifiedDelay != nil {
+		doc["unified-delay"] = *c.Engine.UnifiedDelay
+	}
 	doc["find-process-mode"] = "off"
-	doc["tun"] = map[string]any{"enable": c.Tun && c.InstallMode == "system", "stack": "system", "auto-route": true, "auto-detect-interface": true, "dns-hijack": []string{"any:53"}}
+	tun := state.DefaultTun()
+	if c.Engine.Tun != nil {
+		tun = *c.Engine.Tun
+	}
+	doc["tun"] = map[string]any{"enable": c.Tun && c.InstallMode == "system", "stack": tun.Stack, "device": tun.Device, "auto-route": tun.AutoRoute, "auto-detect-interface": tun.AutoDetect, "strict-route": tun.StrictRoute, "mtu": tun.MTU, "dns-hijack": tun.DNSHijack, "route-exclude-address": tun.RouteExclude}
+	if override, ok := c.Engine.DNS[c.Current]; ok && override.Enabled {
+		dns, ok := doc["dns"].(map[string]any)
+		if !ok {
+			dns = map[string]any{}
+		}
+		dns["enable"], dns["enhanced-mode"], dns["ipv6"] = true, override.Mode, override.IPv6
+		dns["nameserver"], dns["default-nameserver"], dns["fallback"] = override.Nameservers, override.DefaultNameservers, override.Fallback
+		dns["fake-ip-range"] = override.FakeIPRange
+		doc["dns"] = dns
+	}
 	if dns, ok := doc["dns"].(map[string]any); ok {
 		delete(dns, "listen")
 	}

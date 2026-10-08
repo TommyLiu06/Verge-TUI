@@ -117,10 +117,19 @@ func (c *Client) Reload(ctx context.Context, payload []byte) error {
 	return c.Request(ctx, "PUT", "/configs?force=true", map[string]string{"payload": string(payload)}, nil)
 }
 func (c *Client) Delay(ctx context.Context, name, testURL string) (int, error) {
+	return c.DelayWithTimeout(ctx, name, testURL, DelayTimeoutMillis)
+}
+
+func (c *Client) DelayWithTimeout(ctx context.Context, name, testURL string, timeout int) (int, error) {
 	var result struct {
 		Delay int `json:"delay"`
 	}
-	query := url.Values{"url": {testURL}, "timeout": {strconv.Itoa(DelayTimeoutMillis)}}
+	if timeout < 100 || timeout > 60000 {
+		return 0, fmt.Errorf("invalid delay timeout")
+	}
+	query := url.Values{"url": {testURL}, "timeout": {strconv.Itoa(timeout)}}
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout+1000)*time.Millisecond)
+	defer cancel()
 	err := c.Request(ctx, "GET", "/proxies/"+url.PathEscape(name)+"/delay?"+query.Encode(), nil, &result)
 	return result.Delay, err
 }

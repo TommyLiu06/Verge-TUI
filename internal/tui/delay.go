@@ -18,6 +18,10 @@ func delayValue(p controller.Proxy) int {
 }
 
 func delayLabel(p controller.Proxy) string {
+	return delayLabelWithTimeout(p, controller.DelayTimeoutMillis)
+}
+
+func delayLabelWithTimeout(p controller.Proxy, timeout int) string {
 	delay := delayValue(p)
 	switch {
 	case delay == -2:
@@ -26,11 +30,15 @@ func delayLabel(p controller.Proxy) string {
 		return "Not tested"
 	case delay > 100_000:
 		return "Error"
-	case delay == 0 || delay >= controller.DelayTimeoutMillis:
+	case delay == 0 || delay >= timeout:
 		return "Timeout"
 	default:
 		return fmt.Sprintf("%d ms", delay)
 	}
+}
+
+func (m *Model) delayLabel(p controller.Proxy) string {
+	return delayLabelWithTimeout(p, m.delayTimeout())
 }
 
 // Match formatDelayColor in services/delay.ts and the default light/dark
@@ -46,7 +54,7 @@ func (m *Model) delayColor(p controller.Proxy) color.Color {
 	}
 	grade := 0
 	switch {
-	case delay == 0 || delay >= controller.DelayTimeoutMillis:
+	case delay == 0 || delay >= m.delayTimeout():
 		grade = 3
 	case delay >= 400:
 		grade = 2
