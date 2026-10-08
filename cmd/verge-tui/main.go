@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"syscall"
 
@@ -23,7 +24,7 @@ import (
 	"verge-tui/internal/tui"
 )
 
-const version = "0.1.13"
+const version = "0.1.14"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -88,12 +89,64 @@ func run(args []string) error {
 		rc := f.String("rc-file", "", "shell rc to refresh")
 		source := f.String("source-dir", "", "geography database source directory")
 		binary := f.String("core-file", "", "core binary used to verify geography data")
+		binDir := f.String("bin-dir", "/usr/local/bin", "system command link directory")
+		account := f.String("user", "", "installer account UID")
 		mixed := f.Int("mixed-port", 0, "proxy port to check")
 		api := f.Int("api-port", 0, "API port to check")
 		if err := f.Parse(args[2:]); err != nil {
 			return err
 		}
 		switch args[1] {
+		case "account":
+			u, err := user.LookupId(*account)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n%s\n", u.Username, u.HomeDir)
+			return nil
+		case "discover":
+			x, err := installation.Discover(*prefix)
+			if os.IsNotExist(err) {
+				fmt.Println("absent")
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n%s\n%s\n%s\n", x.State, x.Mode, x.Version, x.CommandLink)
+			return nil
+		case "check-link":
+			return installation.CheckCommandLink(*prefix, filepath.Join(*binDir, "verge-tui"))
+		case "record":
+			link := ""
+			c, err := (&state.Store{Root: filepath.Join(*prefix, "data")}).Read()
+			if err != nil {
+				return err
+			}
+			if c.InstallMode == "system" {
+				if os.Geteuid() != 0 {
+					return errors.New("system command registration requires root")
+				}
+				link = filepath.Join(*binDir, "verge-tui")
+				if err := installation.InstallCommandLink(*prefix, link); err != nil {
+					return err
+				}
+			}
+			return installation.Record(*prefix, version, link)
+		case "retain":
+			return installation.MarkRetained(*prefix)
+		case "unlink":
+			x, err := installation.Discover(*prefix)
+			if os.IsNotExist(err) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if x.CommandLink != "" {
+				return installation.RemoveCommandLink(*prefix, x.CommandLink)
+			}
+			return nil
 		case "check-ports":
 			if *mixed != 0 && *mixed == *api {
 				return errPortsSame
@@ -157,13 +210,28 @@ func run(args []string) error {
 		f := flag.NewFlagSet("shell", flag.ContinueOnError)
 		rc := f.String("rc-file", "", "shell rc path (defaults to the current shell)")
 		shell := f.String("shell", "", "bash, zsh or fish (defaults to the current shell)")
+		uid := f.Int("user", -1, "root installer only: register as the initiating UID")
 		all := f.Bool("all", false, "remove all registered users' functions (uninstallation)")
 		if err := f.Parse(args[2:]); err != nil {
 			return err
 		}
+		if *uid < -1 || *uid > int(^uint32(0)) {
+			return errors.New("invalid shell registration UID")
+		}
 		switch args[1] {
+		case "info":
+			target := *uid
+			if target == -1 {
+				target = os.Geteuid()
+			}
+			path, kind, err := shellenv.RegisteredConfig(s, target)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n%s\n", path, kind)
+			return nil
 		case "uninstall", "remove":
-			if *rc != "" || *shell != "" {
+			if *rc != "" || *shell != "" || *uid != -1 {
 				return errors.New("shell uninstall uses this user's registered rc; --rc-file is only valid for shell install")
 			}
 			if *all {
@@ -173,6 +241,15 @@ func run(args []string) error {
 		case "install":
 			if *all {
 				return errors.New("--all is only valid for shell uninstall")
+			}
+			if *uid >= 0 && *uid != os.Geteuid() {
+				return shellenv.InstallAsUser(executable, abs, *uid, *shell, *rc)
+			}
+			if *rc == "" {
+				*rc, err = shellenv.RegisteredRC(s)
+				if err != nil {
+					return err
+				}
 			}
 			if *shell == "" {
 				if *rc == "" {

@@ -5,13 +5,13 @@ The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo c
 Extract the archive, enter its directory and install:
 
 ```sh
-tar -xzf verge-tui-0.1.13-linux-amd64.tar.gz
-cd verge-tui-0.1.13-linux-amd64
-sh install.sh --prefix "$HOME/.local/share/verge-tui" --mode user
-"$HOME/.local/share/verge-tui/verge-tui"
+tar -xzf verge-tui-0.1.14-linux-amd64.tar.gz
+cd verge-tui-0.1.14-linux-amd64
+./install.sh
+# Choose User or System, review the summary, then confirm.
 ```
 
-Before installation, the script displays the selected mode, destination, bundled core, service availability, proxy access policy and the shell rc to update, then asks for confirmation. Answering no, or providing no input, cancels without creating the destination or changing the rc. For automation, `--yes` explicitly skips the confirmation.
+With no `--mode`, the script first shows account/platform information, user/system systemd availability and a User/System selection menu. Existing installations appear as Update; retained data appears as Reinstall. Root can choose User and install in its own local directory. Ordinary users selecting System continue through sudo, preserving their shell choice and registration account. The selected mode, destination, core, service policy and shell paths are displayed before final confirmation. Answering no, or providing no input, cancels without creating the destination or changing the rc. For automation, specify `--mode user|system --yes` to skip the menu and confirmation. `--prefix DIR` selects a custom installation directory.
 
 User mode always checks for a working user systemd manager and reports whether lingering is enabled. When the manager is available, the default is to enable a user service; otherwise, the installer selects foreground operation. A working user manager without lingering does not guarantee operation after logout. Use `--no-service` to choose foreground operation even when systemd is available, or `--service` to require a service and fail if its manager is unavailable. System mode requires a working systemd manager and always uses a service.
 
@@ -29,11 +29,11 @@ The installer requires a working user systemd manager before creating the unit i
 For system mode and TUN:
 
 ```sh
-sudo sh install.sh --prefix /opt/verge-tui --mode system --service
-/opt/verge-tui/verge-tui
+sh install.sh --mode system --service
+verge-tui
 ```
 
-System installation and service management require root. The unit is written to `/etc/systemd/system/verge-tui.service`. Ordinary users can launch the TUI and manage shared subscriptions, profiles, nodes, delay tests, proxy mode, TUN and core versions while the service is running. These operations use a local Unix socket owned by the root service, without exposing its controller API token. Closing an ordinary user's TUI leaves the service running. Enable **TUN Mode** on Home after selecting your subscription. The unit grants network administration capabilities; actual TUN availability depends on the host kernel and container permissions. All local users can connect to `127.0.0.1:<mixed-port>` without proxy credentials. `verge-tui status` reports ports without printing the API secret.
+System installation and service management require root; the installer obtains it through sudo when necessary. It creates `/usr/local/bin/verge-tui -> /opt/verge-tui/verge-tui` by default. Choose a custom command directory with `--bin-dir DIR` on a fresh system installation. An unrelated file or link at that command path stops installation without being overwritten. Updates/reinstalls preserve the command directory. Uninstallation only deletes a link still pointing to this installation. The unit is written to `/etc/systemd/system/verge-tui.service`. Ordinary users can launch the TUI and manage shared subscriptions, profiles, nodes, delay tests, proxy mode, TUN and core versions while the service is running. These operations use a local Unix socket owned by the root service, without exposing its controller API token. Closing an ordinary user's TUI leaves the service running. Enable **TUN Mode** on Home after selecting your subscription. The unit grants network administration capabilities; actual TUN availability depends on the host kernel and container permissions. All local users can connect to `127.0.0.1:<mixed-port>` without proxy credentials. `verge-tui status` reports ports without printing the API secret.
 
 Fresh system installations default to **7890** for HTTP/SOCKS proxy traffic and **9090** as the proposed external-controller port. External Controller is disabled by default, so that TCP port is not reserved or listened on; internal control uses a Unix socket in the private runtime directory. Settings provides the Verge-style switch, address and required secret, and restarts the core when they change. The shared TUI interface does not reserve another TCP port. Active proxy ports are checked before creating the installation; conflicts stop installation and leave the destination untouched. Use `--mixed-port PORT --api-port PORT` to override them. Fresh user installations retain random high ports unless explicitly overridden. Updating an installation preserves its current ports. Changing existing ports requires stopping the service first, then running `configure` and restarting it.
 
@@ -47,17 +47,17 @@ Extract the new offline bundle and rerun the original install command. For the d
 sudo sh install.sh --mode system
 ```
 
-For a custom directory, keep the original `--prefix`. Its recorded mode is detected automatically:
+For a custom directory, keep the original `--prefix`. Select its recorded mode in the menu, or specify it explicitly:
 
 ```sh
-sudo sh install.sh --prefix /your/installation/directory
+sh install.sh --mode system --prefix /your/installation/directory
 ```
 
 The installer displays **verge-tui update**, the detected mode, current core, destination and shell rc, then asks for confirmation. No installation files, shell rc or service state change before confirmation. The bundled helper is checksum-verified before it reads installation metadata. Declining or providing no input cancels the update. `--yes` skips confirmation explicitly.
 
 Updates replace the application, uninstaller, documentation and licenses, while preserving subscriptions, selected profile and core, every managed core version, credentials, ports, proxy mode, TUN settings and any GNOME proxy backup. Missing or invalid geography databases are provisioned from the offline bundle; valid existing databases are retained. Geography changes are included in the update transaction and rolled back if the update fails. The bundled core is used for fresh installations; updating the application does not replace or select it. Use `core import` and `core use` separately to change the core.
 
-Existing service configuration and enablement are preserved. A running service is stopped for replacement and restarted afterward; a stopped service stays stopped. Foreground cores must be stopped first, and an open TUI should be closed before updating. Updates inherit the registered shell rc and refresh the proxy env and function block without duplicates. `--shell none` skips rc changes and keeps any existing registration. Service or installation mode changes are refused during updates.
+Existing service configuration and enablement are preserved. A running service is stopped for replacement and restarted afterward; a stopped service stays stopped. Foreground cores must be stopped first, and an open TUI should be closed before updating. Updates refresh the proxy env and re-register the initiating user's existing shell configuration without duplicates. Registration is a separate user-owned step after application replacement; a registration failure reports an error without rolling back an already successful application update. `--shell none` skips rc changes and keeps any existing registration. Service or installation mode changes are refused during updates.
 
 Failed replacement or service startup restores the previous application files, generated env and shell integration, and restarts a previously running service. If rollback itself fails, the installer reports the error and retains recovery files in the installation directory. Externally modified service units, moved installations, symlinked installation files and unrelated directories are rejected. Updates and uninstallation require the formal installation marker written by the installer; directories without this marker are rejected.
 
@@ -71,7 +71,7 @@ If a profile still needs other resources, such as an ASN database or remote prov
 
 ## Shell proxy functions
 
-The installer prepares `<prefix>/proxy.env` and adds a marked block defining `verge_on`, `verge_off` and `verge_status` to the invoking shell's rc. It detects Bash or Zsh from the parent process, falling back to `$SHELL`. Zsh uses `${ZDOTDIR:-$HOME}/.zshrc`; Bash uses `$HOME/.bashrc`. The displayed rc path lets you check this choice before confirming. Override it with `--shell bash|zsh --rc-file /absolute/path`, or use `--shell none` to create the env file without changing an rc.
+The installer prepares `<prefix>/proxy.env` and registers independent `verge_on`, `verge_off` and `verge_status` files for Bash, Zsh or fish. It detects the parent shell, falling back to `$SHELL`. Bash uses `$HOME/.bashrc`; Zsh uses `${ZDOTDIR:-$HOME}/.zshrc`. They receive only a short marked loader for `.verge-tui/<installation-id>.sh` beside the selected rc. fish uses `${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/*.fish` for autoloaded functions and `conf.d/verge-tui.fish` for PATH; `config.fish` is unchanged. The displayed configuration path lets you check this before confirming. Override with `--shell bash|zsh|fish --rc-file /absolute/path`, or use `--shell none` to skip registration. dash/ash/ksh and other unsupported shells are not registered.
 
 Open a new shell, or source the rc printed after installation, then use:
 
@@ -81,17 +81,17 @@ verge_status
 verge_off
 ```
 
-`verge_on` sources the prepared file in the current shell. It sets lower- and upper-case HTTP, HTTPS, ALL_PROXY and NO_PROXY variables. `verge_off` clears them. The functions do not start or stop the core; clearing variables does not disable TUN. Proxy variables are not loaded automatically on shell startup.
+`verge_on` reads the prepared file and applies shell-appropriate exports in the current session. fish invokes `env --shell fish` only when the function is called; shell startup does not execute the application. It sets lower- and upper-case HTTP, HTTPS, ALL_PROXY and NO_PROXY variables. `verge_off` clears them. The functions do not start or stop the core; clearing variables does not disable TUN. Proxy variables are not loaded automatically on shell startup.
 
 `verge_status` queries the core API, checks the loopback proxy listener and compares each exported environment variable with the current installation. It reports unset, matching, empty and different variables without printing passwords or foreign proxy values. It does not contact an external test site or collect traffic statistics. Unexported shell variables are not visible to child processes.
 
-User-mode env files have mode `0600`; passwords never appear in the rc block. System mode permits all users to read the credential-free `proxy.env`, execute the TUI and query shared status. Under `sudo`, the installer still registers the installing account's rc. Each ordinary user can register their own current Bash/Zsh rc without sudo:
+User-mode env files have mode `0600`; passwords never appear in the rc block. System mode permits all users to read the credential-free `proxy.env`, execute the TUI and query shared status. Internal sudo elevation preserves the ordinary initiating user and configuration path. An external sudo system invocation also registers its initiating account; a direct root invocation registers root. Registration runs with the target account's UID/GID and does not copy root's HOME or XDG configuration. Each ordinary user can register their own Bash/Zsh/fish configuration without sudo:
 
 ```sh
 /opt/verge-tui/verge-tui shell install
 ```
 
-The command detects the current shell (including `ZDOTDIR`) and prints the rc to source. Override detection with `--rc-file /absolute/path`. Open a new shell or source the printed file before invoking the functions. To remove the calling user's registered functions:
+The command detects the current shell (including `ZDOTDIR`) and prints the rc to source. Override detection with `--shell bash|zsh|fish --rc-file /absolute/path`. Open a new shell or source the printed file before invoking the functions. To remove the calling user's registered functions:
 
 ```sh
 /opt/verge-tui/verge-tui shell uninstall
@@ -99,7 +99,7 @@ The command detects the current shell (including `ZDOTDIR`) and prints the rc to
 
 Registrations are separate for each user; removing your functions leaves other users' rc files alone. Uninstallation removes all registered blocks, running ordinary users' cleanup with their own UID/GID. Existing rc ownership and permissions are preserved, including symlinked rc files. Loaded functions in already-open shells remain until explicitly unset or the shell exits.
 
-Rerunning the installer also adds shell functions to early installations that did not have them. To register functions manually, for example in Zsh:
+Rerunning the installer can also register functions for an account that has not registered them yet. To register functions manually, for example in Zsh:
 
 ```sh
 "$HOME/.local/share/verge-tui/verge-tui" env-file
@@ -107,7 +107,7 @@ Rerunning the installer also adds shell functions to early installations that di
 . "${ZDOTDIR:-$HOME}/.zshrc"
 ```
 
-Registering the same installation twice updates its block instead of duplicating functions. Uninstall removes only that installation's marked block, preserving other rc content. For a one-time export without registering functions:
+Repeated registration updates the owned files without duplicate PATH entries. Existing unrelated fish function files are refused. Uninstall removes only this installation's loader and files, preserving other user content. fish uses session variables rather than persistent universal variables. For a one-time export without registering functions:
 
 ```sh
 eval "$("$HOME/.local/share/verge-tui/verge-tui" env)"
@@ -190,8 +190,8 @@ sh scripts/package.sh /absolute/path/to/mihomo v1.19.32 /absolute/path/to/geodat
 
 The geodata directory must contain Country.mmdb, GeoIP.dat and GeoSite.dat matching the hashes in `packaging/geodata/manifest.json`. The default directory is `.local/geodata-source`. The source release URLs are moving `latest` URLs; keep the verified snapshot files, or explicitly update the manifest when choosing a newer snapshot. Packaging verifies all hashes and tests all three formats with the supplied core before creating an archive.
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.13-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.14-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
 
-Shell installation adds the executable directory to PATH in the same managed rc block as the proxy functions. It avoids duplicate entries; shell removal and uninstallation remove the entire block. Source the rc printed by the installer to activate it in the current shell.
+Shell integration adds the executable directory to PATH from its independent managed file. It avoids duplicate entries; shell removal and uninstallation remove the loader and owned files. Source the printed Bash/Zsh rc or fish `conf.d` file for the current session. fish functions are autoloaded by name.
 
 In Settings, System Proxy and TUN each have separate `Configure | Disabled` / `Enabled` controls on one row. System Proxy configuration saves the proxy host and bypass choices privately for the calling user. On GNOME, saving updates an already-enabled managed proxy and keeps the original desktop backup for disabling or uninstalling. Changing only these settings does not change listening ports or TUN; the proxy address uses the managed mixed port. With no desktop session, settings are saved for later use in that user's supported desktop session. PAC and proxy guard are not provided.

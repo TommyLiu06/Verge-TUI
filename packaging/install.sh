@@ -3,7 +3,7 @@ set -eu
 umask 077
 
 usage() {
-    echo 'Usage: sh install.sh [--prefix DIR] [--mode user|system] [--service|--no-service] [--mixed-port PORT] [--api-port PORT] [--shell bash|zsh|none] [--rc-file FILE] [--yes]'
+    echo 'Usage: sh install.sh [--prefix DIR] [--mode user|system] [--service|--no-service] [--mixed-port PORT] [--api-port PORT] [--shell bash|zsh|fish|none] [--rc-file FILE] [--bin-dir DIR] [--yes]'
 }
 fail() { echo "Error: $*" >&2; exit 1; }
 
@@ -15,8 +15,13 @@ service_choice=auto
 assume_yes=no
 shell_choice=auto
 rc_file=
+requested_rc=
 mixed_port=0
 api_port=0
+bin_dir=/usr/local/bin
+requested_bin_dir=
+registration_uid=
+elevated=no
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix) [ "$#" -ge 2 ] || fail 'Missing --prefix value'; prefix=$2; shift 2 ;;
@@ -25,25 +30,162 @@ while [ "$#" -gt 0 ]; do
         --no-service) service_choice=no; shift ;;
         --yes|-y) assume_yes=yes; shift ;;
         --shell) [ "$#" -ge 2 ] || fail 'Missing --shell value'; shell_choice=$2; shift 2 ;;
-        --rc-file) [ "$#" -ge 2 ] || fail 'Missing --rc-file value'; rc_file=$2; shift 2 ;;
+        --rc-file) [ "$#" -ge 2 ] || fail 'Missing --rc-file value'; rc_file=$2; requested_rc=$2; shift 2 ;;
         --mixed-port) [ "$#" -ge 2 ] || fail 'Missing --mixed-port value'; mixed_port=$2; shift 2 ;;
+        --bin-dir) [ "$#" -ge 2 ] || fail 'Missing --bin-dir value'; bin_dir=$2; requested_bin_dir=$2; shift 2 ;;
+        --shell-user) [ "$#" -ge 2 ] || fail 'Missing initiating user'; registration_uid=$2; shift 2 ;;
+        --elevated) elevated=yes; shift ;;
         --api-port) [ "$#" -ge 2 ] || fail 'Missing --api-port value'; api_port=$2; shift 2 ;;
         --help|-h) usage; exit 0 ;;
         *) usage >&2; fail "Unknown option: $1" ;;
     esac
 done
+# Offline verification precedes every invocation of the bundled helper.
+command -v sha256sum >/dev/null 2>&1 || fail 'Install sha256sum (GNU coreutils) first'
+(cd "$bundle_dir" && sha256sum --status -c SHA256SUMS) || fail 'Bundle checksum verification failed'
+case "$(uname -s)/$(uname -m)" in Linux/x86_64) ;; *) fail 'This bundle requires Linux amd64' ;; esac
+helper="$bundle_dir/bin/verge-tui"
+caller_uid=$(id -u)
+user_prefix=${prefix:-"${XDG_DATA_HOME:-$HOME/.local/share}/verge-tui"}
+system_prefix=${prefix:-/opt/verge-tui}
+
+candidate_status() {
+    candidate=$1
+    expected_mode=$2
+    if [ ! -e "$candidate" ] && [ ! -L "$candidate" ]; then printf '%s' Install; return; fi
+    if summary=$("$helper" installation discover --prefix "$candidate" 2>/dev/null); then
+        status=$(printf '%s\n' "$summary" | sed -n '1p')
+        known_mode=$(printf '%s\n' "$summary" | sed -n '2p')
+        known_version=$(printf '%s\n' "$summary" | sed -n '3p')
+        if [ "$status" != absent ]; then
+            if [ "$known_mode" != "$expected_mode" ]; then printf 'Unavailable: belongs to %s mode' "$known_mode"; return; fi
+            if [ "$status" = retained ]; then printf '%s' 'Reinstall (data retained)'; else printf 'Update (%s)' "$known_version"; fi
+            return
+        fi
+    fi
+    if [ -f "$candidate/.verge-tui-install" ]; then
+        if [ -f "$candidate/verge-tui" ]; then printf '%s' 'Update (verification required)'; else printf '%s' 'Reinstall (data retained; verification required)'; fi
+        return
+    fi
+    # Presence is a menu hint only. Private inspection after mode selection
+    # rejects unrelated/incomplete directories and insufficient permissions.
+    printf '%s' 'Existing destination — verification required'
+}
+
+if [ -z "$requested_mode" ]; then
+    if [ "$assume_yes" = yes ] && [ -n "$prefix" ]; then
+        mode=user
+        if summary=$("$helper" installation discover --prefix "$prefix" 2>/dev/null); then
+            discovered_mode=$(printf '%s\n' "$summary" | sed -n '2p')
+            case "$discovered_mode" in user|system) mode=$discovered_mode ;; esac
+        fi
+    elif [ "$assume_yes" = yes ]; then
+        fail 'Unattended installation requires --mode user or --mode system'
+    else
+        printf '\n%s\n' 'verge-tui setup'
+        printf '  Current user: %s (uid %s)\n  Platform:     Linux amd64\n' "$(id -un)" "$caller_uid"
+        user_manager=no; system_manager=no
+        if command -v systemctl >/dev/null 2>&1; then
+            if systemctl --user show-environment >/dev/null 2>&1; then user_manager=yes; fi
+            if systemctl show-environment >/dev/null 2>&1; then system_manager=yes; fi
+        fi
+        printf '  User systemd: %s\n  System systemd: %s\n' "$user_manager" "$system_manager"
+        printf '\nChoose installation mode:\n  1. User   — %s\n     %s\n  2. System — %s\n     %s\n  0. Cancel\n' "$(candidate_status "$user_prefix" user)" "$user_prefix" "$(candidate_status "$system_prefix" system)" "$system_prefix"
+        while :; do
+            printf 'Selection [0/1/2]: '
+            if ! IFS= read -r selection; then echo; echo 'Installation cancelled.'; exit 0; fi
+            case "$selection" in
+                1|user) mode=user; break ;;
+                2|system) mode=system; break ;;
+                0|'') echo 'Installation cancelled.'; exit 0 ;;
+                *) echo 'Select 1 (user), 2 (system), or 0 (cancel).' ;;
+            esac
+        done
+    fi
+    requested_mode=$mode
+fi
 case "$mode" in user|system) ;; *) fail 'Mode must be user or system' ;; esac
-# With no explicit mode/prefix, root can rerun the installer for the default
-# system installation. Explicit paths inherit their recorded mode below.
-if [ -z "$prefix" ] && [ -z "$requested_mode" ] && [ "$(id -u)" -eq 0 ] && [ -d /opt/verge-tui ]; then
-    prefix=/opt/verge-tui
+if [ "$mode" = system ]; then prefix=$system_prefix; else prefix=$user_prefix; fi
+# Reject an explicitly mismatched installation before asking for sudo. Public
+# discovery is a menu/preflight hint; private inspection still runs below.
+if summary=$("$helper" installation discover --prefix "$prefix" 2>/dev/null); then
+    known_mode=$(printf '%s\n' "$summary" | sed -n '2p')
+    [ -z "$known_mode" ] || [ "$mode" = "$known_mode" ] || fail 'Requested mode does not match the installation'
 fi
 if [ "$mode" = system ]; then
-    [ "$(id -u)" -eq 0 ] || fail 'System mode requires root'
-    [ -n "$prefix" ] || prefix=/opt/verge-tui
-else
-    [ -n "$prefix" ] || prefix="${XDG_DATA_HOME:-$HOME/.local/share}/verge-tui"
+    if summary=$("$helper" installation discover --prefix "$prefix" 2>/dev/null); then
+        existing_link=$(printf '%s\n' "$summary" | sed -n '4p')
+        if [ -n "$existing_link" ]; then
+            existing_bin_dir=$(dirname -- "$existing_link")
+            [ -z "$requested_bin_dir" ] || [ "$requested_bin_dir" = "$existing_bin_dir" ] || fail 'Updates and reinstalls preserve the system command directory'
+            bin_dir=$existing_bin_dir
+        fi
+    fi
 fi
+
+# Resolve the initiating shell before sudo changes HOME and process ancestry.
+if [ "$shell_choice" = auto ]; then
+    parent_shell=
+    if command -v ps >/dev/null 2>&1; then
+        shell_pid=${PPID:-0}
+        shell_depth=0
+        while [ "$shell_depth" -lt 8 ]; do
+            case "$shell_pid" in ''|*[!0-9]*|0) break ;; esac
+            parent_shell=$(ps -p "$shell_pid" -o comm= 2>/dev/null) || break
+            parent_shell=${parent_shell#-}
+            case "$parent_shell" in
+                bash|zsh|fish) break ;;
+                sudo|sh)
+                    shell_pid=$(ps -p "$shell_pid" -o ppid= 2>/dev/null | tr -d '[:space:]')
+                    shell_depth=$((shell_depth + 1))
+                    ;;
+                *) break ;;
+            esac
+        done
+    fi
+    login_shell=${SHELL:-}
+    case "$parent_shell" in bash|zsh|fish) shell_choice=$parent_shell ;; *) shell_choice=${login_shell##*/} ;; esac
+fi
+[ -n "$registration_uid" ] || registration_uid=$caller_uid
+registration_home=$HOME
+# An external sudo invocation also belongs to its initiating account for system
+# registration. A root user-mode installation always belongs to root itself.
+if [ "$mode" = system ] && [ "$caller_uid" = 0 ] && [ "$registration_uid" = 0 ] && [ -n "${SUDO_UID:-}" ]; then
+    registration_uid=$SUDO_UID
+    account=$("$helper" installation account --user "$registration_uid") || fail 'Cannot resolve initiating account'
+    registration_home=$(printf '%s\n' "$account" | sed -n '2p')
+    unset XDG_CONFIG_HOME ZDOTDIR
+fi
+case "$registration_uid" in ''|*[!0-9]*) fail 'Invalid initiating UID' ;; esac
+if [ "$mode" = user ]; then registration_uid=$caller_uid; fi
+case "$shell_choice" in
+    bash) [ -n "$rc_file" ] || rc_file="$registration_home/.bashrc" ;;
+    zsh) [ -n "$rc_file" ] || rc_file="${ZDOTDIR:-$registration_home}/.zshrc" ;;
+    fish) [ -n "$rc_file" ] || rc_file="${XDG_CONFIG_HOME:-$registration_home/.config}/fish/config.fish" ;;
+    none) [ -z "$rc_file" ] || fail '--rc-file cannot be combined with --shell none' ;;
+    *) fail 'Unsupported user shell; select --shell bash, zsh, fish or none' ;;
+esac
+
+# Preserve an existing custom rc and shell before sudo turns the resolved path
+# into an explicit --rc-file argument in the elevated process.
+if [ "$shell_choice" != none ] && [ -d "$prefix/data" ]; then
+    registered=$("$helper" --data-dir "$prefix/data" shell info --user "$registration_uid") || fail "Cannot inspect this user's shell registration"
+    user_rc=$(printf '%s\n' "$registered" | sed -n '1p')
+    user_shell=$(printf '%s\n' "$registered" | sed -n '2p')
+    if [ -n "$user_rc" ] && [ -z "$requested_rc" ]; then rc_file=$user_rc; shell_choice=$user_shell; fi
+fi
+if [ "$mode" = system ] && [ "$caller_uid" != 0 ]; then
+    [ "$elevated" = no ] || fail 'sudo did not grant root privileges'
+    [ "$registration_uid" = "$caller_uid" ] || fail 'The initiating UID must match the current user'
+    command -v sudo >/dev/null 2>&1 || fail 'System installation requires sudo; ask an administrator or select user mode'
+    echo 'System mode needs administrator privileges. Continuing through sudo...'
+    set -- "$bundle_dir/install.sh" --elevated --mode system --prefix "$prefix" --shell "$shell_choice" --shell-user "$registration_uid" --bin-dir "$bin_dir" --mixed-port "$mixed_port" --api-port "$api_port"
+    [ -z "$rc_file" ] || set -- "$@" --rc-file "$rc_file"
+    case "$service_choice" in yes) set -- "$@" --service ;; no) set -- "$@" --no-service ;; esac
+    [ "$assume_yes" != yes ] || set -- "$@" --yes
+    exec sudo -- sh "$@"
+fi
+case "$bin_dir" in /*) ;; *) fail 'Command directory must be absolute' ;; esac
 case "$prefix" in /*) ;; *) fail 'Prefix must be an absolute path' ;; esac
 case "$prefix" in *'
 '*|*"$(printf '\r')"*) fail 'Prefix must be a single-line path' ;; esac
@@ -81,10 +223,7 @@ if [ -e "$prefix" ] || [ -L "$prefix" ]; then
             ;;
         *) fail 'Unknown installation state' ;;
     esac
-    if [ -n "$recorded_rc" ] && [ "$shell_choice" = auto ] && [ -z "$rc_file" ]; then
-        shell_choice=registered
-        rc_file=$recorded_rc
-    fi
+
 fi
 
 if [ "$mode" = system ] && [ "$updating" = no ] && [ "$restoring" = no ]; then
@@ -92,20 +231,6 @@ if [ "$mode" = system ] && [ "$updating" = no ] && [ "$restoring" = no ]; then
     [ "$api_port" != 0 ] || api_port=9090
 fi
 
-if [ "$shell_choice" = auto ]; then
-    parent_shell=
-    if command -v ps >/dev/null 2>&1; then parent_shell=$(ps -p "${PPID:-0}" -o comm= 2>/dev/null) || parent_shell=; fi
-    parent_shell=${parent_shell#-}
-    login_shell=${SHELL:-}
-    case "$parent_shell" in bash|zsh) shell_choice=$parent_shell ;; *) shell_choice=${login_shell##*/} ;; esac
-fi
-case "$shell_choice" in
-    bash) [ -n "$rc_file" ] || rc_file="$HOME/.bashrc" ;;
-    zsh) [ -n "$rc_file" ] || rc_file="${ZDOTDIR:-$HOME}/.zshrc" ;;
-    registered) ;;
-    none) [ -z "$rc_file" ] || fail '--rc-file cannot be combined with --shell none' ;;
-    *) fail 'Cannot determine a supported shell; select --shell bash, zsh or none' ;;
-esac
 if [ -n "$rc_file" ]; then
     case "$rc_file" in /*) ;; *) fail 'Shell rc must be an absolute path' ;; esac
     case "$rc_file" in *'
@@ -209,6 +334,24 @@ if [ "$updating" = no ] && { [ "$mixed_port" != 0 ] || [ "$api_port" != 0 ]; }; 
     fi
 fi
 
+if [ "$mode" = system ]; then
+    "$helper" installation check-link --prefix "$prefix" --bin-dir "$bin_dir" || fail 'System command path is already occupied'
+    printf '  Command:      %s/verge-tui\n' "$bin_dir"
+fi
+printf '  Shell owner:  uid %s\n' "$registration_uid"
+if [ "$shell_choice" = fish ]; then echo '  Shell files:  fish functions/ and conf.d/; config.fish unchanged'; fi
+finish_registration() {
+    app_bin="$prefix/verge-tui"
+    "$app_bin" installation record --prefix "$prefix" --bin-dir "$bin_dir"
+    if [ "$shell_choice" != none ]; then
+        if [ "$updating" = yes ] && [ -z "$requested_rc" ]; then
+            "$app_bin" shell install --user "$registration_uid"
+        else
+            "$app_bin" shell install --shell "$shell_choice" --rc-file "$rc_file" --user "$registration_uid"
+        fi
+    fi
+}
+
 if [ "$assume_yes" != yes ]; then
     action=installation
     cancelled='Installation cancelled.'
@@ -223,24 +366,17 @@ cd "$bundle_dir"
 sha256sum --status -c SHA256SUMS || fail 'Bundle checksum verification failed; installation stopped'
 if [ "$updating" = yes ]; then
     echo 'Updating application; keeping selected core and proxy data...'
-    if [ "$shell_choice" = none ]; then
-        "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix"
-    else
-        "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix" --rc-file "$rc_file"
-    fi
+    "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix"
+    finish_registration
     echo "Updated in $prefix"
     echo "Launch: \"$prefix/verge-tui\""
-    if [ "$shell_choice" != none ]; then echo "Open a new shell or source the existing rc: $rc_file"; fi
+    if [ "$shell_choice" != none ]; then echo 'Open a new shell to load the integration.'; fi
     exit 0
 fi
 app_bin="$prefix/verge-tui"
 if [ "$restoring" = yes ]; then
     echo 'Restoring application; keeping selected core and proxy data...'
-    if [ "$shell_choice" = none ]; then
-        "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix"
-    else
-        "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix" --rc-file "$rc_file"
-    fi
+    "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix"
 else
     echo 'Installing application and managed core...'
 
@@ -264,7 +400,6 @@ else
     "$app_bin" profile select "$profile_id"
     "$app_bin" service --mode "$mode" > "$prefix/verge-tui.service"
     "$app_bin" env-file
-    if [ "$shell_choice" != none ]; then "$app_bin" shell install --rc-file "$rc_file"; fi
 fi
 
 if [ "$restoring" = yes ]; then
@@ -286,5 +421,6 @@ if [ "$install_service" = yes ]; then
         echo 'System service enabled. Open Home to enable TUN Mode.'
     fi
 fi
+finish_registration
 echo "Installed in $prefix"
 echo "Launch: \"$app_bin\""

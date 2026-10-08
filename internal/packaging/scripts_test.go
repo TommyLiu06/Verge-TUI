@@ -16,6 +16,7 @@ import (
 
 	"verge-tui/internal/core"
 	"verge-tui/internal/desktop"
+	"verge-tui/internal/installation"
 	"verge-tui/internal/shellenv"
 	"verge-tui/internal/state"
 )
@@ -74,6 +75,9 @@ case "${1:-}" in
 esac
 `, 0700)
 	write(t, filepath.Join(bin, "loginctl"), "#!/bin/sh\nprintf '%s\\n' \"$VERGE_TUI_LINGER\"\n", 0700)
+	// Never fall through to the host sudo. Elevation tests replace this stub
+	// with an argument recorder; other tests must reject before requesting it.
+	write(t, filepath.Join(bin, "sudo"), "#!/bin/sh\necho 'Unexpected sudo invocation in test fixture' >&2\nexit 1\n", 0700)
 	// All service files stay inside the project test directory. Real host
 	// systemd and GNOME tools are never invoked by these integration tests.
 	for _, value := range os.Environ() {
@@ -111,6 +115,15 @@ func (f fixture) run(t *testing.T, script, input string, succeeds bool, args ...
 		cmd.Args = append(cmd.Args, "--yes")
 	}
 	if script == "install.sh" {
+		modeSpecified := false
+		for _, arg := range args {
+			if arg == "--mode" {
+				modeSpecified = true
+			}
+		}
+		if !modeSpecified {
+			cmd.Args = append(cmd.Args, "--mode", "user")
+		}
 		specified := false
 		for _, arg := range args {
 			if arg == "--shell" {
@@ -505,6 +518,171 @@ verge_status`
 	}
 }
 
+func TestInteractiveModeChooserShowsUpdatesAndRootCanChooseUser(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes", "--no-service")
+	before := read(t, filepath.Join(f.prefix, "data", "settings.json"))
+	cmd := exec.Command("sh", filepath.Join(f.bundle, "install.sh"), "--prefix", f.prefix, "--shell", "bash", "--rc-file", f.rc)
+	cmd.Env, cmd.Stdin = f.env, strings.NewReader("1\nn\n")
+	out, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "User   — Update") || !strings.Contains(string(out), "Update cancelled.") {
+		t.Fatalf("mode chooser: %v\n%s", err, out)
+	}
+	if read(t, filepath.Join(f.prefix, "data", "settings.json")) != before {
+		t.Fatal("cancelled selection changed installation data")
+	}
+	// A fixture uid of zero must not force system mode. No root operations are
+	// executed: the user installation is cancelled before writes.
+	write(t, filepath.Join(f.root, "tools", "id"), "#!/bin/sh\ncase \"$1\" in -u) echo 0 ;; -un) echo root ;; esac\n", 0700)
+	f.prefix = filepath.Join(f.root, "root-local")
+	cmd = exec.Command("sh", filepath.Join(f.bundle, "install.sh"), "--prefix", f.prefix, "--shell", "bash", "--rc-file", f.rc)
+	cmd.Env, cmd.Stdin = f.env, strings.NewReader("1\nn\n")
+	out, err = cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "root (uid 0)") || !strings.Contains(string(out), "Mode:         user") {
+		t.Fatalf("root user mode: %v\n%s", err, out)
+	}
+	absent(t, f.prefix)
+}
+
+func TestNonRootSystemChoiceDelegatesToSudoAndKeepsCallerRC(t *testing.T) {
+	f := setup(t, "yes", "yes")
+	if os.Geteuid() == 0 {
+		t.Skip("requires a non-root caller")
+	}
+	log := filepath.Join(f.root, "sudo.args")
+	write(t, filepath.Join(f.root, "tools", "sudo"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > "+shellenv.Quote(log)+"\n", 0700)
+	cmd := exec.Command("sh", filepath.Join(f.bundle, "install.sh"), "--prefix", f.prefix, "--shell", "fish", "--rc-file", f.rc, "--bin-dir", filepath.Join(f.root, "bin"))
+	cmd.Env = f.env
+	cmd.Stdin = strings.NewReader("2\n")
+	out, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "Continuing through sudo") {
+		t.Fatalf("elevation: %v\n%s", err, out)
+	}
+	args := read(t, log)
+	for _, value := range []string{"--mode\nsystem\n", "--shell\nfish\n", "--shell-user\n" + strconv.Itoa(os.Geteuid()) + "\n", "--rc-file\n" + f.rc + "\n"} {
+		if !strings.Contains(args, value) {
+			t.Fatal("elevation lost the initiating user's selection", args)
+		}
+	}
+	absent(t, f.prefix)
+	if read(t, f.rc) != "# Existing user configuration\n" {
+		t.Fatal("pre-elevation step wrote rc")
+	}
+}
+
+func TestSystemUpdateKeepsRegisteredShellBeforeElevation(t *testing.T) {
+	f := setup(t, "no", "no")
+	if os.Geteuid() == 0 {
+		t.Skip("requires a non-root caller")
+	}
+	f.rc = filepath.Join(f.root, "custom-fish", "config.fish")
+	f.run(t, "install.sh", "", true, "--yes", "--no-service", "--shell", "fish", "--rc-file", f.rc)
+	s := &state.Store{Root: filepath.Join(f.prefix, "data")}
+	if err := s.Update(func(c *state.Settings) error { c.InstallMode = "system"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := installation.Record(f.prefix, "fixture", ""); err != nil {
+		t.Fatal(err)
+	}
+	before := read(t, filepath.Join(s.Root, "settings.json"))
+	log := filepath.Join(f.root, "sudo.args")
+	write(t, filepath.Join(f.root, "tools", "sudo"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > "+shellenv.Quote(log)+"\n", 0700)
+	cmd := exec.Command("sh", filepath.Join(f.bundle, "install.sh"), "--prefix", f.prefix, "--mode", "system", "--shell", "zsh", "--yes")
+	cmd.Env = f.env
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("update elevation: %v\n%s", err, out)
+	}
+	args := read(t, log)
+	if !strings.Contains(args, "--shell\nfish\n") || !strings.Contains(args, "--rc-file\n"+f.rc+"\n") {
+		t.Fatal("elevation did not preserve the registered custom shell configuration", args)
+	}
+	if read(t, filepath.Join(s.Root, "settings.json")) != before {
+		t.Fatal("pre-elevation inspection changed settings")
+	}
+}
+
+func TestShellDetectionFindsFishBehindSudo(t *testing.T) {
+	f := setup(t, "no", "no")
+	write(t, filepath.Join(f.root, "tools", "ps"), `#!/bin/sh
+case "$4" in
+    comm=) if [ "$2" = 424242 ]; then echo fish; else echo sudo; fi ;;
+    ppid=) echo 424242 ;;
+esac
+`, 0700)
+	cmd := exec.Command("sh", filepath.Join(f.bundle, "install.sh"), "--prefix", f.prefix, "--mode", "user")
+	cmd.Env = append(f.env, "HOME="+f.root, "SHELL=/bin/bash")
+	cmd.Stdin = strings.NewReader("n\n")
+	out, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "Shell:        fish") || !strings.Contains(string(out), filepath.Join(f.root, "config", "fish", "config.fish")) {
+		t.Fatalf("shell detection through sudo: %v\n%s", err, out)
+	}
+	absent(t, f.prefix)
+}
+
+func TestFishInstallationUsesAutoloadedFilesAndUninstallRemovesThem(t *testing.T) {
+	f := setup(t, "no", "no")
+	fish := os.Getenv("VERGE_TUI_TEST_FISH")
+	if fish == "" {
+		t.Skip("set VERGE_TUI_TEST_FISH for fish bundle integration")
+	}
+	f.rc = filepath.Join(f.root, "fish", "config.fish")
+	if err := os.MkdirAll(filepath.Dir(f.rc), 0700); err != nil {
+		t.Fatal(err)
+	}
+	write(t, f.rc, "# My fish configuration\n", 0600)
+	f.run(t, "install.sh", "", true, "--yes", "--shell", "fish", "--rc-file", f.rc, "--no-service")
+	script := "set -g fish_function_path " + shellenv.FishQuote(filepath.Join(filepath.Dir(f.rc), "functions")) + " $fish_function_path\nsource " + shellenv.FishQuote(filepath.Join(filepath.Dir(f.rc), "conf.d", "verge-tui.fish")) + "\n" + `
+verge_off
+verge_status
+verge_on; or exit 11
+test "$http_proxy" = "$ALL_PROXY"; or exit 12
+verge_status
+verge_off
+verge_status
+`
+	cmd := exec.Command(fish, "--no-config", "-c", script)
+	cmd.Env = append(f.env, "HOME="+f.root, "XDG_CONFIG_HOME="+filepath.Join(f.root, "fish-test-config"), "XDG_DATA_HOME="+filepath.Join(f.root, "fish-test-data"))
+	out, err := cmd.CombinedOutput()
+	if err != nil || strings.Count(string(out), "Shell environment: not loaded") != 2 || !strings.Contains(string(out), "loaded and matches") {
+		t.Fatalf("fish bundle functions: %v\n%s", err, out)
+	}
+	f.run(t, "install.sh", "", true, "--yes", "--shell", "fish", "--rc-file", f.rc)
+	f.run(t, "uninstall.sh", "", true, "--purge")
+	if read(t, f.rc) != "# My fish configuration\n" {
+		t.Fatal("fish config.fish was modified")
+	}
+	absent(t, filepath.Join(filepath.Dir(f.rc), "functions", "verge_on.fish"))
+	absent(t, filepath.Join(filepath.Dir(f.rc), "conf.d", "verge-tui.fish"))
+}
+
+func TestCommandLinkLaunchUsesInstalledDataAndUninstallKeepsForeignLink(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes", "--no-service")
+	link := filepath.Join(f.root, "bin", "verge-tui")
+	if err := installation.InstallCommandLink(f.prefix, link); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(link, "env")
+	cmd.Env = f.env
+	out, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "export http_proxy=") {
+		t.Fatalf("linked command used the wrong data directory: %v\n%s", err, out)
+	}
+	absent(t, filepath.Join(filepath.Dir(link), "data"))
+	if err := installation.Record(f.prefix, "fixture", link); err != nil {
+		t.Fatal(err)
+	}
+	os.Remove(link)
+	if err := os.Symlink(filepath.Join(f.root, "different-app"), link); err != nil {
+		t.Fatal(err)
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+	if target, err := os.Readlink(link); err != nil || target != filepath.Join(f.root, "different-app") {
+		t.Fatal("uninstall touched another command", target, err)
+	}
+}
+
 func TestShellIntegrationCanBeDisabled(t *testing.T) {
 	f := setup(t, "no", "no")
 	f.run(t, "install.sh", "", true, "--yes", "--shell", "none")
@@ -570,8 +748,13 @@ func TestInstallerUpdatesForegroundInstallationAndAddsShellFunctions(t *testing.
 	if read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
 		t.Fatal("foreground update reinitialized settings")
 	}
-	if !strings.Contains(read(t, f.rc), "verge_on()") {
-		t.Fatal("foreground update did not register new shell functions")
+	s := &state.Store{Root: filepath.Join(f.prefix, "data")}
+	paths, err := shellenv.ManagedPaths(s, filepath.Join(f.prefix, "verge-tui"), f.rc, "bash")
+	if err != nil || len(paths) != 1 {
+		t.Fatalf("managed shell paths: %v", err)
+	}
+	if !strings.Contains(read(t, f.rc), shellenv.Quote(paths[0])) || !strings.Contains(read(t, paths[0]), "verge_on()") {
+		t.Fatal("foreground update did not register a loader and independent shell functions")
 	}
 	if strings.Contains(read(t, f.log), "enable") {
 		t.Fatal("foreground update installed a service")

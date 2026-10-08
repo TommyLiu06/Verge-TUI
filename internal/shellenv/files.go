@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"verge-tui/internal/state"
 )
@@ -123,4 +125,61 @@ func RegisteredShell(s *state.Store, rc string) string {
 		}
 	}
 	return inferShell(rc)
+}
+
+func RegisteredRC(s *state.Store) (string, error) {
+	data, err := os.ReadFile(registrationPath(s))
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var reg registration
+	if err := json.Unmarshal(data, &reg); err != nil {
+		return "", err
+	}
+	if reg.ID != blockID(s) || !filepath.IsAbs(reg.RC) {
+		return "", errors.New("invalid shell registration")
+	}
+	return reg.RC, nil
+}
+
+func RegisteredConfig(s *state.Store, uid int) (string, string, error) {
+	if uid != os.Geteuid() && os.Geteuid() != 0 {
+		return "", "", errors.New("inspecting another user's shell registration requires root")
+	}
+	info, err := os.Stat(s.Root)
+	if os.IsNotExist(err) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	path := filepath.Join(s.Root, "shell-integration.json")
+	if uid != int(info.Sys().(*syscall.Stat_t).Uid) {
+		path = filepath.Join(state.ShellUsersPath(s), strconv.Itoa(uid)+".json")
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	var reg registration
+	if err := json.Unmarshal(data, &reg); err != nil {
+		return "", "", err
+	}
+	if reg.ID != blockID(s) || !filepath.IsAbs(reg.RC) || strings.ContainsAny(reg.RC, "\r\n\x00") {
+		return "", "", errors.New("invalid shell registration")
+	}
+	shell := reg.Shell
+	if shell == "" {
+		shell = inferShell(reg.RC)
+	}
+	if !Supported(shell) {
+		return "", "", errors.New("invalid registered shell")
+	}
+	return reg.RC, shell, nil
 }

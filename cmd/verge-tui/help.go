@@ -34,7 +34,7 @@ Commands:
   help             Show global or command help
 
 Installation helpers:
-  installation     Bundle verification, inspection, update and geodata provisioning
+  installation     Bundle verification, discovery, update and command-link management
   prepare-uninstall  Check core ownership and restore managed desktop proxy settings
   desktop-restore  Restore this user's managed desktop proxy settings
 
@@ -48,7 +48,7 @@ Examples:
 
 Shell integration:
   shell install supports Bash, Zsh and fish with independent managed function files.
-  Source the printed rc path once for this shell; new shells load it automatically.
+  Source the printed loader once for this shell; new shells load it automatically.
   verge_on loads proxy.env; verge_off clears proxy variables; verge_status checks status.
   Bash/Zsh use a short rc loader; fish uses functions/ and conf.d/ without editing config.fish.
   shell uninstall and uninstall.sh remove their registered loader and owned files.
@@ -62,6 +62,13 @@ Run 'verge-tui COMMAND --help' for command options and examples.
 `
 
 var helpTopics = map[string]string{
+	"shell info":                 "Usage: verge-tui shell info [--user UID]\n\nReport the existing registered configuration path and shell type.\nInspecting another account requires root. Does not initialize application data.\n",
+	"installation account":       "Usage: verge-tui installation account --user UID\n\nRead the initiating account name and home for a sudo system installation.\nThis helper does not register functions or modify account files.\n",
+	"installation retain":        "Usage: verge-tui installation retain --prefix DIR\n\nUninstaller helper: mark public discovery metadata as retained data.\nThe recorded command directory remains available for reinstallation.\n",
+	"installation unlink":        "Usage: verge-tui installation unlink --prefix DIR\n\nUninstaller helper: remove only the recorded link still targeting this installation.\nA command replaced by another application is preserved.\n",
+	"installation record":        "Usage: verge-tui installation record --prefix DIR [--bin-dir DIR]\n\nInstaller helper: record public installation metadata and create its system command link.\nSystem command registration requires root. Default directory: /usr/local/bin.\n",
+	"installation check-link":    "Usage: verge-tui installation check-link --prefix DIR [--bin-dir DIR]\n\nCheck the command path without changing files. Default directory: /usr/local/bin.\nOnly an absent path or a link targeting this installation is accepted.\n",
+	"installation discover":      "Usage: verge-tui installation discover --prefix DIR\n\nRead public installation mode/version/state and command-link metadata.\nNo configuration secrets are read. Menu hints still require private inspection after elevation.\n",
 	"tui":                        "Usage: verge-tui [--data-dir DIR] tui\n\nOpen the TUI (also the default when no command is given).\nKeyboard: 1–7 pages, Tab/arrows focus, Enter activate, F1 help, q quit.\nMouse: click controls; wheel scrolls and clears focus.\nClosing a service-connected TUI leaves the service running.\n",
 	"run":                        "Usage: verge-tui [--data-dir DIR] run\n\nStart the selected managed core and supervise it in the foreground.\nSIGINT/SIGTERM stops the owned core. System mode requires root.\nThe generated systemd unit runs this command.\n",
 	"core":                       "Usage: verge-tui core install [TAG] | import ID FILE | list | use ID\n\n  install [TAG]  Download an official mihomo release (default: latest).\n  import ID FILE Import an extracted mihomo executable into the managed core directory.\n  list           List installed versions; * marks the selection.\n  use ID         Select an installed version; restart the owned running core.\n\nInstalling/importing selects the new core only when no core is selected yet.\nExample: verge-tui core import vNEXT /path/to/mihomo\n",
@@ -77,8 +84,8 @@ var helpTopics = map[string]string{
 	"profile delete":             "Usage: verge-tui profile delete ID\n\nCLI deletion is available to system-service clients.\nUse Profile Options > Delete in the TUI for either installation mode.\nDeleting the active profile switches the core to the built-in DIRECT configuration.\n",
 	"env":                        "Usage: verge-tui env [--shell bash|zsh|fish]\n\nPrint proxy environment statements for the selected shell (default: Bash/POSIX).\nThis command cannot modify its parent shell. Prefer verge_on after shell install.\nUser-mode exports include proxy credentials.\nFor fish: verge-tui env --shell fish | source\n",
 	"env-file":                   "Usage: verge-tui env-file\n\nWrite proxy.env beside the application's data directory.\nUser mode uses private permissions and credentials; system mode uses shared loopback access.\n",
-	"shell":                      "Usage: verge-tui shell install [--shell bash|zsh|fish] [--rc-file FILE]\n       verge-tui shell uninstall [--all]\n\n  install         Register PATH and verge_on/off/status for this user.\n  --shell NAME   Override current-shell detection.\n  --rc-file FILE  Absolute startup-file path; default: current shell configuration.\n  uninstall       Remove this user's owned loader and function files.\n  --all           Remove all registered users' integration during administrator uninstallation.\n\nBash/Zsh use independent .verge-tui/*.sh files and a short rc loader.\nfish uses functions/*.fish and conf.d/verge-tui.fish; config.fish is unchanged.\nInstallation requires proxy.env. Repeated registration is idempotent.\n",
-	"shell install":              "Usage: verge-tui shell install [--shell bash|zsh|fish] [--rc-file FILE]\n\nInstall independent verge_on/off/status function files and PATH configuration.\nThe detected current shell takes precedence over the login shell.\nBash: ~/.bashrc; Zsh: $ZDOTDIR/.zshrc or ~/.zshrc.\nfish: $XDG_CONFIG_HOME/fish or ~/.config/fish; config.fish is not modified.\nFILE selects an absolute startup-file path; use --shell for custom fish paths.\nSource the printed loader once or open a new shell.\n",
+	"shell":                      "Usage: verge-tui shell install [--shell bash|zsh|fish] [--rc-file FILE]\n       verge-tui shell uninstall [--all]\n       verge-tui shell info\n\n  install         Register PATH and verge_on/off/status for this user.\n  --shell NAME   Override current-shell detection.\n  --rc-file FILE  Absolute startup-file path; default: existing registration or detected shell.\n  --user UID     Root installer only: register with the initiating account's UID/GID.\n  uninstall       Remove this user's owned loader and function files.\n  --all           Remove all registrations during administrator uninstallation.\n  info            Report the existing configuration path and shell.\n\nBash/Zsh use independent .verge-tui/*.sh files and a short rc loader.\nfish uses functions/*.fish and conf.d/verge-tui.fish; config.fish is unchanged.\nInstallation requires proxy.env. Repeated registration is idempotent.\n",
+	"shell install":              "Usage: verge-tui shell install [--shell bash|zsh|fish] [--rc-file FILE] [--user UID]\n\nInstall independent verge_on/off/status function files and PATH configuration.\nAn existing registration is preserved; otherwise current-shell detection is used.\nBash: ~/.bashrc; Zsh: $ZDOTDIR/.zshrc or ~/.zshrc.\nfish: $XDG_CONFIG_HOME/fish or ~/.config/fish; config.fish is not modified.\nFILE selects an absolute startup-file path; use --shell for custom fish paths.\n--user is for the root installer to drop privileges before registering another account.\nSource the printed loader once or open a new shell.\n",
 	"shell uninstall":            "Usage: verge-tui shell uninstall [--all]\n\nRemove the registered loader, function files and PATH configuration.\nUnrelated user files and startup settings are preserved.\n--all cleans every registered user during administrator uninstallation.\nAlready-running shells retain loaded functions until restarted.\n",
 	"proxy-status":               "Usage: verge-tui proxy-status\n\nReport core/API availability, the proxy listener and exported proxy variables.\nVariables are classified as unset, matching, empty or different; passwords are hidden.\nUnexported parent-shell variables are not visible. No external website is contacted.\n",
 	"service":                    "Usage: verge-tui service [--mode user|system]\n\nPrint a systemd unit for this executable and data directory. Default: user.\nThis command does not install or enable the unit; install.sh handles that.\nUser boot startup depends on user-service/lingering availability.\nSystem service administration requires root.\n",
@@ -88,7 +95,7 @@ var helpTopics = map[string]string{
 	"version":                    "Usage: verge-tui version\n\nPrint the application version.\n",
 	"prepare-uninstall":          "Usage: verge-tui prepare-uninstall\n\nInstaller helper: require a stopped core and restore managed desktop proxy settings.\nUse uninstall.sh for normal uninstallation and optional data removal.\n",
 	"desktop-restore":            "Usage: verge-tui desktop-restore\n\nRestore this user's saved desktop proxy settings. Used by uninstall.sh.\n",
-	"installation":               "Usage: verge-tui installation COMMAND [options]\n\nBundle helpers (normally called by install.sh):\n  inspect --prefix DIR\n  update --prefix DIR [--rc-file FILE]\n  check-ports [--mixed-port PORT] [--api-port PORT]\n  check-geodata --source-dir DIR --core-file FILE\n  seed-geodata --prefix DIR\n\nRun installation COMMAND --help for details.\n",
+	"installation":               "Usage: verge-tui installation COMMAND [options]\n\nInstaller helpers:\n  discover --prefix DIR             Read public installation status\n  inspect --prefix DIR              Verify private installation state\n  update --prefix DIR [--rc-file FILE]\n  check-link --prefix DIR [--bin-dir DIR]\n  record --prefix DIR [--bin-dir DIR]\n  unlink --prefix DIR\n  retain --prefix DIR\n  account --user UID\n  check-ports [--mixed-port PORT] [--api-port PORT]\n  check-geodata --source-dir DIR --core-file FILE\n  seed-geodata --prefix DIR\n\nRun installation COMMAND --help for details.\n",
 	"installation inspect":       "Usage: verge-tui installation inspect --prefix DIR\n\nRead an installation marker and verify the installed or retained data layout.\nDoes not initialize data or modify the destination. Output is intended for install.sh.\n",
 	"installation update":        "Usage: verge-tui installation update --prefix DIR [--rc-file FILE]\n\nUpdate from the extracted offline bundle, preserving managed data and installation mode.\nUse install.sh for interactive preflight/confirmation and normal updates.\n",
 	"installation check-ports":   "Usage: verge-tui installation check-ports [--mixed-port PORT] [--api-port PORT]\n\nCheck TCP/UDP availability of nonzero requested ports; zero skips that port.\nThe proxy and API ports must differ. Does not create an installation.\n",
@@ -120,7 +127,7 @@ func printHelp(args []string, out io.Writer) (bool, error) {
 		}
 		if strings.HasPrefix(arg, "-") {
 			switch arg {
-			case "--shell", "--rc-file", "--page", "--width", "--height", "--mode", "--install-mode", "--mixed-port", "--api-port", "--prefix", "--source-dir", "--core-file":
+			case "--bin-dir", "--user", "--shell", "--rc-file", "--page", "--width", "--height", "--mode", "--install-mode", "--mixed-port", "--api-port", "--prefix", "--source-dir", "--core-file":
 				i++
 			}
 			continue

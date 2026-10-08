@@ -99,6 +99,8 @@ fi
 # GNOME proxy backup before deleting application files or credentials.
 "$app_bin" --data-dir "$prefix/data" prepare-uninstall
 "$app_bin" --data-dir "$prefix/data" shell uninstall --all
+"$app_bin" installation unlink --prefix "$prefix"
+"$app_bin" installation retain --prefix "$prefix"
 
 if [ -n "$unit_path" ] && [ -f "$unit_path" ]; then
     rm -- "$unit_path"
@@ -117,4 +119,5 @@ else
     echo 'Use the offline bundle uninstall.sh with --prefix and --purge to remove retained data.'
 fi
 echo 'Shell rc integration removed. Already loaded functions and variables remain in existing shells.'
-echo 'Clear them with: verge_off; unset -f verge_on verge_off verge_status'
+echo 'Bash/Zsh: verge_off; unset -f verge_on verge_off verge_status'
+echo 'fish: verge_off; functions --erase verge_on verge_off verge_status'
