@@ -32,16 +32,16 @@ func main() {
 	}
 }
 func run(args []string) error {
+	if handled, err := printHelp(args, os.Stdout); handled {
+		return err
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	flags := flag.NewFlagSet("verge-tui", flag.ContinueOnError)
 	root := flags.String("data-dir", filepath.Join(filepath.Dir(executable), "data"), "application-owned data directory")
-	flags.Usage = func() {
-		fmt.Println("verge-tui [--data-dir DIR] [command]\n\nCommands: tui (default), core install|import|list|use, profile import|new|list|select, run, env, env-file, shell install|remove, proxy-status, service, configure, status, preview, version, prepare-uninstall\n\nGo and a system-wide mihomo installation are not required.")
-		flags.PrintDefaults()
-	}
+	flags.Usage = func() { fmt.Print(rootHelp) }
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Shell functions: verge_on, verge_off, verge_status\nLoad in this shell: . %s\n", shellenv.Quote(path))
+			fmt.Printf("Shell functions: verge_on, verge_off, verge_status\nExecutable directory added to PATH.\nLoad in this shell: . %s\n", shellenv.Quote(path))
 			return nil
 		default:
 			return errors.New("unknown shell command")
