@@ -58,6 +58,8 @@ func (b *Backend) savePreferences(fields map[string]string) error {
 	}
 	for key, value := range fields {
 		switch key {
+		case "language":
+			p.Language = value
 		case "theme":
 			p.Theme = value
 		case "start-page":

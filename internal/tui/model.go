@@ -394,7 +394,9 @@ func (m *Model) Activate(a app.Action) *app.Action {
 	case "environment":
 		m.Modal = &Modal{Title: "Proxy Environment", Body: strings.Split(app.ProxyEnvironment(m.View.Settings), "\n")}
 	case "copy-field":
-		m.Message = "Copied"
+		if !m.fieldDisabled(a.ID) {
+			m.Message = "Copied"
+		}
 	case "copy-environment":
 		m.Message = "Proxy environment copied to clipboard"
 	default:

@@ -132,6 +132,9 @@ func (m *Model) focusTargets() []Hit {
 		hits = append(hits, Hit{Action: a, Key: Key(a)})
 	}
 	for _, c := range m.Modal.Choices {
+		if c.Action.Kind == "copy-field" && m.fieldDisabled(c.Action.ID) {
+			continue
+		}
 		hits = append(hits, Hit{Action: c.Action, Key: Key(c.Action)})
 	}
 	if len(m.Modal.Fields) > 0 {
@@ -245,10 +248,13 @@ func (m *Model) help() {
 	}
 	m.HelpBack, m.HelpFocus = m.Modal, m.Focus
 	m.Modal = &Modal{Title: "Keyboard Shortcuts", Kind: "help", Body: []string{
-		"Tab / Shift+Tab or arrows: move focus", "Enter / Space: activate; Left / Right: change options",
-		"PageUp / PageDown: scroll; Home / End: page edges", "1 / 2 / 3 / 4: Home / Proxies / Profiles / Settings",
-		"r: Refresh; n: New profile; i: Profile URL", "Input: arrows, Home/End, Backspace, Delete",
-		"Ctrl+A/E: input start/end; Ctrl+U/W: clear / delete word", "Ctrl+S: save dialog; Esc: back; q / Ctrl+C: quit",
+		"Tab / Shift+Tab / ↑ / ↓: " + m.tr("Move Focus"),
+		"Enter / Space: " + m.tr("Activate"), "← / →: " + m.tr("Change Options"),
+		"PageUp / PageDown / Home / End: " + m.tr("Scroll"),
+		"1 / 2 / 3 / 4: " + m.tr("Home") + " / " + m.tr("Proxies") + " / " + m.tr("Profiles") + " / " + m.tr("Settings"),
+		"r: " + m.tr("Refresh") + "; n: " + m.tr("New") + "; i: " + m.tr("Profile URL"),
+		"Ctrl+A / Ctrl+E; Ctrl+U / Ctrl+W; Backspace / Delete",
+		"Ctrl+S: " + m.tr("Save") + "; Esc: " + m.tr("Close") + "; q / Ctrl+C: " + m.tr("Quit"),
 	}}
 	m.Focus = Key(app.Action{Kind: "close"})
 }

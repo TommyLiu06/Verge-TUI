@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"verge-tui/internal/i18n"
 )
 
 var Themes = []string{"terminal", "dark", "light", "mist-dark", "mist-light", "modern-dark", "modern-light", "vivid-dark", "vivid-light"}
 
 // Preferences belong to the calling user, independently of shared core settings.
 type Preferences struct {
+	Language     string `json:"language"`
 	Theme        string `json:"theme"`
 	StartPage    string `json:"start_page"`
 	ProxyColumns int    `json:"proxy_columns"`
@@ -21,10 +23,13 @@ type Preferences struct {
 }
 
 func DefaultPreferences() Preferences {
-	return Preferences{Theme: "terminal", StartPage: "home", DelayTimeout: 5000}
+	return Preferences{Language: "en", Theme: "terminal", StartPage: "home", DelayTimeout: 5000}
 }
 
 func (p Preferences) Validate() error {
+	if !slices.Contains(i18n.Languages, p.Language) {
+		return errors.New("unsupported language")
+	}
 	if !slices.Contains(Themes, p.Theme) {
 		return errors.New("invalid theme")
 	}

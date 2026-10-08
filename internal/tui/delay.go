@@ -38,7 +38,7 @@ func delayLabelWithTimeout(p controller.Proxy, timeout int) string {
 }
 
 func (m *Model) delayLabel(p controller.Proxy) string {
-	return delayLabelWithTimeout(p, m.delayTimeout())
+	return m.tr(delayLabelWithTimeout(p, m.delayTimeout()))
 }
 
 // Match formatDelayColor in services/delay.ts and the default light/dark

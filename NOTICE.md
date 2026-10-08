@@ -1,5 +1,7 @@
 # Third-party software
 
+Bundled interface translations are derived from the pinned Clash Verge Rev locale files. Additional terminal-specific translations are part of this project.
+
 The terminal layout and page behavior follow Clash Verge Rev, licensed under GPL-3.0:
 https://github.com/clash-verge-rev/clash-verge-rev
 The referenced source revision is documented in `docs/source-reference.md`.

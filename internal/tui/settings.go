@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"verge-tui/internal/app"
+	"verge-tui/internal/i18n"
 	"verge-tui/internal/state"
 )
 
@@ -87,7 +88,7 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 			{"Update GeoData", "Update", app.Action{Kind: "geo-update"}},
 		}},
 		{"Verge Basic Setting", []settingRow{
-			{"Language", "English", app.Action{}},
+			{"Language", i18n.Names[p.Language], edit("language")},
 			{"Theme", themeLabel(p.Theme), edit("theme")},
 			{"Proxy Environment", "View / Copy", app.Action{Kind: "environment"}},
 			{"Start Page", p.StartPage, edit("start-page")},
@@ -108,7 +109,7 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 	y -= m.Scroll[3]
 	draw := func(section settingSection, sx, sy, sw int) int {
 		height := 4 + len(section.rows)*2
-		f.Box(Rect{sx, sy, sw, height}, section.title)
+		f.Box(Rect{sx, sy, sw, height}, m.tr(section.title))
 		for i, row := range section.rows {
 			r := Rect{sx + 2, sy + 3 + i*2, sw - 4, 1}
 			style := f.Theme.Card
@@ -117,8 +118,8 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 			}
 			f.Fill(r, style)
 			valueWidth := min(16, max(10, r.W/3))
-			f.Line(r.X, r.Y, r.W-valueWidth-1, row.label, style)
-			f.Line(r.X+r.W-valueWidth, r.Y, valueWidth, row.value, style.Foreground(f.Theme.Accent))
+			f.Line(r.X, r.Y, r.W-valueWidth-1, m.tr(row.label), style)
+			f.Line(r.X+r.W-valueWidth, r.Y, valueWidth, m.tr(row.value), style.Foreground(f.Theme.Accent))
 			if row.action.Kind != "" {
 				f.Add(r, row.action)
 			}
@@ -211,6 +212,9 @@ func (m *Model) settingsForm(section string) {
 			dns = state.DefaultDNS()
 		}
 		fields = []Field{optionField("mode", "Enhanced Mode", dns.Mode, "fake-ip", "redir-host"), booleanField("ipv6", "DNS IPv6", dns.IPv6), {Key: "nameservers", Label: "Nameservers (comma separated)", Text: strings.Join(dns.Nameservers, ", ")}, {Key: "default-nameservers", Label: "Default Nameservers (comma separated)", Text: strings.Join(dns.DefaultNameservers, ", ")}, {Key: "fallback", Label: "Fallback Nameservers (comma separated)", Text: strings.Join(dns.Fallback, ", ")}, {Key: "fake-ip-range", Label: "Fake IP Range", Text: dns.FakeIPRange}}
+	case "language":
+		kind, title = "preferences-save", "Language"
+		fields = []Field{optionField("language", "Language", p.Language, i18n.Languages...)}
 	case "theme":
 		kind, title = "preferences-save", "Theme"
 		fields = []Field{optionField("theme", "Theme", p.Theme, state.Themes...)}
@@ -241,8 +245,6 @@ func (m *Model) settingsInfo(kind string) {
 		title, body = "TUN Mode", []string{"TUN requires a system installation and its root service."}
 	case "system-proxy":
 		title, body = "System Proxy", []string{m.View.Desktop.Detail, "Use Proxy Environment on a headless server."}
-	case "controller":
-		title, body = "External Controller", []string{"Address: 127.0.0.1:" + strconv.Itoa(m.View.Settings.APIPort), "API authentication: managed by verge-tui", "The TUI requires this controller to remain enabled."}
 	case "config-dir":
 		title, body = "Configuration Directory", []string{root, filepath.Join(root, "profiles")}
 	case "core-dir":
@@ -270,12 +272,20 @@ func (m *Model) showSettingsView(kind string, body []string) {
 		title = "Runtime Config"
 		body = append([]string{"Managed configuration; credentials and provider URLs are redacted."}, body...)
 	}
-	m.Modal, m.Focus = &Modal{Title: title, Body: body}, ""
+	m.Modal, m.Focus = &Modal{Title: title, Kind: "viewer", Body: body}, ""
 }
 
 func (m *Model) optionLabel(field Field) string {
 	if field.Key == "theme" {
-		return themeLabel(field.Text)
+		return m.tr(themeLabel(field.Text))
+	}
+	if field.Key == "language" {
+		return i18n.Names[field.Text]
+	}
+	if len(field.Options) > 0 {
+		return m.tr(field.Text)
 	}
 	return field.Text
 }
+
+func (m *Model) tr(english string) string { return i18n.Text(m.View.Preferences.Language, english) }

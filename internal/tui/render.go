@@ -17,7 +17,7 @@ func (m *Model) Render(w, h int) *Frame {
 	f.Focus = m.Focus
 	m.Frame = f
 	if w < 60 || h < 18 {
-		f.Line(1, 1, w-2, "Please resize the terminal to at least 60 x 18.", f.Theme.Base)
+		f.Line(1, 1, w-2, m.tr("Please resize the terminal to at least 60 x 18."), f.Theme.Base)
 		return f
 	}
 	side := 20
@@ -31,30 +31,30 @@ func (m *Model) Render(w, h int) *Frame {
 	if h < 25 {
 		navStep = 2
 	}
-	for i, name := range []string{"Home", "Proxies", "Profiles", "Settings"} {
+	for i, name := range []string{m.tr("Home"), m.tr("Proxies"), m.tr("Profiles"), m.tr("Settings")} {
 		f.Button(Rect{1, 5 + i*navStep, side - 2, 2}, name, app.Action{Kind: "navigate", ID: strconv.Itoa(i)}, m.Tab == i)
 	}
-	stateText := "Core Not Running"
+	stateText := m.tr("Core Not Running")
 	if m.View.Online {
-		stateText = "Core Running"
+		stateText = m.tr("Core Running")
 	}
 	if h >= 25 {
 		f.Line(2, h-7, side-4, stateText, f.Theme.Card.Foreground(f.Theme.Muted))
 		f.Line(2, h-6, side-4, m.View.Settings.Core, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
-	label, kind := "Start Core", "start"
+	label, kind := m.tr("Start Core"), "start"
 	if m.View.Online {
-		label, kind = "Stop Core", "stop"
+		label, kind = m.tr("Stop Core"), "stop"
 	}
 	if m.View.Settings.InstallMode == "system" && !m.View.Owned {
-		label, kind = "System Service", "service-info"
+		label, kind = m.tr("System Service"), "service-info"
 	}
 	f.Button(Rect{1, h - 4, side - 2, 2}, label, app.Action{Kind: kind}, false)
 	x, width := side+2, w-side-4
-	title := []string{"Home", "Proxy Groups", "Profiles", "Settings"}[m.Tab]
+	title := []string{m.tr("Home"), m.tr("Proxy Groups"), m.tr("Profiles"), m.tr("Settings")}[m.Tab]
 	f.Line(x, 1, width-27, title, f.Theme.Base.Bold(true))
-	f.Button(Rect{w - 27, 1, 14, 1}, "Refresh", app.Action{Kind: "refresh"}, false)
-	f.Button(Rect{w - 13, 1, 11, 1}, "Core", app.Action{Kind: "cores"}, false)
+	f.Button(Rect{w - 27, 1, 14, 1}, m.tr("Refresh"), app.Action{Kind: "refresh"}, false)
+	f.Button(Rect{w - 13, 1, 11, 1}, m.tr("Core"), app.Action{Kind: "cores"}, false)
 	f.Line(x, 3, width, strings.Repeat("─", width), f.Theme.Base.Foreground(f.Theme.Border))
 	f.Clip = Rect{x, 4, width, h - 6}
 	bottom := 4
@@ -74,13 +74,13 @@ func (m *Model) Render(w, h int) *Frame {
 		return m.Render(w, h)
 	}
 	f.Clip = Rect{0, 0, w, h}
-	status := m.Message
+	status := m.tr(m.Message)
 	if m.Busy {
-		status = "Working…  " + status
+		status = m.tr("Working…  ") + status
 	}
 	f.Fill(Rect{0, h - 1, w, 1}, f.Theme.Card)
 	f.Line(1, h-1, max(0, w-45), status, f.Theme.Card.Foreground(f.Theme.Muted))
-	f.Line(max(1, w-43), h-1, 42, "1/2/3/4 Pages  Tab Focus  F1 Help  q Quit", f.Theme.Card.Foreground(f.Theme.Muted))
+	f.Line(max(1, w-43), h-1, 42, m.tr("1/2/3/4 Pages  Tab Focus  F1 Help  q Quit"), f.Theme.Card.Foreground(f.Theme.Muted))
 	if m.Modal != nil {
 		m.modal(f)
 	}
@@ -111,109 +111,109 @@ func (m *Model) home(f *Frame, x, y, width int) int {
 }
 func (m *Model) homeProfile(f *Frame, r Rect) {
 	p, found := state.Find(m.View.Settings, m.View.Settings.Current)
-	title := "Profiles"
+	title := m.tr("Profiles")
 	if found {
 		title = p.Name
 	}
 	f.Box(r, title)
 	if !found {
-		f.Line(r.X+2, r.Y+4, r.W-4, "No active subscription", f.Theme.Card.Foreground(f.Theme.Muted))
-		f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, "Go to Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
+		f.Line(r.X+2, r.Y+4, r.W-4, m.tr("No active subscription"), f.Theme.Card.Foreground(f.Theme.Muted))
+		f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, m.tr("Go to Profiles"), app.Action{Kind: "navigate", ID: "2"}, false)
 		return
 	}
 	source := "local"
 	if u, err := url.Parse(p.URL); err == nil && u.Host != "" {
 		source = u.Host
 	}
-	lines := []string{"From: " + source, "Update Time: " + p.Updated.Local().Format("2006-01-02 15:04")}
+	lines := []string{m.tr("From: ") + source, m.tr("Update Time: ") + p.Updated.Local().Format("2006-01-02 15:04")}
 	if p.Usage != nil {
 		used := p.Usage.Upload + p.Usage.Download
-		lines = append(lines, "Used / Total: "+bytesString(used)+" / "+bytesString(p.Usage.Total))
+		lines = append(lines, m.tr("Used / Total: ")+bytesString(used)+m.tr(" / ")+bytesString(p.Usage.Total))
 		expiry := "-"
 		if p.Usage.Expire > 0 {
 			expiry = time.Unix(p.Usage.Expire, 0).Local().Format("2006-01-02")
 		}
-		lines = append(lines, "Expire Time: "+expiry)
+		lines = append(lines, m.tr("Expire Time: ")+expiry)
 		percent := 0
 		if p.Usage.Total > 0 {
 			percent = int(min(100, float64(used)*100/float64(p.Usage.Total)))
 		}
 		barWidth := max(1, r.W-12)
 		filled := barWidth * percent / 100
-		lines = append(lines, strings.Repeat("━", filled)+strings.Repeat("─", barWidth-filled)+fmt.Sprintf(" %d%%", percent))
+		lines = append(lines, strings.Repeat("━", filled)+strings.Repeat("─", barWidth-filled)+fmt.Sprintf(m.tr(" %d%%"), percent))
 	} else {
-		lines = append(lines, "Usage / expiry: not provided")
+		lines = append(lines, m.tr("Usage / expiry: not provided"))
 	}
 	for i, line := range lines {
 		f.Line(r.X+2, r.Y+3+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
-	f.Button(Rect{r.X + 2, r.Y + r.H - 3, 14, 1}, "Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
+	f.Button(Rect{r.X + 2, r.Y + r.H - 3, 14, 1}, m.tr("Profiles"), app.Action{Kind: "navigate", ID: "2"}, false)
 	if p.Type == "remote" {
-		f.Button(Rect{r.X + 17, r.Y + r.H - 3, r.W - 19, 1}, "Update", app.Action{Kind: "profile-update", ID: p.ID}, false)
+		f.Button(Rect{r.X + 17, r.Y + r.H - 3, r.W - 19, 1}, m.tr("Update"), app.Action{Kind: "profile-update", ID: p.ID}, false)
 	}
 }
 func (m *Model) homeNode(f *Frame, r Rect) {
-	f.Box(r, "Current Node")
+	f.Box(r, m.tr("Current Node"))
 	mode := m.mode()
 	if mode == "direct" {
 		f.Line(r.X+2, r.Y+4, r.W-4, "DIRECT", f.Theme.Card.Foreground(f.Theme.Green).Bold(true))
-		f.Line(r.X+2, r.Y+6, r.W-4, "Direct Mode", f.Theme.Card.Foreground(f.Theme.Muted))
+		f.Line(r.X+2, r.Y+6, r.W-4, m.tr("Direct Mode"), f.Theme.Card.Foreground(f.Theme.Muted))
 		return
 	}
 	g := app.HomeGroup(m.View)
 	if !m.View.Online || g.Name == "" {
-		f.Line(r.X+2, r.Y+4, r.W-4, "No active proxy node", f.Theme.Card.Foreground(f.Theme.Muted))
+		f.Line(r.X+2, r.Y+4, r.W-4, m.tr("No active proxy node"), f.Theme.Card.Foreground(f.Theme.Muted))
 		return
 	}
 	if mode == "global" {
-		f.Line(r.X+2, r.Y+3, r.W-4, "Global Mode", f.Theme.Card.Foreground(f.Theme.Muted))
+		f.Line(r.X+2, r.Y+3, r.W-4, m.tr("Global Mode"), f.Theme.Card.Foreground(f.Theme.Muted))
 	} else {
-		f.Button(Rect{r.X + 2, r.Y + 3, r.W - 4, 1}, "Group: "+g.Name, app.Action{Kind: "home-groups"}, false)
+		f.Button(Rect{r.X + 2, r.Y + 3, r.W - 4, 1}, m.tr("Group: ")+g.Name, app.Action{Kind: "home-groups"}, false)
 	}
-	f.Button(Rect{r.X + 2, r.Y + 5, r.W - 4, 1}, "Proxy: "+g.Now, app.Action{Kind: "home-nodes"}, true)
+	f.Button(Rect{r.X + 2, r.Y + 5, r.W - 4, 1}, m.tr("Proxy: ")+g.Now, app.Action{Kind: "home-nodes"}, true)
 	node := m.View.Snapshot.Proxies[g.Now]
 	f.Line(r.X+2, r.Y+7, r.W-4, m.delayLabel(node), f.Theme.Card.Foreground(m.delayColor(node)))
-	f.Button(Rect{r.X + 2, r.Y + 9, r.W - 4, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name, Node: g.Now}, false)
+	f.Button(Rect{r.X + 2, r.Y + 9, r.W - 4, 1}, m.tr("Delay check"), app.Action{Kind: "delay", ID: g.Name, Node: g.Now}, false)
 }
 func (m *Model) homeNetwork(f *Frame, r Rect) {
-	f.Box(r, "Network Settings")
+	f.Box(r, m.tr("Network Settings"))
 	half := (r.W - 4) / 2
-	f.Button(Rect{r.X + 2, r.Y + 3, half, 1}, "System Proxy", app.Action{Kind: "network-tab", ID: "system"}, m.NetworkTab == "system")
-	f.Button(Rect{r.X + 2 + half, r.Y + 3, half, 1}, "TUN Mode", app.Action{Kind: "network-tab", ID: "tun"}, m.NetworkTab == "tun")
+	f.Button(Rect{r.X + 2, r.Y + 3, half, 1}, m.tr("System Proxy"), app.Action{Kind: "network-tab", ID: "system"}, m.NetworkTab == "system")
+	f.Button(Rect{r.X + 2 + half, r.Y + 3, half, 1}, m.tr("TUN Mode"), app.Action{Kind: "network-tab", ID: "tun"}, m.NetworkTab == "tun")
 	if m.NetworkTab == "system" {
-		status := "System Proxy Disabled"
+		status := m.tr("System Proxy Disabled")
 		if m.View.Desktop.Enabled {
-			status = "System Proxy Enabled"
+			status = m.tr("System Proxy Enabled")
 		}
 		if !m.View.Desktop.Available {
-			status = "GNOME proxy unavailable"
+			status = m.tr("GNOME proxy unavailable")
 		}
 		f.Line(r.X+2, r.Y+5, r.W-4, status, f.Theme.Card.Foreground(f.Theme.Muted))
 		if m.View.Desktop.Available {
-			label := "System Proxy: OFF"
+			label := m.tr("System Proxy") + ": " + m.tr("Off")
 			if m.View.Desktop.Enabled {
-				label = "System Proxy: ON"
+				label = m.tr("System Proxy") + ": " + m.tr("On")
 			}
 			f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, label, app.Action{Kind: "system-proxy"}, m.View.Desktop.Enabled)
 		} else {
-			f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, "Proxy Environment", app.Action{Kind: "environment"}, false)
+			f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, m.tr("Proxy Environment"), app.Action{Kind: "environment"}, false)
 		}
 	} else {
-		status := "TUN Mode Disabled"
+		status := m.tr("TUN Mode Disabled")
 		enabled := m.View.Settings.Tun
 		if m.View.Online {
 			enabled = m.View.Snapshot.Config.Tun.Enable
 		}
 		if enabled {
-			status = "TUN Mode Enabled"
+			status = m.tr("TUN Mode Enabled")
 		}
 		if m.View.Settings.InstallMode != "system" {
-			status = "TUN Mode Service Required"
+			status = m.tr("TUN Mode Service Required")
 		}
 		f.Line(r.X+2, r.Y+5, r.W-4, status, f.Theme.Card.Foreground(f.Theme.Muted))
-		label := "TUN Mode: OFF"
+		label := m.tr("TUN Mode") + ": " + m.tr("Off")
 		if enabled {
-			label = "TUN Mode: ON"
+			label = m.tr("TUN Mode") + ": " + m.tr("On")
 		}
 		f.Button(Rect{r.X + 2, r.Y + 7, r.W - 4, 1}, label, app.Action{Kind: "tun"}, enabled)
 	}
@@ -227,32 +227,34 @@ func (m *Model) mode() string {
 func (m *Model) modeButtons(f *Frame, x, y, width int) {
 	bw := width / 3
 	for i, mode := range []string{"rule", "global", "direct"} {
-		label := []string{"Rule", "Global", "Direct"}[i]
+		label := []string{m.tr("Rule"), m.tr("Global"), m.tr("Direct")}[i]
 		f.Button(Rect{x + i*bw, y, bw, 1}, label, app.Action{Kind: "mode", Value: mode}, m.mode() == mode)
 	}
 }
 func (m *Model) homeMode(f *Frame, r Rect) {
-	f.Box(r, "Proxy Mode")
+	f.Box(r, m.tr("Proxy Mode"))
 	m.modeButtons(f, r.X+2, r.Y+3, r.W-4)
-	lines := []string{"Automatically choose proxies", "according to the rule set."}
+	description := m.tr("Automatically choose proxies according to the rule set.")
 	if m.mode() == "global" {
-		lines = []string{"Forward all network requests", "through the selected proxy."}
+		description = m.tr("Forward all network requests through the selected proxy.")
 	}
 	if m.mode() == "direct" {
-		lines = []string{"Bypass the proxy and connect", "to the internet directly."}
+		description = m.tr("Bypass the proxy and connect to the internet directly.")
 	}
+	lines := wrapText(description, r.W-4)
+
 	for i, line := range lines {
 		f.Line(r.X+2, r.Y+6+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
 }
 func (m *Model) homeClash(f *Frame, r Rect) {
-	f.Box(r, "Clash Info")
+	f.Box(r, m.tr("Clash Info"))
 	version := m.View.Settings.Core
 	if m.View.Online {
 		version = m.View.Snapshot.Version
 	}
 	if version == "" {
-		version = "Not installed"
+		version = m.tr("Not installed")
 	}
 	address := m.View.Desktop.Address
 	if address == "" {
@@ -266,47 +268,47 @@ func (m *Model) homeClash(f *Frame, r Rect) {
 	if m.View.Online {
 		rules = strconv.Itoa(m.View.Snapshot.Rules)
 	}
-	lines := []string{"Core Version: " + version, "System Proxy Address: " + address, "Mixed Port: " + strconv.Itoa(m.View.Settings.MixedPort), "Uptime: " + uptime, "Rules Count: " + rules}
+	lines := []string{m.tr("Core Version: ") + version, m.tr("System Proxy Address: ") + address, m.tr("Mixed Port: ") + strconv.Itoa(m.View.Settings.MixedPort), m.tr("Uptime: ") + uptime, m.tr("Rules Count: ") + rules}
 	for i, line := range lines {
 		f.Line(r.X+2, r.Y+3+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
-	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, "Core Version", app.Action{Kind: "cores"}, false)
+	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, m.tr("Core Version"), app.Action{Kind: "cores"}, false)
 }
 func (m *Model) homeSystem(f *Frame, r Rect) {
-	f.Box(r, "System Info")
-	mode := "Core Not Running"
+	f.Box(r, m.tr("System Info"))
+	mode := m.tr("Core Not Running")
 	if m.View.Online {
-		mode = "Service Mode"
+		mode = m.tr("Service Mode")
 		if m.View.Owned {
-			mode = "User Mode"
+			mode = m.tr("User Mode")
 		}
 		if m.View.Settings.InstallMode == "system" {
-			mode = "Administrator + Service Mode"
+			mode = m.tr("Administrator + Service Mode")
 		}
 	}
-	lines := []string{"OS Info: " + m.View.OS, "Auto Launch: service controlled", "Running Mode: " + mode, "Last Check Update: -", "TUI Version: " + m.View.Version}
+	lines := []string{m.tr("OS Info: ") + m.View.OS, m.tr("Auto Launch: service controlled"), m.tr("Running Mode: ") + mode, m.tr("Last Check Update: -"), m.tr("TUI Version: ") + m.View.Version}
 	for i, line := range lines {
 		f.Line(r.X+2, r.Y+3+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
-	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, "Auto Launch", app.Action{Kind: "service-info"}, false)
+	f.Button(Rect{r.X + 2, r.Y + 8, r.W - 4, 1}, m.tr("Auto Launch"), app.Action{Kind: "service-info"}, false)
 }
 func (m *Model) proxies(f *Frame, x, y, width int) int {
 	m.modeButtons(f, x, y, min(width, 42))
 	y += 3
 	groups := app.Groups(m.View)
 	if !m.View.Online || len(groups) == 0 {
-		message := "No proxy groups are available"
+		message := m.tr("No proxy groups are available")
 		if m.mode() == "direct" {
-			message = "Direct Mode"
+			message = m.tr("Direct Mode")
 		} else if len(m.View.Settings.Profiles) == 0 {
-			message = "No subscription imported"
+			message = m.tr("No subscription imported")
 		} else if m.View.Settings.Current == "" {
-			message = "No active subscription"
+			message = m.tr("No active subscription")
 		} else if !m.View.Online {
-			message = "Core temporarily unavailable"
+			message = m.tr("Core temporarily unavailable")
 		}
 		f.Line(x+2, y+2, width-4, message, f.Theme.Base.Foreground(f.Theme.Muted))
-		f.Button(Rect{x + 2, y + 5, 23, 1}, "Go to Profiles", app.Action{Kind: "navigate", ID: "2"}, false)
+		f.Button(Rect{x + 2, y + 5, 23, 1}, m.tr("Go to Profiles"), app.Action{Kind: "navigate", ID: "2"}, false)
 		return y + 8
 	}
 	f.Clip = Rect{x, y, width, max(0, f.H-y-2)}
@@ -328,10 +330,10 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 			if m.Collapsed[g.Name] {
 				arrow = "▸"
 			}
-			f.Button(Rect{x + 1, y + 1, max(10, width-31), 1}, arrow+" "+g.Name+" · "+g.Type, app.Action{Kind: "collapse", ID: g.Name}, false)
-			f.Button(Rect{x + width - 30, y + 1, 16, 1}, "Delay check", app.Action{Kind: "delay", ID: g.Name}, false)
-			f.Button(Rect{x + width - 14, y + 1, 13, 1}, "Test URL", app.Action{Kind: "test-url", ID: g.Name}, false)
-			f.Line(x+2, y+2, width-4, fmt.Sprintf("%d nodes  ·  Selected: %s", len(g.All), g.Now), f.Theme.Card.Foreground(f.Theme.Muted))
+			f.Button(Rect{x + 1, y + 1, max(10, width-31), 1}, arrow+" "+g.Name+m.tr(" · ")+g.Type, app.Action{Kind: "collapse", ID: g.Name}, false)
+			f.Button(Rect{x + width - 30, y + 1, 16, 1}, m.tr("Delay check"), app.Action{Kind: "delay", ID: g.Name}, false)
+			f.Button(Rect{x + width - 14, y + 1, 13, 1}, m.tr("Test URL"), app.Action{Kind: "test-url", ID: g.Name}, false)
+			f.Line(x+2, y+2, width-4, fmt.Sprintf(m.tr("%d nodes  ·  Selected: %s"), len(g.All), g.Now), f.Theme.Card.Foreground(f.Theme.Muted))
 			if !m.Collapsed[g.Name] {
 				for i, name := range g.All {
 					nx, ny := x+(i%cols)*(cw+2)+1, y+4+(i/cols)*4
@@ -339,9 +341,9 @@ func (m *Model) proxies(f *Frame, x, y, width int) int {
 						continue
 					}
 					node := m.View.Snapshot.Proxies[name]
-					mark := "○ "
+					mark := m.tr("○ ")
 					if name == g.Now {
-						mark = "● "
+						mark = m.tr("● ")
 					}
 					f.Button(Rect{nx, ny, cw - 2, 1}, mark+name, app.Action{Kind: "node-select", ID: g.Name, Node: name}, name == g.Now)
 					f.Line(nx+1, ny+1, max(1, cw-17), node.Type, f.Theme.Card.Foreground(f.Theme.Muted))
@@ -358,10 +360,10 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 	if width < 58 {
 		inputWidth = width - 11
 	}
-	m.input(f, Rect{x, y, inputWidth, 1}, "Profile URL", m.URL, "url")
-	label, kind := "Paste", "paste"
+	m.input(f, Rect{x, y, inputWidth, 1}, m.tr("Profile URL"), m.URL, "url")
+	label, kind := m.tr("Paste"), "paste"
 	if m.URL != "" {
-		label, kind = "Clear", "clear"
+		label, kind = m.tr("Clear"), "clear"
 	}
 	f.Button(Rect{x + inputWidth + 1, y, 10, 1}, label, app.Action{Kind: kind}, false)
 	buttonY := y
@@ -370,11 +372,11 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 		buttonY = y + 2
 		buttonX = x
 	}
-	f.Button(Rect{buttonX, buttonY, 10, 1}, "Import", app.Action{Kind: "import"}, false)
-	f.Button(Rect{buttonX + 11, buttonY, 8, 1}, "New", app.Action{Kind: "new"}, false)
+	f.Button(Rect{buttonX, buttonY, 10, 1}, m.tr("Import"), app.Action{Kind: "import"}, false)
+	f.Button(Rect{buttonX + 11, buttonY, 8, 1}, m.tr("New"), app.Action{Kind: "new"}, false)
 	y = buttonY + 3
 	if len(m.View.Settings.Profiles) == 0 {
-		f.Line(x+2, y+2, width-4, "Click to import subscription", f.Theme.Base.Foreground(f.Theme.Muted))
+		f.Line(x+2, y+2, width-4, m.tr("Click to import subscription"), f.Theme.Base.Foreground(f.Theme.Muted))
 		return y + 5
 	}
 	f.Clip = Rect{x, y, width, max(0, f.H-y-2)}
@@ -391,25 +393,25 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 		}
 		f.Box(r, "")
 		f.Add(r, app.Action{Kind: "profile-select", ID: p.ID})
-		mark := "○ "
+		mark := m.tr("○ ")
 		if p.ID == m.View.Settings.Current {
-			mark = "● "
+			mark = m.tr("● ")
 		}
 		f.Line(r.X+2, r.Y+1, r.W-17, mark+p.Name, f.Theme.Card.Foreground(f.Theme.Accent).Bold(true))
-		f.Button(Rect{r.X + r.W - 14, r.Y + 1, 12, 1}, "Options", app.Action{Kind: "profile-menu", ID: p.ID}, false)
+		f.Button(Rect{r.X + r.W - 14, r.Y + 1, 12, 1}, m.tr("Options"), app.Action{Kind: "profile-menu", ID: p.ID}, false)
 		f.Line(r.X+2, r.Y+3, r.W-4, strings.ToUpper(p.Type), f.Theme.Card.Foreground(f.Theme.Muted))
 		source := p.Description
 		if source == "" {
-			source = "Local YAML"
+			source = m.tr("Local YAML")
 			if u, err := url.Parse(p.URL); err == nil && u.Host != "" {
 				source = u.Host
 			}
 		}
 		f.Line(r.X+2, r.Y+4, r.W-4, source, f.Theme.Card.Foreground(f.Theme.Muted))
 		f.Line(r.X+2, r.Y+5, r.W-4, p.Updated.Local().Format("2006-01-02 15:04"), f.Theme.Card.Foreground(f.Theme.Muted))
-		f.Button(Rect{r.X + 2, r.Y + 7, 12, 1}, "Select", app.Action{Kind: "profile-select", ID: p.ID}, p.ID == m.View.Settings.Current)
+		f.Button(Rect{r.X + 2, r.Y + 7, 12, 1}, m.tr("Select"), app.Action{Kind: "profile-select", ID: p.ID}, p.ID == m.View.Settings.Current)
 		if p.Type == "remote" {
-			f.Button(Rect{r.X + 15, r.Y + 7, r.W - 17, 1}, "Update", app.Action{Kind: "profile-update", ID: p.ID}, false)
+			f.Button(Rect{r.X + 15, r.Y + 7, r.W - 17, 1}, m.tr("Update"), app.Action{Kind: "profile-update", ID: p.ID}, false)
 		}
 	}
 	return y + ((len(m.View.Settings.Profiles)+cols-1)/cols)*10 - 1
@@ -464,7 +466,7 @@ func (m *Model) modal(f *Frame) {
 	r := Rect{(f.W - width) / 2, (f.H - height) / 2, width, height}
 	f.Hits = nil
 	f.Clip = Rect{0, 0, f.W, f.H}
-	f.Box(r, modal.Title)
+	f.Box(r, m.tr(modal.Title))
 	f.Clip = Rect{r.X + 1, r.Y + 2, r.W - 2, r.H - 4}
 	y := r.Y + 3 - modal.Scroll
 	isLocal := false
@@ -477,9 +479,9 @@ func (m *Model) modal(f *Frame) {
 		if isLocal && (field.Key == "agent" || field.Key == "timeout") {
 			continue
 		}
-		label := field.Label
+		label := m.tr(field.Label)
 		if isLocal && field.Key == "source" {
-			label = "YAML File (optional)"
+			label = m.tr("YAML File (optional)")
 		}
 		f.Line(r.X+2, y, r.W-4, label, f.Theme.Card.Foreground(f.Theme.Muted))
 		y++
@@ -491,18 +493,37 @@ func (m *Model) modal(f *Frame) {
 		y++
 	}
 	for i, line := range modal.Body {
+		if modal.Kind != "viewer" && modal.Title != "Proxy Environment" {
+			line = m.tr(line)
+		}
 		f.Line(r.X+2, y+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
 	y += len(modal.Body)
 	for i, choice := range modal.Choices {
-		f.Button(Rect{r.X + 2, y + i*2, r.W - 4, 1}, choice.Label, choice.Action, false)
+		if choice.Action.Kind == "copy-field" && m.fieldDisabled(choice.Action.ID) {
+			continue
+		}
+		f.Button(Rect{r.X + 2, y + i*2, r.W - 4, 1}, m.tr(choice.Label), choice.Action, false)
 	}
 	f.Clip = Rect{0, 0, f.W, f.H}
 	if len(modal.Fields) > 0 {
-		f.Button(Rect{r.X + r.W - 24, r.Y + r.H - 2, 11, 1}, "Save", app.Action{Kind: "submit"}, true)
+		f.Button(Rect{r.X + r.W - 24, r.Y + r.H - 2, 11, 1}, m.tr("Save"), app.Action{Kind: "submit"}, true)
 	}
 	if modal.Title == "Proxy Environment" {
-		f.Button(Rect{r.X + 2, r.Y + r.H - 2, 13, 1}, "Copy", app.Action{Kind: "copy-environment"}, false)
+		f.Button(Rect{r.X + 2, r.Y + r.H - 2, 13, 1}, m.tr("Copy"), app.Action{Kind: "copy-environment"}, false)
 	}
-	f.Button(Rect{r.X + r.W - 12, r.Y + r.H - 2, 10, 1}, "Close", app.Action{Kind: "close"}, false)
+	f.Button(Rect{r.X + r.W - 12, r.Y + r.H - 2, 10, 1}, m.tr("Close"), app.Action{Kind: "close"}, false)
+}
+
+func wrapText(value string, width int) []string {
+	var lines []string
+	for displaywidth.String(value) > width && len(lines) < 2 {
+		piece := displaywidth.TruncateString(value, width, "")
+		if piece == "" {
+			break
+		}
+		lines = append(lines, piece)
+		value = strings.TrimLeft(strings.TrimPrefix(value, piece), " ")
+	}
+	return append(lines, value)
 }
