@@ -35,6 +35,14 @@ type Modal struct {
 	ParentFocus        string
 }
 type Model struct {
+	SearchError       [7]string
+	HiddenColumns     map[string]bool
+	TableSort         string
+	TableDescending   bool
+	TableLeft         int
+	RuleSearchCache   ruleSearchCache
+	SearchOptions     [7]SearchOptions
+	SearchCache       [7]searchCache
 	View              app.View
 	Tab               int
 	Scroll            [7]int
@@ -104,6 +112,9 @@ func (m *Model) appendText(text string) {
 		pos := m.cursor(*input)
 		*input = (*input)[:pos] + text + (*input)[pos:]
 		m.Cursors[m.Focus] = pos + len(text)
+		if m.Modal == nil && m.Tab >= 4 && m.Focus == Key(app.Action{Kind: "input", ID: "search"}) {
+			m.Scroll[m.Tab] = 0
+		}
 	}
 }
 func (m *Model) FocusNext(delta int) {

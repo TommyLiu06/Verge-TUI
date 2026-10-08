@@ -31,6 +31,7 @@ type Proxy struct {
 	TestURL string    `json:"testUrl"`
 }
 type Config struct {
+	LogLevel  string `json:"log-level"`
 	Mode      string `json:"mode"`
 	MixedPort int    `json:"mixed-port"`
 	Tun       struct {

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -70,6 +72,48 @@ func TestProfileEditorsPreserveIdentityAndRejectStaleOrInvalidChanges(t *testing
 	}
 }
 
+func TestSharedEditorReadsLargeProfileAndDoesNotRewriteSettings(t *testing.T) {
+	s, err := state.Open(testutil.Dir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	shortenStore(t, s)
+	data := []byte(profile.DefaultConfig + "\n# " + strings.Repeat("x", (12<<20)+(256<<10)) + "\n")
+	p, err := profile.Add(s, state.Profile{Type: "local", Name: "Large profile"}, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := New(s, "test")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var mu sync.RWMutex
+	server, err := management.Serve(ctx, s, b.SharedHandlers(&mu))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { cancel(); server.Close() }()
+	client := NewRemote(s, "test")
+	defer client.Remote.Close()
+	doc, err := client.ReadPage(ctx, "profile-file", p.ID)
+	if err != nil || doc.Document == nil || len(doc.Document.Data) != len(data) {
+		t.Fatal("large base64-encoded response was truncated", err)
+	}
+	before, err := os.Stat(filepath.Join(s.Root, "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Execute(ctx, Action{Kind: "profile-file-save", ID: p.ID, Value: doc.Document.Revision, Data: []byte(profile.DefaultConfig)}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(filepath.Join(s.Root, "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) {
+		t.Fatal("editing YAML rewrote unrelated settings")
+	}
+}
+
 func TestSharedPagesEditorsAndLogs(t *testing.T) {
 	s, err := state.Open(testutil.Dir(t))
 	if err != nil {
@@ -82,6 +126,8 @@ func TestSharedPagesEditorsAndLogs(t *testing.T) {
 	}
 	testutil.CoreServer(t, s, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/configs":
+			json.NewEncoder(w).Encode(controller.Config{LogLevel: "info"})
 		case "/connections":
 			json.NewEncoder(w).Encode(controller.Connections{UploadTotal: 100, Connections: []controller.Connection{{ID: "active", Start: time.Now(), Metadata: controller.Metadata{Host: "example.com", DestinationPort: "443"}}}})
 		case "/rules":

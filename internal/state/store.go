@@ -129,7 +129,9 @@ func (s *Store) Read() (Settings, error) {
 	return c, nil
 }
 
-func (s *Store) Update(fn func(*Settings) error) error {
+// WithSettingsLock serializes file operations with profile selection and updates
+// without rewriting settings that the operation does not change.
+func (s *Store) WithSettingsLock(fn func(Settings) error) error {
 	f, err := os.OpenFile(filepath.Join(s.Root, "settings.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return err
@@ -143,17 +145,22 @@ func (s *Store) Update(fn func(*Settings) error) error {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	if err := fn(&c); err != nil {
-		return err
-	}
-	if c.HomeGroup == nil {
-		c.HomeGroup = map[string]string{}
-	}
-	b, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return err
-	}
-	return Write(filepath.Join(s.Root, "settings.json"), append(b, '\n'), 0600)
+	return fn(c)
+}
+func (s *Store) Update(fn func(*Settings) error) error {
+	return s.WithSettingsLock(func(c Settings) error {
+		if err := fn(&c); err != nil {
+			return err
+		}
+		if c.HomeGroup == nil {
+			c.HomeGroup = map[string]string{}
+		}
+		b, err := json.MarshalIndent(c, "", "  ")
+		if err != nil {
+			return err
+		}
+		return Write(filepath.Join(s.Root, "settings.json"), append(b, '\n'), 0600)
+	})
 }
 
 func Write(path string, data []byte, mode os.FileMode) error {

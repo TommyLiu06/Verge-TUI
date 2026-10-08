@@ -73,8 +73,8 @@ func (m *Model) ApplyConnections(next controller.Connections, now time.Time) {
 		c.UploadSpeed, c.DownloadSpeed = 0, 0
 		m.ClosedConnections = append(m.ClosedConnections, c)
 	}
-	if len(m.ClosedConnections) > 1000 {
-		m.ClosedConnections = append([]controller.Connection(nil), m.ClosedConnections[len(m.ClosedConnections)-1000:]...)
+	if len(m.ClosedConnections) > 500 {
+		m.ClosedConnections = append([]controller.Connection(nil), m.ClosedConnections[len(m.ClosedConnections)-500:]...)
 	}
 	m.Connections, m.ConnectionTime = next, now
 }
@@ -115,9 +115,6 @@ func connRule(c controller.Connection) string {
 	}
 	return c.Rule
 }
-func matches(text, query string) bool {
-	return strings.Contains(strings.ToLower(text), strings.ToLower(strings.TrimSpace(query)))
-}
 func (m *Model) connectionRows() []controller.Connection {
 	data := m.Connections.Connections
 	if m.ConnectionClosed {
@@ -125,68 +122,81 @@ func (m *Model) connectionRows() []controller.Connection {
 	}
 	rows := make([]controller.Connection, 0, len(data))
 	for _, c := range data {
-		if matches(connHost(c)+" "+c.Metadata.DestinationIP+" "+c.Metadata.Process+" "+c.Metadata.ProcessPath, m.Search[4]) {
+		if m.searchMatch(4, c.Metadata.Host) || m.searchMatch(4, c.Metadata.DestinationIP) || m.searchMatch(4, c.Metadata.Process) || m.searchMatch(4, c.Metadata.ProcessPath) {
 			rows = append(rows, c)
 		}
 	}
-	sort.Slice(rows, func(i, j int) bool {
-		if m.ConnectionOrder == "Upload Speed" && rows[i].UploadSpeed != rows[j].UploadSpeed {
-			return rows[i].UploadSpeed > rows[j].UploadSpeed
-		}
-		if m.ConnectionOrder == "Download Speed" && rows[i].DownloadSpeed != rows[j].DownloadSpeed {
-			return rows[i].DownloadSpeed > rows[j].DownloadSpeed
-		}
-		if !rows[i].Start.Equal(rows[j].Start) {
-			return rows[i].Start.After(rows[j].Start)
-		}
-		return rows[i].ID < rows[j].ID
-	})
+	sort.Slice(rows, func(i, j int) bool { return m.connectionLess(rows[i], rows[j]) })
 	return rows
 }
 func (m *Model) pageSearch(f *Frame, x, y, width int) {
-	m.input(f, Rect{x, y, width, 1}, m.tr("Search"), m.Search[m.Tab], "search")
+	m.searchMatch(m.Tab, "")
+	m.input(f, Rect{x, y, max(1, width-8), 1}, m.tr("Filter conditions"), m.Search[m.Tab], "search")
+	f.Button(Rect{x + max(1, width-8), y, min(8, width), 1}, "Aa.*", app.Action{Kind: "search-options"}, false)
 }
 func (m *Model) pageStatus(f *Frame, x, y, width int, empty bool) {
 	status := m.PageError[m.Tab]
+	if m.SearchError[m.Tab] != "" {
+		status = m.SearchError[m.Tab]
+	}
 	if status == "" && !m.View.Online {
 		status = m.tr("Core Not Running")
 	}
 	if status == "" && empty {
-		status = m.tr("No Data")
+		status = m.tr("Empty")
 	}
 	f.Line(x+1, y, width-2, status, f.Theme.Base.Foreground(f.Theme.Muted))
 }
 func (m *Model) connectionsPage(f *Frame, x, y, width int) int {
+	gap := 2
+	if f.H < 25 {
+		gap = 1
+	}
 	f.Line(x, y, width, m.tr("Downloaded")+": "+bytesString(m.Connections.DownloadTotal)+"   "+m.tr("Uploaded")+": "+bytesString(m.Connections.UploadTotal), f.Theme.Base.Foreground(f.Theme.Muted))
-	y += 2
+	y += gap
 	half := width / 2
 	f.Button(Rect{x, y, half, 1}, fmt.Sprintf("%s (%d)", m.tr("Active"), len(m.Connections.Connections)), app.Action{Kind: "connection-tab", ID: "active"}, !m.ConnectionClosed)
 	f.Button(Rect{x + half, y, width - half, 1}, fmt.Sprintf("%s (%d)", m.tr("Closed"), len(m.ClosedConnections)), app.Action{Kind: "connection-tab", ID: "closed"}, m.ConnectionClosed)
-	y += 2
+	y += gap
 	f.Button(Rect{x, y, width / 2, 1}, m.tr(m.ConnectionOrder), app.Action{Kind: "connection-order"}, false)
 	label, kind := "Close All", "connection-close"
 	if m.ConnectionClosed {
 		label, kind = "Clear", "connections-clear"
 	}
 	f.Button(Rect{x + width/2, y, width - width/2, 1}, m.tr(label), app.Action{Kind: kind}, false)
-	y += 2
-	layout := "List Layout"
+	y += gap
+	layout := "List View"
 	if m.ConnectionTable {
-		layout = "Table Layout"
+		layout = "Table View"
 	}
 	f.Button(Rect{x, y, min(width, 22), 1}, m.tr(layout), app.Action{Kind: "connection-layout"}, false)
 	m.pageSearch(f, x+min(width, 22), y, max(1, width-22))
-	y += 2
+	y += gap
+	if m.ConnectionTable {
+		f.Button(Rect{x, y, 16, 1}, m.tr("Columns"), app.Action{Kind: "table-columns"}, false)
+		f.Button(Rect{x + 16, y, 8, 1}, "←", app.Action{Kind: "table-pan", Value: "-20"}, false)
+		f.Button(Rect{x + 24, y, 8, 1}, "→", app.Action{Kind: "table-pan", Value: "20"}, false)
+		y += gap
+		previousClip := f.Clip
+		f.Clip = Rect{x, y, width, 1}
+		m.tableHeader(f, x, y, width)
+		f.Clip = previousClip
+		y++
+	}
 	f.Clip = Rect{x, y, width, max(0, f.H-y-2)}
 	rows := m.connectionRows()
 	step := 6
 	if m.ConnectionTable {
-		step = 2
+		step = 1
 	}
 	base := y - m.Scroll[4]
 	for i, c := range rows {
 		rowY := base + i*step
 		if rowY+step <= f.Clip.Y || rowY >= f.Clip.Y+f.Clip.H {
+			continue
+		}
+		if m.ConnectionTable {
+			m.tableRow(f, x, rowY, c)
 			continue
 		}
 		r := Rect{x, rowY, width, step - 1}
@@ -198,9 +208,6 @@ func (m *Model) connectionsPage(f *Frame, x, y, width int) int {
 		f.Fill(r, style)
 		f.Add(r, a)
 		f.Line(x+1, rowY, width-2, connHost(c), style.Bold(true))
-		if m.ConnectionTable && width > 62 {
-			f.Line(x+width/2, rowY, width/2-1, "↓ "+bytesString(c.DownloadSpeed)+"/s   ↑ "+bytesString(c.UploadSpeed)+"/s", style.Foreground(f.Theme.Muted))
-		}
 		if !m.ConnectionTable {
 			f.Line(x+1, rowY+1, width-2, connChains(c), style.Foreground(f.Theme.Accent))
 			f.Line(x+1, rowY+2, width-2, connRule(c)+"  ·  "+c.Metadata.Type+"("+c.Metadata.Network+")", style.Foreground(f.Theme.Muted))
@@ -212,20 +219,22 @@ func (m *Model) connectionsPage(f *Frame, x, y, width int) int {
 	return base + len(rows)*step
 }
 func (m *Model) rulesPage(f *Frame, x, y, width int) int {
-	f.Button(Rect{x, y, min(width, 23), 1}, m.tr("Rule Provider"), app.Action{Kind: "rule-providers"}, false)
-	m.pageSearch(f, x+min(width, 23), y, max(1, width-23))
+	if len(m.Rules.Providers) > 0 {
+		f.Button(Rect{x, y, min(width, 23), 1}, m.tr("Rule Provider"), app.Action{Kind: "rule-providers"}, false)
+		m.pageSearch(f, x+min(width, 23), y, max(1, width-23))
+	} else {
+		m.pageSearch(f, x, y, width)
+	}
 	y += 2
 	f.Clip = Rect{x, y, width, max(0, f.H-y-2)}
-	base, count := y-m.Scroll[5], 0
-	for i, r := range m.Rules.Rules {
-		if !matches(r.Payload, m.Search[5]) {
-			continue
-		}
-		rowY := base + count*3
-		count++
-		if rowY+3 <= f.Clip.Y || rowY >= f.Clip.Y+f.Clip.H {
-			continue
-		}
+	base := y - m.Scroll[5]
+	indices := m.ruleIndices()
+	count := len(indices)
+	start, end := max(0, m.Scroll[5]/3), min(count, (m.Scroll[5]+f.Clip.H+2)/3)
+	for n := start; n < end; n++ {
+		i := indices[n]
+		r := m.Rules.Rules[i]
+		rowY := base + n*3
 		payload := r.Payload
 		if payload == "" {
 			payload = "-"
@@ -233,13 +242,7 @@ func (m *Model) rulesPage(f *Frame, x, y, width int) int {
 		f.Line(x, rowY, 6, fmt.Sprint(i+1), f.Theme.Base.Foreground(f.Theme.Muted))
 		f.Line(x+6, rowY, width-6, payload, f.Theme.Base)
 		f.Line(x+6, rowY+1, width/2-6, r.Type, f.Theme.Base.Foreground(f.Theme.Muted))
-		fg := f.Theme.Accent
-		if r.Proxy == "DIRECT" {
-			fg = f.Theme.Text
-		}
-		if r.Proxy == "REJECT" || r.Proxy == "REJECT-DROP" {
-			fg = color.PaletteColor(1)
-		}
+		fg := ruleColor(r.Proxy, f.Theme)
 		f.Line(x+width/2, rowY+1, width/2, r.Proxy, f.Theme.Base.Foreground(fg))
 	}
 	m.pageStatus(f, x, y, width, count == 0)
@@ -284,7 +287,7 @@ func (m *Model) logsPage(f *Frame, x, y, width int) int {
 		if m.LogLevel != "All" && logType(entry.Type) != m.LogLevel {
 			continue
 		}
-		if !matches(entry.Time+" "+entry.Type+" "+entry.Payload, m.Search[6]) {
+		if !m.searchMatch(6, entry.Time+" "+entry.Type+" "+entry.Payload) {
 			continue
 		}
 		rowY := base + count*3
@@ -312,6 +315,49 @@ func (m *Model) logsPage(f *Frame, x, y, width int) int {
 
 func (m *Model) pageAction(a app.Action) (bool, *app.Action) {
 	switch a.Kind {
+	case "table-columns":
+		m.tableColumnDialog()
+	case "table-pan":
+		offset, _ := strconv.Atoi(a.Value)
+		m.TableLeft = max(0, m.TableLeft+offset)
+	case "table-sort":
+		if m.TableSort == a.ID {
+			m.TableDescending = !m.TableDescending
+		} else {
+			m.TableSort = a.ID
+			m.TableDescending = a.ID == "DL Speed" || a.ID == "UL Speed" || a.ID == "Time"
+		}
+		m.Scroll[4] = 0
+	case "table-column":
+		if m.HiddenColumns == nil {
+			m.HiddenColumns = map[string]bool{}
+		}
+		visible := 0
+		for _, c := range connectionColumns {
+			if m.columnEnabled(c.Name) {
+				visible++
+			}
+		}
+		if visible > 1 || !m.columnEnabled(a.ID) {
+			m.HiddenColumns[a.ID] = !m.HiddenColumns[a.ID]
+		}
+		m.tableColumnDialog()
+		m.Focus = Key(a)
+	case "search-options":
+		m.searchOptionsDialog()
+	case "search-option":
+		o := &m.SearchOptions[m.Tab]
+		switch a.ID {
+		case "case":
+			o.MatchCase = !o.MatchCase
+		case "word":
+			o.WholeWord = !o.WholeWord
+		case "regex":
+			o.Regex = !o.Regex
+		}
+		m.searchOptionsDialog()
+		m.Focus = Key(a)
+		m.Scroll[m.Tab] = 0
 	case "editor-save":
 		return true, m.saveEditor()
 	case "editor-close":
@@ -397,7 +443,7 @@ func (m *Model) pageAction(a app.Action) (bool, *app.Action) {
 		if len(names) > 0 {
 			m.Modal.Choices = append(m.Modal.Choices, Choice{"Update All", app.Action{Kind: "providers-update"}})
 		} else {
-			m.Modal.Body = []string{m.tr("No Data")}
+			m.Modal.Body = []string{m.tr("Empty")}
 		}
 		m.Focus = ""
 	case "rule-provider":
@@ -408,7 +454,7 @@ func (m *Model) pageAction(a app.Action) (bool, *app.Action) {
 		var i int
 		if _, err := fmt.Sscan(a.ID, &i); err == nil && i >= 0 && i < len(m.Logs) {
 			entry := m.Logs[i]
-			m.Modal = &Modal{Title: "Logs", Kind: "viewer", Body: append([]string{entry.Time + "  " + strings.ToUpper(entry.Type)}, strings.Split(entry.Payload, "\n")...)}
+			m.Modal = &Modal{Title: "Logs", Kind: "viewer", Body: append([]string{entry.Time + "  " + strings.ToUpper(entry.Type)}, wrapLogText(entry.Payload, max(1, min(80, m.Frame.W-10)))...)}
 			m.Focus = ""
 		}
 	default:

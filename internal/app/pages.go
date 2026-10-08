@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"verge-tui/internal/controller"
 	"verge-tui/internal/core"
@@ -126,6 +127,7 @@ func (b *Backend) pageAction(ctx context.Context, a Action) error {
 	if a.Kind == "connection-close" {
 		return client.CloseConnection(ctx, a.ID)
 	}
+	client.HTTP.Timeout = 5 * time.Minute
 	if a.Kind == "provider-update" {
 		return client.UpdateProvider(ctx, a.ID)
 	}
@@ -175,6 +177,9 @@ func (b *Backend) editProfileInfo(a Action) error {
 				if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil {
 					return errors.New("subscription URL must use HTTP or HTTPS without embedded credentials")
 				}
+				if len(a.Profile.URL) > 8192 || len(a.Profile.UserAgent) > 8192 || strings.ContainsAny(a.Profile.UserAgent, "\r\n") {
+					return errors.New("invalid subscription URL or User Agent")
+				}
 				if a.Profile.Timeout < 1 || a.Profile.Timeout > 300 {
 					return errors.New("HTTP Request Timeout must be between 1 and 300 seconds")
 				}
@@ -193,8 +198,8 @@ func (b *Backend) editProfileFile(ctx context.Context, a Action) error {
 	if _, err := profile.Parse(a.Data); err != nil {
 		return err
 	}
-	return b.Store.Update(func(c *state.Settings) error {
-		if _, ok := state.Find(*c, a.ID); !ok {
+	return b.Store.WithSettingsLock(func(c state.Settings) error {
+		if _, ok := state.Find(c, a.ID); !ok {
 			return errors.New("profile does not exist")
 		}
 		path, err := b.Store.ProfilePath(a.ID)
@@ -208,22 +213,22 @@ func (b *Backend) editProfileFile(ctx context.Context, a Action) error {
 		if revision(before) != a.Value {
 			return errors.New("profile file changed; reopen Edit File before saving")
 		}
-		payload, err := profile.RuntimeData(*c, a.Data)
+		payload, err := profile.RuntimeData(c, a.Data)
 		if err != nil {
 			return err
 		}
 		if c.Core != "" {
-			if err := b.Manager.Validate(ctx, *c, payload); err != nil {
+			if err := b.Manager.Validate(ctx, c, payload); err != nil {
 				return err
 			}
 		}
 		active := c.Current == a.ID && c.Core != ""
 		var oldPayload []byte
 		var running bool
-		client := controller.New(*c)
+		client := controller.New(c)
 		defer client.Close()
 		if active {
-			oldPayload, err = profile.RuntimeData(*c, before)
+			oldPayload, err = profile.RuntimeData(c, before)
 			if err != nil {
 				return err
 			}

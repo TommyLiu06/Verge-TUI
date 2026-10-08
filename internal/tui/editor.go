@@ -25,10 +25,13 @@ type Editor struct {
 	HistoryIndex, HistoryBytes, Counter, CurrentRevision int
 	Paste                                                strings.Builder
 	Pasting                                              bool
+	Size                                                 int
+	Error                                                string
+	PasteTooLarge                                        bool
 }
 
 func newEditor(doc *app.ProfileDocument) *Editor {
-	return &Editor{ID: doc.Profile.ID, Name: doc.Profile.Name, Revision: doc.Revision, Lines: strings.Split(strings.ReplaceAll(string(doc.Data), "\r\n", "\n"), "\n")}
+	return &Editor{ID: doc.Profile.ID, Name: doc.Profile.Name, Revision: doc.Revision, Size: len(strings.ReplaceAll(string(doc.Data), "\r\n", "\n")), Lines: strings.Split(strings.ReplaceAll(string(doc.Data), "\r\n", "\n"), "\n")}
 }
 func (e *Editor) dirty() bool { return e.CurrentRevision != 0 }
 func editorText(text string) string {
@@ -42,6 +45,25 @@ func editorText(text string) string {
 }
 func (e *Editor) replace(startRow, startCol, endRow, endCol int, text string) {
 	text = editorText(text)
+	removed := 0
+	for row := startRow; row <= endRow; row++ {
+		from, to := 0, len(e.Lines[row])
+		if row == startRow {
+			from = startCol
+		}
+		if row == endRow {
+			to = endCol
+		}
+		removed += to - from
+		if row < endRow {
+			removed++
+		}
+	}
+	if e.Size-removed+len(text) > profile.MaxSize {
+		e.Error = "Profile exceeds 16 MiB"
+		return
+	}
+	e.Error = ""
 	before := append([]string(nil), e.Lines[startRow:endRow+1]...)
 	after := strings.Split(e.Lines[startRow][:startCol]+text+e.Lines[endRow][endCol:], "\n")
 	insert := strings.Split(text, "\n")
@@ -64,7 +86,7 @@ func (e *Editor) replace(startRow, startCol, endRow, endCol int, text string) {
 			e.HistoryBytes += len(line)
 		}
 	}
-	for len(e.Changes) > 1 && (len(e.Changes) > 200 || e.HistoryBytes > 16<<20) {
+	for len(e.Changes) > 0 && (len(e.Changes) > 200 || e.HistoryBytes > 16<<20) {
 		c := e.Changes[0]
 		for _, line := range c.Before {
 			e.HistoryBytes -= len(line)
@@ -82,6 +104,12 @@ func (e *Editor) apply(c editChange, undo bool) {
 	if undo {
 		remove, add = c.After, c.Before
 		e.Row, e.Col, e.CurrentRevision = c.BeforeRow, c.BeforeCol, c.BeforeRevision
+	}
+	for _, line := range remove {
+		e.Size -= len(line) + 1
+	}
+	for _, line := range add {
+		e.Size += len(line) + 1
 	}
 	if len(remove) == 1 && len(add) == 1 {
 		e.Lines[c.Line] = add[0]
@@ -154,8 +182,16 @@ func (m *Model) handleEditor(ev tcell.Event) *app.Action {
 	switch v := ev.(type) {
 	case *tcell.EventPaste:
 		e.Pasting = v.Start()
+		if v.Start() {
+			e.PasteTooLarge = false
+			e.Paste.Reset()
+		}
 		if !v.Start() {
-			e.insert(e.Paste.String())
+			if !e.PasteTooLarge {
+				e.insert(e.Paste.String())
+			} else {
+				m.Message = "Profile exceeds 16 MiB"
+			}
 			e.Paste.Reset()
 		}
 	case *tcell.EventClipboard:
@@ -193,6 +229,14 @@ func (m *Model) handleEditor(ev tcell.Event) *app.Action {
 		m.MouseDown = pressed
 	case *tcell.EventKey:
 		if e.Pasting {
+			if e.PasteTooLarge {
+				return nil
+			}
+			if e.Paste.Len()+len(v.Str())+1 > profile.MaxSize {
+				e.PasteTooLarge = true
+				e.Paste.Reset()
+				return nil
+			}
 			switch v.Key() {
 			case tcell.KeyRune:
 				e.Paste.WriteString(v.Str())
@@ -299,6 +343,9 @@ func (m *Model) handleEditor(ev tcell.Event) *app.Action {
 			}
 		}
 		m.revealEditor()
+	}
+	if e.Error != "" {
+		m.Message = e.Error
 	}
 	return nil
 }

@@ -104,8 +104,11 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 	var watchers sync.WaitGroup
 	var stopPage context.CancelFunc
 	generation, watchedTab, watchedRevision := 0, -1, -1
+	watchedLevel := ""
 	var pendingLogs []controller.Log
 	flush := time.NewTicker(200 * time.Millisecond)
+	flush.Stop()
+	var flushChannel <-chan time.Time
 	defer flush.Stop()
 	defer func() {
 		if stopPage != nil {
@@ -118,7 +121,7 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 		if m.Tab >= 4 && m.View.Online && !(m.Tab == 6 && m.LogsPaused) {
 			desired = m.Tab
 		}
-		if desired == watchedTab && watchedRevision == m.WatchRevision {
+		if desired == watchedTab && watchedRevision == m.WatchRevision && (desired != 6 || watchedLevel == m.View.CoreOptions.LogLevel) {
 			return
 		}
 		if stopPage != nil {
@@ -127,7 +130,14 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 		generation++
 		watchedTab = desired
 		watchedRevision = m.WatchRevision
+		watchedLevel = m.View.CoreOptions.LogLevel
 		pendingLogs = nil
+		flush.Stop()
+		flushChannel = nil
+		if desired == 6 {
+			flush.Reset(200 * time.Millisecond)
+			flushChannel = flush.C
+		}
 		if desired < 0 {
 			return
 		}
@@ -155,7 +165,7 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 				continue
 			}
 			m.applyPage(update.Tab, update.Data, update.Err)
-		case <-flush.C:
+		case <-flushChannel:
 			if len(pendingLogs) == 0 {
 				continue
 			}

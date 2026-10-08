@@ -39,7 +39,7 @@ func TestRealCorePagesLogsAndProfileEditing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Update(func(c *state.Settings) error { c.Current = p.ID; return nil }); err != nil {
+	if err := s.Update(func(c *state.Settings) error { c.Current = p.ID; c.Engine.LogLevel = "info"; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if err := b.Manager.Use(ctx, "test"); err != nil {

@@ -96,7 +96,15 @@ func (c *Client) UpdateProvider(ctx context.Context, name string) error {
 // A separate client removes the ordinary request timeout while retaining the
 // private Unix transport. Context cancellation closes the response immediately.
 func (c *Client) Logs(ctx context.Context, emit func(Log) error) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.Base+"/logs?level=debug", nil)
+	var config Config
+	if err := c.Request(ctx, "GET", "/configs", nil, &config); err != nil {
+		return err
+	}
+	level := config.LogLevel
+	if level == "" {
+		level = "info"
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", c.Base+"/logs?level="+url.QueryEscape(level), nil)
 	if err != nil {
 		return err
 	}

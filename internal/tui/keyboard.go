@@ -88,6 +88,9 @@ func (m *Model) editInput(e *tcell.EventKey, input *string) {
 		return
 	}
 	m.Cursors[m.Focus] = pos
+	if m.Modal == nil && m.Tab >= 4 && m.Focus == Key(app.Action{Kind: "input", ID: "search"}) {
+		m.Scroll[m.Tab] = 0
+	}
 }
 func (m *Model) FrameHeight() int {
 	if m.Frame == nil {

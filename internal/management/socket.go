@@ -71,7 +71,7 @@ func (c *Client) Call(ctx context.Context, method, path string, input, output an
 		_, err = io.Copy(io.Discard, resp.Body)
 		return err
 	}
-	return json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(output)
+	return json.NewDecoder(io.LimitReader(resp.Body, MaxRequest)).Decode(output)
 }
 
 type streamMessage struct {
