@@ -185,8 +185,15 @@ func (m *Model) settingsForm(section string) {
 	var fields []Field
 	switch section {
 	case "log-level":
-		title = "Log Level"
-		fields = []Field{optionField("level", "Log Level", m.View.CoreOptions.LogLevel, "warning", "error", "silent", "info", "debug")}
+		current := m.View.CoreOptions.LogLevel
+		if current == "" {
+			current = "info"
+		}
+		if current == "warn" {
+			current = "warning"
+		}
+		m.selectionList("Log Level", "settings-save", section, "level", current, []string{"debug", "info", "warning", "error", "silent"})
+		return
 	case "ports":
 		title = "Port Config"
 		fields = []Field{{Key: "mixed-port", Label: "Mixed Port (HTTP + SOCKS)", Text: strconv.Itoa(c.MixedPort)}, {Key: "http-port", Label: "HTTP Port (0 = disabled)", Text: strconv.Itoa(c.HTTPPort)}, {Key: "socks-port", Label: "SOCKS Port (0 = disabled)", Text: strconv.Itoa(c.SOCKSPort)}}
@@ -213,14 +220,14 @@ func (m *Model) settingsForm(section string) {
 		}
 		fields = []Field{optionField("mode", "Enhanced Mode", dns.Mode, "fake-ip", "redir-host"), booleanField("ipv6", "DNS IPv6", dns.IPv6), {Key: "nameservers", Label: "Nameservers (comma separated)", Text: strings.Join(dns.Nameservers, ", ")}, {Key: "default-nameservers", Label: "Default Nameservers (comma separated)", Text: strings.Join(dns.DefaultNameservers, ", ")}, {Key: "fallback", Label: "Fallback Nameservers (comma separated)", Text: strings.Join(dns.Fallback, ", ")}, {Key: "fake-ip-range", Label: "Fake IP Range", Text: dns.FakeIPRange}}
 	case "language":
-		kind, title = "preferences-save", "Language"
-		fields = []Field{optionField("language", "Language", p.Language, i18n.Languages...)}
+		m.preferenceList("language", p.Language)
+		return
 	case "theme":
-		kind, title = "preferences-save", "Theme"
-		fields = []Field{optionField("theme", "Theme", p.Theme, state.Themes...)}
+		m.preferenceList("theme", p.Theme)
+		return
 	case "start-page":
-		kind, title = "preferences-save", "Start Page"
-		fields = []Field{optionField("start-page", "Start Page", p.StartPage, "home", "proxies", "profiles", "settings")}
+		m.preferenceList(section, p.StartPage)
+		return
 	case "misc":
 		kind, title = "preferences-save", "Miscellaneous"
 		fields = []Field{{Key: "delay-url", Label: "Default Latency Test URL (empty = group default)", Text: p.DelayURL}, {Key: "delay-timeout", Label: "Default Latency Test Timeout (ms)", Text: strconv.Itoa(p.DelayTimeout)}, optionField("proxy-columns", "Proxy Layout Columns (0 = Auto)", strconv.Itoa(p.ProxyColumns), "0", "1", "2", "3", "4", "5")}
@@ -230,9 +237,6 @@ func (m *Model) settingsForm(section string) {
 	m.openSettingsForm(title, kind, section, fields)
 	if section == "dns" {
 		m.Modal.Body = []string{"Applies to the active profile. Saving enables DNS Overwrite."}
-	}
-	if section == "theme" {
-		m.Modal.Body = []string{"Default Follow Terminal uses your terminal colors. Other themes change the entire interface. Latency colors remain unchanged."}
 	}
 }
 
@@ -276,16 +280,122 @@ func (m *Model) showSettingsView(kind string, body []string) {
 }
 
 func (m *Model) optionLabel(field Field) string {
-	if field.Key == "theme" {
-		return m.tr(themeLabel(field.Text))
-	}
-	if field.Key == "language" {
-		return i18n.Names[field.Text]
-	}
 	if len(field.Options) > 0 {
-		return m.tr(field.Text)
+		return m.tr(selectionLabel(field.Key, field.Text))
 	}
 	return field.Text
 }
 
+func selectionLabel(key, value string) string {
+	switch key {
+	case "theme":
+		return themeLabel(value)
+	case "language":
+		return i18n.Names[value]
+	case "start-page":
+		return map[string]string{"home": "Home", "proxies": "Proxies", "profiles": "Profiles", "settings": "Settings"}[value]
+	case "level":
+		return map[string]string{"debug": "Debug", "info": "Info", "warning": "Warn", "error": "Error", "silent": "Silent"}[value]
+	}
+	if value == "true" {
+		return "On"
+	}
+	if value == "false" {
+		return "Off"
+	}
+	return value
+}
+
 func (m *Model) tr(english string) string { return i18n.Text(m.View.Preferences.Language, english) }
+
+func (m *Model) selectionList(title, kind, section, key, current string, options []string) {
+	modal := &Modal{Title: title, Kind: "selection-list", Section: section, List: true, RevealFocus: true}
+	m.Focus = ""
+	for _, id := range options {
+		action := app.Action{Kind: kind, ID: section, Value: id, Fields: map[string]string{key: id}}
+		modal.Choices = append(modal.Choices, Choice{Label: selectionLabel(key, id), Action: action})
+		if id == current {
+			m.Focus = Key(action)
+		}
+	}
+	if m.Focus == "" && len(modal.Choices) > 0 {
+		m.Focus = Key(modal.Choices[0].Action)
+	}
+	m.Modal = modal
+}
+
+func (m *Model) preferenceList(section, current string) {
+	title, options := "Theme", state.Themes
+	switch section {
+	case "language":
+		title, options = "Language", i18n.Languages
+	case "start-page":
+		title, options = "Start Page", []string{"home", "proxies", "profiles", "settings"}
+	}
+	m.selectionList(title, "preferences-save", section, section, current, options)
+}
+
+// Enum choices inside a form only edit that form; its Save button persists them.
+func (m *Model) optionList(key string) {
+	if m.Modal == nil {
+		return
+	}
+	parent, focus := m.Modal, m.Focus
+	for _, field := range parent.Fields {
+		if field.Key == key && len(field.Options) > 0 && !m.fieldDisabled(key) {
+			m.selectionList(field.Label, "select-option", key, key, field.Text, field.Options)
+			m.Modal.Parent, m.Modal.ParentFocus = parent, focus
+			return
+		}
+	}
+}
+
+func (m *Model) choiceSelected(action app.Action) bool {
+	var current string
+	switch action.Kind {
+	case "preferences-save":
+		switch action.ID {
+		case "theme":
+			current = m.View.Preferences.Theme
+			if current == "" {
+				current = state.DefaultPreferences().Theme
+			}
+		case "language":
+			current = m.View.Preferences.Language
+			if current == "" {
+				current = state.DefaultPreferences().Language
+			}
+		case "start-page":
+			current = m.View.Preferences.StartPage
+			if current == "" {
+				current = state.DefaultPreferences().StartPage
+			}
+		default:
+			return false
+		}
+	case "settings-save":
+		if action.ID != "log-level" {
+			return false
+		}
+		current = m.View.CoreOptions.LogLevel
+		if current == "" {
+			current = "info"
+		}
+		if current == "warn" {
+			current = "warning"
+		}
+	case "select-option":
+		if m.Modal == nil || m.Modal.Parent == nil {
+			return false
+		}
+		for _, field := range m.Modal.Parent.Fields {
+			if field.Key == action.ID {
+				current = field.Text
+				break
+			}
+		}
+	default:
+		return false
+	}
+	return action.Value == current
+}

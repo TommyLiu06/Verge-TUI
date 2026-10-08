@@ -460,6 +460,10 @@ func tail(value string, width int) string {
 }
 func (m *Model) modal(f *Frame) {
 	modal := m.Modal
+	if modal.RevealFocus {
+		m.revealFocus()
+		modal.RevealFocus = false
+	}
 	height := 7 + m.modalContentHeight()
 	height = min(f.H-4, max(9, height))
 	width := min(f.W-6, 86)
@@ -503,7 +507,15 @@ func (m *Model) modal(f *Frame) {
 		if choice.Action.Kind == "copy-field" && m.fieldDisabled(choice.Action.ID) {
 			continue
 		}
-		f.Button(Rect{r.X + 2, y + i*2, r.W - 4, 1}, m.tr(choice.Label), choice.Action, false)
+		label, selected := m.tr(choice.Label), m.choiceSelected(choice.Action)
+		if modal.List {
+			if selected {
+				label = "● " + label
+			} else {
+				label = "○ " + label
+			}
+		}
+		f.Button(Rect{r.X + 2, y + i*m.choiceStep(), r.W - 4, 1}, label, choice.Action, selected)
 	}
 	f.Clip = Rect{0, 0, f.W, f.H}
 	if len(modal.Fields) > 0 {

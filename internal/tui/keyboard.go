@@ -114,7 +114,7 @@ func (m *Model) visibleFields() []Field {
 	return fields
 }
 func (m *Model) modalContentHeight() int {
-	return len(m.visibleFields())*2 + len(m.Modal.Choices)*2 + len(m.Modal.Body)
+	return len(m.visibleFields())*2 + len(m.Modal.Choices)*m.choiceStep() + len(m.Modal.Body)
 }
 func (m *Model) modalViewport() int {
 	return max(1, min(m.FrameHeight()-4, max(9, 7+m.modalContentHeight()))-5)
@@ -161,7 +161,7 @@ func (m *Model) revealFocus() {
 	}
 	for i, c := range m.Modal.Choices {
 		if m.Focus == Key(c.Action) {
-			pos = len(fields)*2 + len(m.Modal.Body) + i*2
+			pos = len(fields)*2 + len(m.Modal.Body) + i*m.choiceStep()
 		}
 	}
 	if pos < 0 {
@@ -220,24 +220,15 @@ func (m *Model) moveFocus(dx, dy int) {
 	}
 }
 func abs(n int) int { return max(n, -n) }
-func (m *Model) cycleOption(key string, delta int) {
-	for i := range m.Modal.Fields {
-		f := &m.Modal.Fields[i]
-		if f.Key != key || len(f.Options) == 0 {
-			continue
-		}
-		for j, option := range f.Options {
-			if f.Text == option {
-				f.Text = f.Options[(j+delta+len(f.Options))%len(f.Options)]
-				return
-			}
-		}
-	}
-}
 func (m *Model) closeModal() {
 	if m.Modal != nil && m.Modal.Kind == "help" {
 		m.Modal, m.Focus = m.HelpBack, m.HelpFocus
 		m.HelpBack = nil
+		return
+	}
+	if m.Modal != nil && m.Modal.Parent != nil {
+		m.Modal, m.Focus = m.Modal.Parent, m.Modal.ParentFocus
+		m.revealFocus()
 		return
 	}
 	m.Modal, m.Focus = nil, ""
@@ -257,4 +248,11 @@ func (m *Model) help() {
 		"Ctrl+S: " + m.tr("Save") + "; Esc: " + m.tr("Close") + "; q / Ctrl+C: " + m.tr("Quit"),
 	}}
 	m.Focus = Key(app.Action{Kind: "close"})
+}
+
+func (m *Model) choiceStep() int {
+	if m.Modal != nil && m.Modal.List {
+		return 1
+	}
+	return 2
 }

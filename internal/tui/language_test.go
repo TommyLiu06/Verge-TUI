@@ -27,11 +27,15 @@ func TestLanguagePickerAndViewsPreserveUserData(t *testing.T) {
 			}
 		}
 		m.settingsForm("language")
-		if len(m.Modal.Fields[0].Options) != 13 || m.optionLabel(m.Modal.Fields[0]) != i18n.Names[language] {
+		if len(m.Modal.Choices) != 13 || m.Modal.Choices[0].Label != i18n.Names["en"] {
 			t.Fatal("language choices differ from Verge")
 		}
 		m.Render(160, 60)
-		m.Handle(tcell.NewEventKey(tcell.KeyRight, "", tcell.ModNone))
+		key := tcell.KeyUp
+		if language == "en" {
+			key = tcell.KeyDown
+		}
+		m.Handle(tcell.NewEventKey(key, "", tcell.ModNone))
 		a := m.Handle(tcell.NewEventKey(tcell.KeyCtrlS, "", tcell.ModNone))
 		if a == nil || a.Kind != "preferences-save" || a.Fields["language"] == language {
 			t.Fatal("keyboard cannot switch language")

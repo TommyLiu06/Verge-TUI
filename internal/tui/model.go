@@ -28,6 +28,10 @@ type Modal struct {
 	Choices            []Choice
 	Body               []string
 	Scroll             int
+	RevealFocus        bool
+	List               bool
+	Parent             *Modal
+	ParentFocus        string
 }
 type Model struct {
 	View       app.View
@@ -224,11 +228,7 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 			if m.Modal != nil {
 				for _, field := range m.Modal.Fields {
 					if len(field.Options) > 0 && m.Focus == Key(app.Action{Kind: "input", ID: field.Key}) {
-						delta := 1
-						if e.Key() == tcell.KeyLeft {
-							delta = -1
-						}
-						m.cycleOption(field.Key, delta)
+						m.optionList(field.Key)
 						return nil
 					}
 				}
@@ -298,19 +298,20 @@ func (m *Model) Activate(a app.Action) *app.Action {
 		m.Modal = nil
 	case "input":
 		m.Focus = Key(a)
-		if m.Modal != nil {
-			for i := range m.Modal.Fields {
-				f := &m.Modal.Fields[i]
-				if f.Key == a.ID && len(f.Options) > 0 {
-					n := 0
-					for j, s := range f.Options {
-						if s == f.Text {
-							n = j + 1
-							break
-						}
+		m.optionList(a.ID)
+	case "select-option":
+		if m.Modal == nil || m.Modal.Parent == nil {
+			return nil
+		}
+		for i := range m.Modal.Parent.Fields {
+			field := &m.Modal.Parent.Fields[i]
+			if field.Key == a.ID {
+				for _, option := range field.Options {
+					if option == a.Value {
+						field.Text = option
+						m.closeModal()
+						return nil
 					}
-					f.Text = f.Options[n%len(f.Options)]
-					break
 				}
 			}
 		}
@@ -430,6 +431,14 @@ func (m *Model) newProfile() {
 }
 func (m *Model) submit() *app.Action {
 	if m.Modal == nil || m.Busy {
+		return nil
+	}
+	if m.Modal.List {
+		for _, choice := range m.Modal.Choices {
+			if Key(choice.Action) == m.Focus {
+				return m.Activate(choice.Action)
+			}
+		}
 		return nil
 	}
 	values := map[string]string{}

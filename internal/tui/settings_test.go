@@ -100,7 +100,7 @@ func TestPreferencesAndDNSFormsCaptureProfileAndStartupPage(t *testing.T) {
 	m.Activate(app.Action{Kind: "settings-form", ID: "start-page"})
 	m.Render(60, 18)
 	for range 3 {
-		m.Handle(tcell.NewEventKey(tcell.KeyRight, "", tcell.ModNone))
+		m.Handle(tcell.NewEventKey(tcell.KeyDown, "", tcell.ModNone))
 	}
 	a = m.Handle(tcell.NewEventKey(tcell.KeyCtrlS, "", tcell.ModNone))
 	if a == nil || a.Kind != "preferences-save" || a.Fields["start-page"] != "settings" {

@@ -38,6 +38,10 @@ aliases.update({
 })
 for a,v in aliases.items():
  if v in index:index[a]=index[v]
+# Log level labels and ordering follow setting-clash.tsx, including "Warn".
+for label in ['debug','info','warning','error','silent']:
+ key=f'settings.sections.clash.form.options.logLevel.{label}'
+ index[en[key]]=key
 texts=set()
 for p in Path('internal/tui').glob('*.go'):
  if '_test' not in p.name:

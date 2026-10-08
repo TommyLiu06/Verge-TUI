@@ -86,6 +86,7 @@ func TestCreateLocalProfileAndKeyboardFocus(t *testing.T) {
 	m.Tab = 2
 	m.Activate(app.Action{Kind: "new"})
 	m.Activate(app.Action{Kind: "input", ID: "type"})
+	m.Activate(app.Action{Kind: "select-option", ID: "type", Value: "Local"})
 	for i := range m.Modal.Fields {
 		if m.Modal.Fields[i].Key == "name" {
 			m.Modal.Fields[i].Text = "Local example"
@@ -234,6 +235,8 @@ func TestKeyboardCreatesLocalProfileInSmallTerminal(t *testing.T) {
 	key(tcell.KeyRune, "3")
 	key(tcell.KeyRune, "n")
 	key(tcell.KeyLeft, "")
+	key(tcell.KeyDown, "")
+	key(tcell.KeyEnter, "")
 	key(tcell.KeyTab, "")
 	key(tcell.KeyRune, "Keyboard profile")
 	key(tcell.KeyF1, "")
