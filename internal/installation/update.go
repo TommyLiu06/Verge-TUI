@@ -27,6 +27,8 @@ const systemUnit = "/etc/systemd/system/mihomo-tui.service"
 
 type Existing struct {
 	Prefix, Mode, Unit, RC, Core string
+	Retained                     bool
+	MixedPort, APIPort           int
 }
 
 // Inspect reads the formal installation marker without changing application data.
@@ -61,10 +63,8 @@ func inspect(prefix, systemPath string, uid int) (Existing, error) {
 			return x, fmt.Errorf("destination is not a complete installation: %w", err)
 		}
 	}
-	for _, file := range []string{"mihomo-tui", "mihomo-tui.service", "data/settings.json"} {
-		if err := realPath(filepath.Join(resolved, file), false); err != nil {
-			return x, fmt.Errorf("destination is not a complete installation: %w", err)
-		}
+	if err := realPath(filepath.Join(resolved, "data/settings.json"), false); err != nil {
+		return x, fmt.Errorf("destination is not a complete installation: %w", err)
 	}
 	s := &state.Store{Root: filepath.Join(resolved, "data")}
 	c, err := s.Read()
@@ -72,6 +72,7 @@ func inspect(prefix, systemPath string, uid int) (Existing, error) {
 		return x, err
 	}
 	x.Mode, x.Core = c.InstallMode, c.Core
+	x.MixedPort, x.APIPort = c.MixedPort, c.APIPort
 	if x.Mode != "system" && x.Mode != "user" {
 		return x, errors.New("invalid installation mode")
 	}
@@ -97,7 +98,20 @@ func inspect(prefix, systemPath string, uid int) (Existing, error) {
 	} else {
 		return x, err
 	}
-	if x.Mode == "system" && x.Unit != systemPath {
+	// A data-preserving uninstall removes both application files and clears
+	// the service path in the marker. Accept only that exact retained state;
+	// missing files in an otherwise installed application remain an error.
+	_, appErr := os.Lstat(filepath.Join(resolved, "mihomo-tui"))
+	_, serviceErr := os.Lstat(filepath.Join(resolved, "mihomo-tui.service"))
+	x.Retained = x.Unit == "" && os.IsNotExist(appErr) && os.IsNotExist(serviceErr)
+	if !x.Retained {
+		for _, file := range []string{"mihomo-tui", "mihomo-tui.service"} {
+			if err := realPath(filepath.Join(resolved, file), false); err != nil {
+				return x, fmt.Errorf("destination is not a complete installation: %w", err)
+			}
+		}
+	}
+	if x.Mode == "system" && !x.Retained && x.Unit != systemPath {
 		return x, errors.New("system installation must have its original system service")
 	}
 	if x.Unit != "" {

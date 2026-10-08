@@ -23,7 +23,7 @@ import (
 	"mihomo-tui/internal/tui"
 )
 
-const version = "0.1.4"
+const version = "0.1.5"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -94,7 +94,11 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s\n%s\n%s\n%s\n", x.Mode, x.Unit, x.RC, x.Core)
+			kind := "installed"
+			if x.Retained {
+				kind = "retained"
+			}
+			fmt.Printf("%s\n%s\n%s\n%s\n%s\n%d\n%d\n", x.Mode, x.Unit, x.RC, x.Core, kind, x.MixedPort, x.APIPort)
 			return nil
 		case "update":
 			ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

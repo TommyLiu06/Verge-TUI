@@ -72,4 +72,6 @@ Offline bundles include full Country.mmdb, GeoIP.dat and GeoSite.dat snapshots. 
 
 To uninstall from the extracted bundle, use the original mode and prefix, for example `sudo sh uninstall.sh --mode system`. The script shows the destination and data policy before asking for confirmation. Data is kept unless `--purge` is specified. Installation markers are required for both updates and uninstallation.
 
+After uninstalling with data retained, rerun the installer with the same mode and prefix to restore the application and service. Reinstallation preserves subscriptions, selected core, credentials and ports, checks port availability, and asks for confirmation before making changes.
+
 See [offline installation](docs/offline-installation.md) for self-contained packages, user services, system services and uninstallation. Online script installation is deferred. End users do not need Go.

@@ -186,6 +186,108 @@ func TestUpdatePreservesDataCoreAndServiceState(t *testing.T) {
 	}
 }
 
+func retainData(t *testing.T, f *updateFixture) {
+	t.Helper()
+	if err := shellenv.Remove(f.store); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{filepath.Join(f.prefix, "mihomo-tui"), filepath.Join(f.prefix, "mihomo-tui.service"), f.unit} {
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, err := f.store.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, filepath.Join(f.prefix, ".mihomo-tui-install"), fmt.Sprintf("mihomo-tui-install-v1\n%s\n\n%s\n", c.InstallMode, f.prefix))
+}
+
+func TestRestoreRetainedInstallationPreservesData(t *testing.T) {
+	for _, mode := range []string{"user", "system"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newUpdate(t, mode, "inactive", false)
+			retainData(t, f)
+			settings := content(t, filepath.Join(f.store.Root, "settings.json"))
+			x, err := inspect(f.prefix, f.unit, 0)
+			if err != nil || !x.Retained || x.Mode != mode || x.Unit != "" || x.Core != "custom-core" {
+				t.Fatalf("retained inspection: %+v, %v", x, err)
+			}
+			if mode == "system" {
+				if _, err := inspect(f.prefix, f.unit, 1002); err == nil || !strings.Contains(err.Error(), "requires root") {
+					t.Fatalf("system reinstallation allowed without root: %v", err)
+				}
+			}
+			if err := f.update(f.rc); err != nil {
+				t.Fatal(err)
+			}
+			if content(t, filepath.Join(f.prefix, "mihomo-tui")) != "new executable" || len(f.calls) != 0 {
+				t.Fatal("application was not restored or removed service was managed")
+			}
+			if content(t, filepath.Join(f.store.Root, "settings.json")) != settings || content(t, filepath.Join(f.store.Root, "cores/custom-core/mihomo")) != "selected core bytes" || content(t, filepath.Join(f.store.Root, "profiles/subscription.yaml")) != "proxies: []\n" {
+				t.Fatal("reinstallation changed settings, selected core or subscription")
+			}
+			if strings.Count(content(t, f.rc), "# >>> mihomo-tui") != 1 {
+				t.Fatal("shell functions were not restored exactly once")
+			}
+		})
+	}
+}
+
+func TestRetainedInspectionRejectsIncompleteOrUnmarkedInstallation(t *testing.T) {
+	for _, kind := range []string{"executable-present", "service-present", "service-recorded", "unmarked", "symlink-executable"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newUpdate(t, "user", "inactive", false)
+			retainData(t, f)
+			switch kind {
+			case "executable-present":
+				put(t, filepath.Join(f.prefix, "mihomo-tui"), "unexpected executable")
+			case "service-present":
+				put(t, filepath.Join(f.prefix, "mihomo-tui.service"), "unexpected service")
+			case "service-recorded":
+				put(t, filepath.Join(f.prefix, ".mihomo-tui-install"), fmt.Sprintf("mihomo-tui-install-v1\nuser\n%s\n%s\n", f.unit, f.prefix))
+			case "unmarked":
+				if err := os.Remove(filepath.Join(f.prefix, ".mihomo-tui-install")); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink-executable":
+				if err := os.Symlink(filepath.Join(f.bundle, "bin/mihomo-tui"), filepath.Join(f.prefix, "mihomo-tui")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := inspect(f.prefix, f.unit, 0); err == nil {
+				t.Fatal("damaged or unmarked installation was accepted as retained data")
+			}
+		})
+	}
+}
+
+func TestRestoreRetainedInstallationRollsBackShellFailure(t *testing.T) {
+	f := newUpdate(t, "system", "inactive", false)
+	var start string
+	for _, line := range strings.Split(content(t, f.rc), "\n") {
+		if strings.HasPrefix(line, "# >>> mihomo-tui ") {
+			start = line
+		}
+	}
+	retainData(t, f)
+	put(t, f.rc, start+"\n")
+	rc, settings := content(t, f.rc), content(t, filepath.Join(f.store.Root, "settings.json"))
+	if err := f.update(f.rc); err == nil || !strings.Contains(err.Error(), "original installation restored") {
+		t.Fatalf("restoration rollback: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(f.prefix, "mihomo-tui")); !os.IsNotExist(err) {
+		t.Fatalf("failed restoration left an executable: %v", err)
+	}
+	if content(t, f.rc) != rc || content(t, filepath.Join(f.store.Root, "settings.json")) != settings {
+		t.Fatal("failed restoration changed rc or retained settings")
+	}
+	x, err := inspect(f.prefix, f.unit, 0)
+	if err != nil || !x.Retained {
+		t.Fatalf("rollback did not restore retained state: %+v, %v", x, err)
+	}
+}
+
 func TestUnmarkedInstallationIsRejectedWithoutWrites(t *testing.T) {
 	for _, mode := range []string{"user", "system"} {
 		t.Run(mode, func(t *testing.T) {

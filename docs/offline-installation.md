@@ -5,8 +5,8 @@ The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo c
 Extract the archive, enter its directory and install:
 
 ```sh
-tar -xzf mihomo-tui-0.1.4-linux-amd64.tar.gz
-cd mihomo-tui-0.1.4-linux-amd64
+tar -xzf mihomo-tui-0.1.5-linux-amd64.tar.gz
+cd mihomo-tui-0.1.5-linux-amd64
 sh install.sh --prefix "$HOME/.local/share/mihomo-tui" --mode user
 "$HOME/.local/share/mihomo-tui/mihomo-tui"
 ```
@@ -165,6 +165,8 @@ sh "$HOME/.local/share/mihomo-tui/uninstall.sh" --purge
 sudo sh /opt/mihomo-tui/uninstall.sh --purge
 ```
 
+To reinstall after keeping data, run the installer again using the same mode and prefix, for example `sudo sh install.sh --mode system`. It detects the retained installation, shows a reinstallation confirmation and restores the application, shell integration and service. Subscriptions, selected core, credentials, ports, proxy mode and TUN settings are preserved; a new default profile is not created. Retained ports must be available, and an unrelated service unit is never overwritten.
+
 After a data-preserving uninstall, use the script in the extracted offline bundle to remove retained data later:
 
 ```sh
@@ -188,4 +190,4 @@ sh scripts/package.sh /absolute/path/to/mihomo v1.19.32 /absolute/path/to/geodat
 
 The geodata directory must contain Country.mmdb, GeoIP.dat and GeoSite.dat matching the hashes in `packaging/geodata/manifest.json`. The default directory is `.local/geodata-source`. The source release URLs are moving `latest` URLs; keep the verified snapshot files, or explicitly update the manifest when choosing a newer snapshot. Packaging verifies all hashes and tests all three formats with the supplied core before creating an archive.
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/mihomo-tui-0.1.4-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/mihomo-tui-0.1.5-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.

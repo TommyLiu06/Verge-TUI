@@ -213,6 +213,122 @@ func TestUnavailableManagerAndExplicitServiceChoice(t *testing.T) {
 	absent(t, f.prefix)
 }
 
+func TestInstallerReinstallsRetainedData(t *testing.T) {
+	for _, manager := range []string{"yes", "no"} {
+		t.Run("manager-"+manager, func(t *testing.T) {
+			f := setup(t, manager, "yes")
+			// This fixture records service operations without starting a process.
+			f.env = append(f.env, "MIHOMO_ACTIVE_STATE=inactive")
+			f.run(t, "install.sh", "", true, "--yes")
+			s := &state.Store{Root: filepath.Join(f.prefix, "data")}
+			// Retain a nondefault profile, mode and an independently named core.
+			binary := filepath.Join(f.prefix, "mihomo-tui")
+			for _, args := range [][]string{
+				{"core", "import", "retained-core", filepath.Join(f.bundle, "cores/mihomo")},
+				{"core", "use", "retained-core"},
+				{"profile", "new", "Retained subscription"},
+			} {
+				cmd := exec.Command(binary, args...)
+				cmd.Env = f.env
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("prepare retained data: %v\n%s", err, out)
+				}
+			}
+			if err := s.Update(func(c *state.Settings) error {
+				c.Current, c.Mode = c.Profiles[len(c.Profiles)-1].ID, "global"
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			settings := read(t, filepath.Join(s.Root, "settings.json"))
+			c, err := s.Read()
+			if err != nil {
+				t.Fatal(err)
+			}
+			profile := read(t, filepath.Join(s.Root, "profiles", c.Current+".yaml"))
+			f.run(t, "uninstall.sh", "", true)
+			marker := read(t, filepath.Join(f.prefix, ".mihomo-tui-install"))
+			out := f.run(t, "install.sh", "n\n", true)
+			if !strings.Contains(out, "mihomo-tui reinstallation") || !strings.Contains(out, "Reinstallation cancelled.") {
+				t.Fatal(out)
+			}
+			absent(t, binary)
+			if read(t, filepath.Join(f.prefix, ".mihomo-tui-install")) != marker || read(t, f.rc) != "# Existing user configuration\n" {
+				t.Fatal("cancelled reinstallation modified marker or rc")
+			}
+			out = f.run(t, "install.sh", "yes\n", true)
+			if !strings.Contains(out, "Proceed with reinstallation?") || !strings.Contains(out, "retained-core (preserved)") {
+				t.Fatal(out)
+			}
+			if read(t, filepath.Join(s.Root, "settings.json")) != settings || read(t, filepath.Join(s.Root, "profiles", c.Current+".yaml")) != profile {
+				t.Fatal("reinstallation changed subscriptions, credentials, ports or core selection")
+			}
+			if strings.Count(read(t, f.rc), "# >>> mihomo-tui ") != 1 {
+				t.Fatal("reinstallation did not restore shell functions exactly once")
+			}
+			if manager == "yes" {
+				if _, err := os.Stat(f.unit); err != nil || strings.Count(read(t, f.log), "--user enable --now mihomo-tui.service") != 2 {
+					t.Fatal("reinstallation did not recreate and enable the service")
+				}
+			} else {
+				absent(t, f.unit)
+			}
+			// Restoring also makes the application eligible for a normal update.
+			out = f.run(t, "install.sh", "", true, "--yes")
+			if !strings.Contains(out, "mihomo-tui update") || read(t, filepath.Join(s.Root, "settings.json")) != settings {
+				t.Fatal("restored installation cannot be updated normally")
+			}
+			f.run(t, "uninstall.sh", "", true, "--purge")
+		})
+	}
+}
+
+func TestReinstallationPortConflictPreservesRetainedData(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes")
+	s := &state.Store{Root: filepath.Join(f.prefix, "data")}
+	c, err := s.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.run(t, "uninstall.sh", "", true)
+	settings := read(t, filepath.Join(s.Root, "settings.json"))
+	listener, err := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(c.MixedPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	out := f.run(t, "install.sh", "yes\n", false)
+	if !strings.Contains(out, "Retained ports are unavailable") {
+		t.Fatal(out)
+	}
+	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
+	if read(t, filepath.Join(s.Root, "settings.json")) != settings || read(t, f.rc) != "# Existing user configuration\n" {
+		t.Fatal("port conflict modified retained data or rc")
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+}
+
+func TestReinstallationRefusesUnrelatedService(t *testing.T) {
+	f := setup(t, "yes", "yes")
+	f.run(t, "install.sh", "", true, "--yes")
+	f.run(t, "uninstall.sh", "", true)
+	settings := read(t, filepath.Join(f.prefix, "data/settings.json"))
+	write(t, f.unit, "another installation's service", 0600)
+	out := f.run(t, "install.sh", "yes\n", false)
+	if !strings.Contains(out, "Service unit already exists") {
+		t.Fatal(out)
+	}
+	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
+	if read(t, f.unit) != "another installation's service" || read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
+		t.Fatal("reinstallation modified an unrelated service or retained settings")
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+	if read(t, f.unit) != "another installation's service" {
+		t.Fatal("purging retained data modified an unrelated service")
+	}
+}
+
 func TestNoServiceOverride(t *testing.T) {
 	f := setup(t, "yes", "yes")
 	f.run(t, "install.sh", "", true, "--yes", "--no-service")

@@ -49,32 +49,45 @@ case "$prefix" in *'
 '*|*"$(printf '\r')"*) fail 'Prefix must be a single-line path' ;; esac
 command -v sha256sum >/dev/null 2>&1 || fail 'Install sha256sum (GNU coreutils) first'
 updating=no
+restoring=no
 recorded_unit=
 recorded_rc=
 selected_core=
 if [ -e "$prefix" ] || [ -L "$prefix" ]; then
     # Verify the helper before executing it. Inspection itself is read-only.
     (cd "$bundle_dir" && sha256sum --status -c SHA256SUMS) || fail 'Bundle checksum verification failed; update stopped'
-    existing=$("$bundle_dir/bin/mihomo-tui" installation inspect --prefix "$prefix") || fail 'Existing installation cannot be updated'
+    existing=$("$bundle_dir/bin/mihomo-tui" installation inspect --prefix "$prefix") || fail 'Existing installation cannot be updated or reinstalled'
+    prefix=$(CDPATH= cd -- "$prefix" && pwd -P)
     recorded_mode=$(printf '%s\n' "$existing" | sed -n '1p')
     recorded_unit=$(printf '%s\n' "$existing" | sed -n '2p')
     recorded_rc=$(printf '%s\n' "$existing" | sed -n '3p')
     selected_core=$(printf '%s\n' "$existing" | sed -n '4p')
+    installation_kind=$(printf '%s\n' "$existing" | sed -n '5p')
     [ -z "$requested_mode" ] || [ "$requested_mode" = "$recorded_mode" ] || fail 'Requested mode does not match the installation'
     mode=$recorded_mode
-    updating=yes
-    [ "$mixed_port" = 0 ] && [ "$api_port" = 0 ] || fail 'Updates preserve ports; stop the service and use configure to change them'
-    existing_service=no
-    [ -z "$recorded_unit" ] || existing_service=yes
-    [ "$service_choice" = auto ] || [ "$service_choice" = "$existing_service" ] || fail 'Update preserves the existing service configuration'
-    service_choice=$existing_service
+    [ "$mixed_port" = 0 ] && [ "$api_port" = 0 ] || fail 'Updates and reinstalls preserve ports; stop the service and use configure to change them'
+    case "$installation_kind" in
+        installed)
+            updating=yes
+            existing_service=no
+            [ -z "$recorded_unit" ] || existing_service=yes
+            [ "$service_choice" = auto ] || [ "$service_choice" = "$existing_service" ] || fail 'Update preserves the existing service configuration'
+            service_choice=$existing_service
+            ;;
+        retained)
+            restoring=yes
+            mixed_port=$(printf '%s\n' "$existing" | sed -n '6p')
+            api_port=$(printf '%s\n' "$existing" | sed -n '7p')
+            ;;
+        *) fail 'Unknown installation state' ;;
+    esac
     if [ -n "$recorded_rc" ] && [ "$shell_choice" = auto ] && [ -z "$rc_file" ]; then
         shell_choice=registered
         rc_file=$recorded_rc
     fi
 fi
 
-if [ "$mode" = system ] && [ "$updating" = no ]; then
+if [ "$mode" = system ] && [ "$updating" = no ] && [ "$restoring" = no ]; then
     [ "$mixed_port" != 0 ] || mixed_port=7890
     [ "$api_port" != 0 ] || api_port=9090
 fi
@@ -121,14 +134,18 @@ fi
 install_service=$service_choice
 if [ "$install_service" = auto ]; then install_service=$manager_available; fi
 
-if [ "$updating" = yes ]; then printf '\n%s\n' 'mihomo-tui update'; else printf '\n%s\n' 'mihomo-tui installation'; fi
+if [ "$updating" = yes ]; then printf '\n%s\n' 'mihomo-tui update'
+elif [ "$restoring" = yes ]; then printf '\n%s\n' 'mihomo-tui reinstallation'
+else printf '\n%s\n' 'mihomo-tui installation'; fi
 printf '  Mode:         %s\n' "$mode"
 printf '  Destination:  %s\n' "$prefix"
 printf '  Bundled core: %s (Linux amd64)\n' "$core_id"
 echo '  Geo data:     bundled MMDB, GeoIP.dat and GeoSite.dat (offline)'
-if [ "$updating" = yes ]; then
+if [ "$updating" = yes ] || [ "$restoring" = yes ]; then
     printf '  Current core: %s (preserved)\n' "$selected_core"
     echo '  Data:         profiles, credentials, ports and TUN settings preserved'
+fi
+if [ "$updating" = yes ]; then
     echo '  Service:      configuration and running/enabled state preserved'
 fi
 printf '  Proxy env:    %s/proxy.env\n' "$prefix"
@@ -153,6 +170,8 @@ else
 fi
 if [ "$updating" = yes ]; then
     echo '  Proxy ports:  existing ports preserved'
+elif [ "$restoring" = yes ]; then
+    printf '  Proxy ports:  %s (mixed), %s (API), retained and checked before startup\n' "$mixed_port" "$api_port"
 elif [ "$mode" = system ]; then
     printf '  Proxy ports:  %s (mixed), %s (API), checked before startup\n' "$mixed_port" "$api_port"
 elif [ "$mixed_port" != 0 ] || [ "$api_port" != 0 ]; then
@@ -184,13 +203,17 @@ fi
 # existing ports during updates because the preserved service may own them.
 if [ "$updating" = no ] && { [ "$mixed_port" != 0 ] || [ "$api_port" != 0 ]; }; then
     (cd "$bundle_dir" && sha256sum --status -c SHA256SUMS) || fail 'Bundle checksum verification failed; installation stopped'
-    "$bundle_dir/bin/mihomo-tui" installation check-ports --mixed-port "$mixed_port" --api-port "$api_port" || fail 'Requested ports are unavailable; use --mixed-port and --api-port to select free ports'
+    if ! "$bundle_dir/bin/mihomo-tui" installation check-ports --mixed-port "$mixed_port" --api-port "$api_port"; then
+        [ "$restoring" != yes ] || fail 'Retained ports are unavailable; stop the conflicting application before reinstalling'
+        fail 'Requested ports are unavailable; use --mixed-port and --api-port to select free ports'
+    fi
 fi
 
 if [ "$assume_yes" != yes ]; then
     action=installation
     cancelled='Installation cancelled.'
     if [ "$updating" = yes ]; then action=update; cancelled='Update cancelled.'; fi
+    if [ "$restoring" = yes ]; then action=reinstallation; cancelled='Reinstallation cancelled.'; fi
     printf '\nProceed with %s? [y/N] ' "$action"
     if ! IFS= read -r answer; then echo; echo "$cancelled"; exit 0; fi
     case "$answer" in y|Y|yes|YES|Yes) ;; *) echo "$cancelled"; exit 0 ;; esac
@@ -210,29 +233,44 @@ if [ "$updating" = yes ]; then
     if [ "$shell_choice" != none ]; then echo "Open a new shell or source the existing rc: $rc_file"; fi
     exit 0
 fi
-echo 'Installing application and managed core...'
-
-mkdir -m 700 -p -- "$prefix"
-prefix=$(CDPATH= cd -- "$prefix" && pwd -P)
-cp bin/mihomo-tui "$prefix/mihomo-tui"
-chmod 700 "$prefix/mihomo-tui"
-if [ "$mode" = system ]; then chmod 755 "$prefix" "$prefix/mihomo-tui"; fi
-cp README.md LICENSE NOTICE.md "$prefix/"
-cp -R docs "$prefix/docs"
-cp DEPENDENCIES.txt "$prefix/"
-cp -R licenses "$prefix/licenses"
-cp uninstall.sh "$prefix/uninstall.sh"
-printf '%s\n' mihomo-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.mihomo-tui-install"
 app_bin="$prefix/mihomo-tui"
-"$app_bin" configure --install-mode "$mode" --mixed-port "$mixed_port" --api-port "$api_port"
-"$bundle_dir/bin/mihomo-tui" installation seed-geodata --prefix "$prefix"
-"$app_bin" core import "$core_id" "$bundle_dir/cores/mihomo" >/dev/null
-profile_output=$("$app_bin" profile new Default)
-profile_id=${profile_output%% *}
-"$app_bin" profile select "$profile_id"
-"$app_bin" service --mode "$mode" > "$prefix/mihomo-tui.service"
-"$app_bin" env-file
-if [ "$shell_choice" != none ]; then "$app_bin" shell install --rc-file "$rc_file"; fi
+if [ "$restoring" = yes ]; then
+    echo 'Restoring application; keeping selected core and proxy data...'
+    if [ "$shell_choice" = none ]; then
+        "$bundle_dir/bin/mihomo-tui" installation update --prefix "$prefix"
+    else
+        "$bundle_dir/bin/mihomo-tui" installation update --prefix "$prefix" --rc-file "$rc_file"
+    fi
+else
+    echo 'Installing application and managed core...'
+
+    mkdir -m 700 -p -- "$prefix"
+    prefix=$(CDPATH= cd -- "$prefix" && pwd -P)
+    cp bin/mihomo-tui "$prefix/mihomo-tui"
+    chmod 700 "$prefix/mihomo-tui"
+    if [ "$mode" = system ]; then chmod 755 "$prefix" "$prefix/mihomo-tui"; fi
+    cp README.md LICENSE NOTICE.md "$prefix/"
+    cp -R docs "$prefix/docs"
+    cp DEPENDENCIES.txt "$prefix/"
+    cp -R licenses "$prefix/licenses"
+    cp uninstall.sh "$prefix/uninstall.sh"
+    printf '%s\n' mihomo-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.mihomo-tui-install"
+    app_bin="$prefix/mihomo-tui"
+    "$app_bin" configure --install-mode "$mode" --mixed-port "$mixed_port" --api-port "$api_port"
+    "$bundle_dir/bin/mihomo-tui" installation seed-geodata --prefix "$prefix"
+    "$app_bin" core import "$core_id" "$bundle_dir/cores/mihomo" >/dev/null
+    profile_output=$("$app_bin" profile new Default)
+    profile_id=${profile_output%% *}
+    "$app_bin" profile select "$profile_id"
+    "$app_bin" service --mode "$mode" > "$prefix/mihomo-tui.service"
+    "$app_bin" env-file
+    if [ "$shell_choice" != none ]; then "$app_bin" shell install --rc-file "$rc_file"; fi
+fi
+
+if [ "$restoring" = yes ]; then
+    "$app_bin" service --mode "$mode" > "$prefix/mihomo-tui.service"
+    printf '%s\n' mihomo-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.mihomo-tui-install"
+fi
 
 if [ "$install_service" = yes ]; then
     mkdir -p -- "$(dirname -- "$unit_path")"
