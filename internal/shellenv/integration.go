@@ -38,6 +38,10 @@ func Functions(s *state.Store, executable string) string {
 	start, end := markers(blockID(s))
 	env := Quote(FilePath(s))
 	return fmt.Sprintf(`%s
+case ":${PATH-}:" in
+    *:%s:*) ;;
+    *) export PATH=%s"${PATH:+:$PATH}" ;;
+esac
 verge_on() {
     if [ ! -r %s ]; then
         printf '%%s\n' 'Proxy environment file is unavailable.' >&2
@@ -52,7 +56,7 @@ verge_status() {
     command %s --data-dir %s proxy-status
 }
 %s
-`, start, env, env, Quote(executable), Quote(s.Root), end)
+`, start, Quote(filepath.Dir(executable)), Quote(filepath.Dir(executable)), env, env, Quote(executable), Quote(s.Root), end)
 }
 func stripBlock(data, id string) (string, error) {
 	start, end := markers(id)
@@ -136,6 +140,9 @@ func Register(s *state.Store, executable, rc string) (string, error) {
 func registerAt(s *state.Store, executable, rc, metaPath string) (string, error) {
 	if !filepath.IsAbs(executable) || !filepath.IsAbs(rc) || strings.ContainsAny(executable+rc, "\r\n\x00") {
 		return "", errors.New("shell integration paths must be absolute single-line paths")
+	}
+	if strings.Contains(filepath.Dir(executable), ":") {
+		return "", errors.New("the executable directory cannot contain a colon when adding it to PATH")
 	}
 	if _, err := ReadFile(FilePath(s)); err != nil {
 		return "", err

@@ -89,3 +89,5 @@ To uninstall from the extracted bundle, use the original mode and prefix, for ex
 After uninstalling with data retained, rerun the installer with the same mode and prefix to restore the application and service. Reinstallation preserves subscriptions, selected core, credentials and ports, checks port availability, and asks for confirmation before making changes.
 
 See [offline installation](docs/offline-installation.md) for self-contained packages, user services, system services and uninstallation. Online script installation is deferred. End users do not need Go.
+
+`verge-tui shell install` also adds its executable directory to PATH in the registered rc block, without duplicating existing entries. Source the rc once to use it in the current shell; new shells load it automatically. `shell remove` and `uninstall.sh` remove the same managed block.
