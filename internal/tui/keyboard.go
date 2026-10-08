@@ -125,6 +125,9 @@ func (m *Model) focusTargets() []Hit {
 	}
 	var hits []Hit
 	for _, f := range m.visibleFields() {
+		if m.fieldDisabled(f.Key) {
+			continue
+		}
 		a := app.Action{Kind: "input", ID: f.Key}
 		hits = append(hits, Hit{Action: a, Key: Key(a)})
 	}

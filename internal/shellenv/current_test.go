@@ -4,10 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"verge-tui/internal/testutil"
 )
 
 func TestCurrentRCUsesParentShellAndZdotdir(t *testing.T) {
-	root := t.TempDir()
+	root := testutil.Dir(t)
 	ps := filepath.Join(root, "ps")
 	if err := os.WriteFile(ps, []byte("#!/bin/sh\nprintf '%s\\n' zsh\n"), 0700); err != nil {
 		t.Fatal(err)

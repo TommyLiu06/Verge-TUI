@@ -37,22 +37,25 @@ type Profile struct {
 }
 
 type Settings struct {
-	Schema        int               `json:"schema"`
-	InstallMode   string            `json:"install_mode"`
-	Mode          string            `json:"mode"`
-	MixedPort     int               `json:"mixed_port"`
-	HTTPPort      int               `json:"http_port,omitempty"`
-	SOCKSPort     int               `json:"socks_port,omitempty"`
-	APIPort       int               `json:"api_port"`
-	Secret        string            `json:"secret"`
-	ProxyUser     string            `json:"proxy_user"`
-	ProxyPassword string            `json:"proxy_password"`
-	Tun           bool              `json:"tun"`
-	Core          string            `json:"core"`
-	Current       string            `json:"current_profile"`
-	HomeGroup     map[string]string `json:"home_groups"`
-	Profiles      []Profile         `json:"profiles"`
-	Engine        EngineSettings    `json:"engine"`
+	Schema            int               `json:"schema"`
+	InstallMode       string            `json:"install_mode"`
+	Mode              string            `json:"mode"`
+	MixedPort         int               `json:"mixed_port"`
+	HTTPPort          int               `json:"http_port,omitempty"`
+	SOCKSPort         int               `json:"socks_port,omitempty"`
+	ControllerSocket  string            `json:"-"`
+	ControllerEnabled bool              `json:"controller_enabled"`
+	ControllerAddress string            `json:"controller_address,omitempty"`
+	APIPort           int               `json:"api_port"`
+	Secret            string            `json:"secret"`
+	ProxyUser         string            `json:"proxy_user"`
+	ProxyPassword     string            `json:"proxy_password"`
+	Tun               bool              `json:"tun"`
+	Core              string            `json:"core"`
+	Current           string            `json:"current_profile"`
+	HomeGroup         map[string]string `json:"home_groups"`
+	Profiles          []Profile         `json:"profiles"`
+	Engine            EngineSettings    `json:"engine"`
 }
 
 type Store struct{ Root string }
@@ -122,6 +125,7 @@ func (s *Store) Read() (Settings, error) {
 	if c.Schema != 1 {
 		return c, fmt.Errorf("unsupported settings schema %d", c.Schema)
 	}
+	c.ControllerSocket = filepath.Join(s.Root, "runtime", "api.sock")
 	return c, nil
 }
 

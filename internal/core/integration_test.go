@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
+	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/controller"
 	"verge-tui/internal/core"
@@ -21,7 +23,7 @@ func TestRealCoreLifecycle(t *testing.T) {
 	if binary == "" {
 		t.Skip("set MIHOMO_TEST_BINARY to an application-managed core")
 	}
-	s, err := state.Open(t.TempDir())
+	s, err := state.Open(testutil.Dir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,13 +52,9 @@ func TestRealCoreLifecycle(t *testing.T) {
 	if err := (&core.Manager{Store: s}).Start(ctx); err == nil {
 		t.Fatal("two supervisors acquired the same core")
 	}
-	response, err := http.Get(client.Base + "/configs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	response.Body.Close()
-	if response.StatusCode != 401 {
-		t.Fatalf("API authentication bypass: HTTP %d", response.StatusCode)
+	if connection, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(c.APIPort), time.Second); err == nil {
+		connection.Close()
+		t.Fatal("disabled external controller is listening")
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// mihomo rejects a delay truncated to zero milliseconds.
@@ -68,7 +66,7 @@ func TestRealCoreLifecycle(t *testing.T) {
 	transport := &http.Transport{Proxy: http.ProxyURL(proxy)}
 	defer transport.CloseIdleConnections()
 	probe := &http.Client{Transport: transport}
-	response, err = probe.Get(server.URL)
+	response, err := probe.Get(server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}

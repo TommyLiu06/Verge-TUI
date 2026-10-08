@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -48,9 +49,17 @@ type Client struct {
 }
 
 func New(c state.Settings) *Client {
-	return &Client{Base: "http://127.0.0.1:" + strconv.Itoa(c.APIPort), Secret: c.Secret,
-		HTTP: &http.Client{Timeout: 8 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConnsPerHost: 2}}}
+	transport := &http.Transport{Proxy: nil, MaxIdleConnsPerHost: 2}
+	base := "http://127.0.0.1:" + strconv.Itoa(c.APIPort)
+	if c.ControllerSocket != "" {
+		base = "http://localhost"
+		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "unix", c.ControllerSocket)
+		}
+	}
+	return &Client{Base: base, Secret: c.Secret, HTTP: &http.Client{Timeout: 8 * time.Second, Transport: transport}}
 }
+
 func (c *Client) Close() { c.HTTP.CloseIdleConnections() }
 func (c *Client) Request(ctx context.Context, method, path string, body, result any) error {
 	var data []byte

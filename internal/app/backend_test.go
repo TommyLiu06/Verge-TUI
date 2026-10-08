@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/controller"
 	"verge-tui/internal/core"
@@ -23,7 +24,7 @@ func TestSubscriptionWorkflowWithRealCore(t *testing.T) {
 	}
 	t.Setenv("XDG_CURRENT_DESKTOP", "")
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "")
-	s, err := state.Open(t.TempDir())
+	s, err := state.Open(testutil.Dir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,7 @@ func TestSubscriptionWorkflowWithRealCore(t *testing.T) {
 }
 
 func TestPrepareUninstallRestoresDesktopBackup(t *testing.T) {
-	s, err := state.Open(t.TempDir())
+	s, err := state.Open(testutil.Dir(t))
 	if err != nil {
 		t.Fatal(err)
 	}

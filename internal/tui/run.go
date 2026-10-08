@@ -107,8 +107,8 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 						if hit.Action.Kind == "paste" {
 							screen.GetClipboard()
 						}
-						if hit.Action.Kind == "copy-environment" {
-							screen.SetClipboard([]byte(app.ProxyEnvironment(m.View.Settings)))
+						if hit.Action.Kind == "copy-environment" || hit.Action.Kind == "copy-field" {
+							screen.SetClipboard([]byte(m.clipboardText(hit.Action)))
 						}
 						break
 					}
@@ -120,8 +120,8 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 						if hit.Action.Kind == "paste" {
 							screen.GetClipboard()
 						}
-						if hit.Action.Kind == "copy-environment" {
-							screen.SetClipboard([]byte(app.ProxyEnvironment(m.View.Settings)))
+						if hit.Action.Kind == "copy-environment" || hit.Action.Kind == "copy-field" {
+							screen.SetClipboard([]byte(m.clipboardText(hit.Action)))
 						}
 						break
 					}

@@ -135,6 +135,42 @@ func (b *Backend) saveSettings(ctx context.Context, a Action) error {
 			value, parseErr := boolField(a.Fields, "enabled")
 			err = parseErr
 			c.Engine.UnifiedDelay = &value
+		case "controller":
+			enabled, parseErr := boolField(a.Fields, "enabled")
+			if parseErr != nil {
+				return parseErr
+			}
+			if !enabled {
+				c.ControllerEnabled = false
+				break
+			}
+			address := strings.TrimSpace(a.Fields["address"])
+			if strings.HasPrefix(address, ":") {
+				address = "127.0.0.1" + address
+			}
+			host, portText, parseErr := net.SplitHostPort(address)
+			if parseErr != nil || net.ParseIP(host) == nil {
+				return errors.New("enter a controller IP address and port")
+			}
+			port, parseErr := strconv.Atoi(portText)
+			if parseErr != nil || port < 1024 || port > 65535 {
+				return errors.New("controller port must be between 1024 and 65535")
+			}
+			if port == c.MixedPort || port == c.HTTPPort || port == c.SOCKSPort {
+				return errors.New("proxy and controller ports must be different")
+			}
+			secret := strings.TrimSpace(a.Fields["secret"])
+			if secret == "" {
+				return errors.New("secret is required")
+			}
+			if !c.ControllerEnabled || address != c.ControllerAddress {
+				listener, listenErr := net.Listen("tcp", address)
+				if listenErr != nil {
+					return fmt.Errorf("controller address unavailable: %w", listenErr)
+				}
+				listener.Close()
+			}
+			c.ControllerEnabled, c.ControllerAddress, c.Secret, c.APIPort = true, address, secret, port
 		case "log-level":
 			switch a.Fields["level"] {
 			case "debug", "info", "warning", "error", "silent":
@@ -243,6 +279,22 @@ func (b *Backend) saveSettings(ctx context.Context, a Action) error {
 
 // Inspect is requested on demand, keeping large documents out of normal views.
 func (b *Backend) Inspect(ctx context.Context, kind string) ([]string, error) {
+	if kind == "controller" {
+		if b.Remote != nil {
+			var lines []string
+			err := b.Remote.Call(ctx, "GET", "/inspect/controller", nil, &lines)
+			return lines, err
+		}
+		c, err := b.Store.Read()
+		if err != nil {
+			return nil, err
+		}
+		address := c.ControllerAddress
+		if address == "" {
+			address = "127.0.0.1:" + strconv.Itoa(c.APIPort)
+		}
+		return []string{strconv.FormatBool(c.ControllerEnabled), address, c.Secret}, nil
+	}
 	if kind == "interfaces" {
 		interfaces, err := net.Interfaces()
 		if err != nil {

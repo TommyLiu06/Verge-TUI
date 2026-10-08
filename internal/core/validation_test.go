@@ -8,12 +8,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/state"
 )
 
 func TestValidationTimeoutIsNotReportedAsInvalidProfile(t *testing.T) {
-	s, err := state.Open(t.TempDir())
+	s, err := state.Open(testutil.Dir(t))
 	if err != nil {
 		t.Fatal(err)
 	}

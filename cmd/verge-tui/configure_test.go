@@ -15,10 +15,10 @@ func TestSystemPortsDefaultAndPreserveUpdates(t *testing.T) {
 		wantMixed, wantAPI int
 		checked            []int
 	}{
-		{"user", "system", 0, 0, 7890, 9090, []int{7890, 9090}},
+		{"user", "system", 0, 0, 7890, 9090, []int{7890}},
 		{"system", "system", 0, 0, 23456, 34567, nil},
 		{"user", "user", 0, 0, 23456, 34567, nil},
-		{"user", "system", 8123, 9123, 8123, 9123, []int{8123, 9123}},
+		{"user", "system", 8123, 9123, 8123, 9123, []int{8123}},
 	} {
 		c := state.Settings{InstallMode: item.previous, MixedPort: 23456, APIPort: 34567}
 		var checked []int
@@ -32,8 +32,8 @@ func TestSystemPortsDefaultAndPreserveUpdates(t *testing.T) {
 func TestPortConflictLeavesOriginalConfiguration(t *testing.T) {
 	c := state.Settings{InstallMode: "user", MixedPort: 23456, APIPort: 34567}
 	err := configurePorts(&c, "system", 0, 0, func(port int) error {
-		if port == 9090 {
-			return errors.New("API port is occupied")
+		if port == 7890 {
+			return errors.New("proxy port is occupied")
 		}
 		return nil
 	})

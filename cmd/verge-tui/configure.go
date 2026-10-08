@@ -24,8 +24,10 @@ func configurePorts(c *state.Settings, mode string, mixed, api int, check func(i
 		nextMixed = mixed
 	}
 	if api != 0 {
-		if err := check(api); err != nil {
-			return err
+		if c.ControllerEnabled {
+			if err := check(api); err != nil {
+				return err
+			}
 		}
 		nextAPI = api
 	}

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -142,7 +144,22 @@ func (m *Manager) Start(ctx context.Context) error {
 			lock.Close()
 		}
 	}()
-	for _, port := range []int{c.MixedPort, c.APIPort, c.HTTPPort, c.SOCKSPort} {
+	if len(c.ControllerSocket) > 107 {
+		return errors.New("installation path is too long for the core control socket (maximum 107 bytes)")
+	}
+	ports := []int{c.MixedPort, c.HTTPPort, c.SOCKSPort}
+	if c.ControllerEnabled {
+		_, port, err := net.SplitHostPort(c.ControllerAddress)
+		if err != nil {
+			return err
+		}
+		n, err := strconv.Atoi(port)
+		if err != nil {
+			return err
+		}
+		ports = append(ports, n)
+	}
+	for _, port := range ports {
 		if port == 0 {
 			continue
 		}
@@ -243,7 +260,10 @@ func (m *Manager) Stop() error {
 	return err
 }
 func (m *Manager) Apply(ctx context.Context, mutate func(*state.Settings) error) error {
-	return m.Store.Update(func(c *state.Settings) error {
+	var before state.Settings
+	restart := false
+	err := m.Store.Update(func(c *state.Settings) error {
+		before = *c
 		previous := *c
 		if err := mutate(c); err != nil {
 			return err
@@ -265,13 +285,28 @@ func (m *Manager) Apply(ctx context.Context, mutate func(*state.Settings) error)
 		if err != nil {
 			return err
 		}
-		if running {
+		restart = running && (previous.ControllerEnabled != c.ControllerEnabled || previous.ControllerAddress != c.ControllerAddress || previous.Secret != c.Secret)
+		if restart && !m.Owned() {
+			return errors.New("controller changes require the owning service; use its TUI connection")
+		}
+		if running && !restart {
 			if err := client.Reload(ctx, payload); err != nil {
 				return err
 			}
 		}
 		return state.Write(filepath.Join(m.Store.Root, "runtime", "config.yaml"), payload, 0600)
 	})
+	if err != nil || !restart {
+		return err
+	}
+	if err := m.Stop(); err != nil {
+		return err
+	}
+	if err := m.Start(ctx); err != nil {
+		restoreErr := m.Store.Update(func(c *state.Settings) error { *c = before; return nil })
+		return errors.Join(err, restoreErr, errors.New("previous settings restored; core stopped"))
+	}
+	return nil
 }
 func (m *Manager) Use(ctx context.Context, id string) error {
 	path, err := Path(m.Store, id)

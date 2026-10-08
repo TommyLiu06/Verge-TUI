@@ -483,7 +483,11 @@ func (m *Model) modal(f *Frame) {
 		}
 		f.Line(r.X+2, y, r.W-4, label, cardStyle.Foreground(muted))
 		y++
-		m.input(f, Rect{r.X + 2, y, r.W - 4, 1}, label, field.Text, field.Key)
+		if m.fieldDisabled(field.Key) {
+			f.Line(r.X+3, y, r.W-6, field.Text, cardStyle.Foreground(muted))
+		} else {
+			m.input(f, Rect{r.X + 2, y, r.W - 4, 1}, label, field.Text, field.Key)
+		}
 		y++
 	}
 	for i, line := range modal.Body {

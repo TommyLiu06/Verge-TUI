@@ -6,13 +6,13 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/controller"
 	"verge-tui/internal/state"
@@ -20,7 +20,7 @@ import (
 
 func delayBackend(t *testing.T, names []string, handler http.HandlerFunc) *Backend {
 	t.Helper()
-	s, err := state.Open(t.TempDir())
+	s, err := state.Open(testutil.Dir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func delayBackend(t *testing.T, names []string, handler http.HandlerFunc) *Backe
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := testutil.CoreServer(t, s, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+c.Secret {
 			t.Error("delay API request lost authentication")
 			w.WriteHeader(http.StatusUnauthorized)

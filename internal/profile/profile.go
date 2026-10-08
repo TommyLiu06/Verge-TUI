@@ -227,7 +227,17 @@ func RuntimeDocument(c state.Settings, doc map[string]any) ([]byte, error) {
 	for _, key := range []string{"redir-port", "tproxy-port"} {
 		doc[key] = 0
 	}
-	doc["external-controller"] = "127.0.0.1:" + strconv.Itoa(c.APIPort)
+	doc["external-controller"] = ""
+	if c.ControllerEnabled {
+		address := c.ControllerAddress
+		if address == "" {
+			address = "127.0.0.1:" + strconv.Itoa(c.APIPort)
+		}
+		doc["external-controller"] = address
+	}
+	if c.ControllerSocket != "" {
+		doc["external-controller-unix"] = c.ControllerSocket
+	}
 	doc["secret"] = c.Secret
 	doc["allow-lan"] = c.Engine.AllowLAN
 	doc["bind-address"] = "127.0.0.1"

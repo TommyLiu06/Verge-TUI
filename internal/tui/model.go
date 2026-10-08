@@ -66,7 +66,7 @@ func (m *Model) Input() *string {
 	if m.Modal != nil {
 		for i := range m.Modal.Fields {
 			field := &m.Modal.Fields[i]
-			if m.Focus == Key(app.Action{Kind: "input", ID: field.Key}) && len(field.Options) == 0 {
+			if !m.fieldDisabled(field.Key) && m.Focus == Key(app.Action{Kind: "input", ID: field.Key}) && len(field.Options) == 0 {
 				return &field.Text
 			}
 		}
@@ -393,6 +393,8 @@ func (m *Model) Activate(a app.Action) *app.Action {
 		}
 	case "environment":
 		m.Modal = &Modal{Title: "Proxy Environment", Body: strings.Split(app.ProxyEnvironment(m.View.Settings), "\n")}
+	case "copy-field":
+		m.Message = "Copied"
 	case "copy-environment":
 		m.Message = "Proxy environment copied to clipboard"
 	default:
@@ -549,4 +551,29 @@ func bytesString(n uint64) string {
 		i++
 	}
 	return fmt.Sprintf("%.1f %s", value, units[i])
+}
+
+func (m *Model) fieldDisabled(key string) bool {
+	if m.Modal == nil || m.Modal.Section != "controller" || key == "enabled" {
+		return false
+	}
+	for _, f := range m.Modal.Fields {
+		if f.Key == "enabled" {
+			return f.Text != "true"
+		}
+	}
+	return false
+}
+func (m *Model) clipboardText(a app.Action) string {
+	if a.Kind == "copy-environment" {
+		return app.ProxyEnvironment(m.View.Settings)
+	}
+	if m.Modal != nil && !m.fieldDisabled(a.ID) {
+		for _, f := range m.Modal.Fields {
+			if f.Key == a.ID {
+				return f.Text
+			}
+		}
+	}
+	return ""
 }

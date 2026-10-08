@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/profile"
 	"verge-tui/internal/state"
@@ -11,7 +12,7 @@ import (
 
 func TestDeleteProfileRemovesYAMLAndSelection(t *testing.T) {
 	for _, selected := range []bool{false, true} {
-		s, err := state.Open(t.TempDir())
+		s, err := state.Open(testutil.Dir(t))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -44,7 +45,7 @@ func TestDeleteProfileRemovesYAMLAndSelection(t *testing.T) {
 }
 
 func TestDeleteCurrentProfileKeepsDataIfSwitchFails(t *testing.T) {
-	s, err := state.Open(t.TempDir())
+	s, err := state.Open(testutil.Dir(t))
 	if err != nil {
 		t.Fatal(err)
 	}

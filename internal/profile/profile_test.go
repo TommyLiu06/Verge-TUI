@@ -43,8 +43,8 @@ func TestImportSubscriptionAndSecurityOverlay(t *testing.T) {
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := doc["external-controller-unix"]; ok {
-		t.Fatal("unprotected controller retained")
+	if doc["external-controller-unix"] != c.ControllerSocket || doc["external-controller"] != "" {
+		t.Fatal("subscription exposed a controller")
 	}
 	if _, ok := doc["listeners"]; ok {
 		t.Fatal("unprotected inbound retained")

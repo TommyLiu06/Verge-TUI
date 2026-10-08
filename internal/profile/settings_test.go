@@ -21,7 +21,7 @@ func TestSettingsOverridesKeepUserAuthenticationAndLoopbackAPI(t *testing.T) {
 	if doc["allow-lan"] != true || doc["bind-address"] != "*" || doc["ipv6"] != false || doc["unified-delay"] != true || doc["log-level"] != "error" {
 		t.Fatal("core settings were not applied")
 	}
-	if doc["port"] != 23457 || doc["socks-port"] != 23458 || doc["external-controller"] != "127.0.0.1:23459" || doc["secret"] != "api-key" {
+	if doc["port"] != 23457 || doc["socks-port"] != 23458 || doc["external-controller"] != "" || doc["secret"] != "api-key" {
 		t.Fatal("optional ports changed protected controller binding")
 	}
 	auth := doc["authentication"].([]any)

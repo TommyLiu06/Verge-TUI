@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/controller"
 	"verge-tui/internal/core"
@@ -24,7 +25,7 @@ func settingsBackend(t *testing.T) *Backend {
 	t.Helper()
 	t.Setenv("XDG_CURRENT_DESKTOP", "")
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "")
-	s, err := state.Open(t.TempDir())
+	s, err := state.Open(testutil.Dir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestDNSOverridesAreProfileScopedAndProtectController(t *testing.T) {
 	}
 	doc, _ := profile.Parse(data)
 	dns := doc["dns"].(map[string]any)
-	if dns["enhanced-mode"] != "redir-host" || dns["nameserver-policy"] == nil || dns["listen"] != nil || doc["external-controller"] != "127.0.0.1:"+strconv.Itoa(c.APIPort) {
+	if dns["enhanced-mode"] != "redir-host" || dns["nameserver-policy"] == nil || dns["listen"] != nil || doc["external-controller"] != "" || doc["external-controller-unix"] != c.ControllerSocket {
 		t.Fatal("DNS override replaced unrelated policy or weakened listeners")
 	}
 	if err := b.Execute(ctx, Action{Kind: "profile-select", ID: second.ID}); err != nil {

@@ -4,20 +4,20 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/state"
 )
 
 func store(t *testing.T) *state.Store {
 	t.Helper()
-	s, err := state.Open(filepath.Join(t.TempDir(), "data"))
+	s, err := state.Open(filepath.Join(testutil.Dir(t), "data"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestRegistrationPreservesAndRemovesOnlyOwnedBlock(t *testing.T) {
 func TestStatusSeparatesCoreListenerAndEnvironment(t *testing.T) {
 	s := store(t)
 	c, _ := s.Read()
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testutil.CoreServer(t, s, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+c.Secret {
 			w.WriteHeader(401)
 			return
@@ -177,7 +177,7 @@ func TestSharedStatusDoesNotNeedPrivateAPICredentials(t *testing.T) {
 		t.Skip("requires ordinary file permission checks")
 	}
 	s := store(t)
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(401) }))
+	api := testutil.CoreServer(t, s, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(401) }))
 	defer api.Close()
 	u, _ := url.Parse(api.URL)
 	port, _ := strconv.Atoi(u.Port())
@@ -196,7 +196,7 @@ func TestSharedStatusDoesNotNeedPrivateAPICredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "administrator authentication required") || !strings.Contains(out, "Shell environment: not loaded") {
+	if !strings.Contains(out, "private API status unavailable") || !strings.Contains(out, "Shell environment: not loaded") {
 		t.Fatal("shared status could not use the public environment metadata")
 	}
 }

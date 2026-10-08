@@ -88,7 +88,7 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 			{"Unified Delay", toggle(m.View.CoreOptions.UnifiedDelay), flip("unified-delay", m.View.CoreOptions.UnifiedDelay)},
 			{"Log Level", m.View.CoreOptions.LogLevel, edit("log-level")},
 			{"Port Config", strconv.Itoa(c.MixedPort), edit("ports")},
-			{"External Controller", ":" + strconv.Itoa(c.APIPort), app.Action{Kind: "settings-info", ID: "controller"}},
+			{"External Controller", toggle(c.ControllerEnabled), app.Action{Kind: "settings-view", ID: "controller"}},
 			{"Clash Core", c.Core, app.Action{Kind: "cores"}},
 			{"Update GeoData", "Update", app.Action{Kind: "geo-update"}},
 		}},
@@ -262,6 +262,15 @@ func (m *Model) settingsInfo(kind string) {
 }
 
 func (m *Model) showSettingsView(kind string, body []string) {
+	if kind == "controller" && len(body) == 3 {
+		m.openSettingsForm("External Controller", "settings-save", "controller", []Field{
+			booleanField("enabled", "Enable External Controller", body[0] == "true"),
+			{Key: "address", Label: "External Controller", Text: body[1]},
+			{Key: "secret", Label: "Secret", Text: body[2]},
+		})
+		m.Modal.Choices = []Choice{{"Copy Address", app.Action{Kind: "copy-field", ID: "address"}}, {"Copy Secret", app.Action{Kind: "copy-field", ID: "secret"}}}
+		return
+	}
 	title := "Network Interface"
 	if kind == "runtime" {
 		title = "Runtime Config"
