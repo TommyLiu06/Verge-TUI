@@ -3,6 +3,7 @@ package packaging_test
 import (
 	"bytes"
 	"context"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -545,4 +546,23 @@ func TestSystemModeUninstallWithMockRootAndCustomPrefix(t *testing.T) {
 		t.Fatal(out)
 	}
 	absent(t, f.prefix)
+}
+
+func TestRequestedPortConflictStopsBeforeInstallation(t *testing.T) {
+	f := setup(t, "no", "no")
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	port := listener.Addr().(*net.TCPAddr).Port
+	original := read(t, f.rc)
+	out := f.run(t, "install.sh", "yes\n", false, "--mixed-port", strconv.Itoa(port))
+	if !strings.Contains(out, "Requested ports are unavailable") {
+		t.Fatal(out)
+	}
+	absent(t, f.prefix)
+	if read(t, f.rc) != original {
+		t.Fatal("port preflight changed the rc")
+	}
 }

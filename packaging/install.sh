@@ -3,7 +3,7 @@ set -eu
 umask 077
 
 usage() {
-    echo 'Usage: sh install.sh [--prefix DIR] [--mode user|system] [--service|--no-service] [--shell bash|zsh|none] [--rc-file FILE] [--yes]'
+    echo 'Usage: sh install.sh [--prefix DIR] [--mode user|system] [--service|--no-service] [--mixed-port PORT] [--api-port PORT] [--shell bash|zsh|none] [--rc-file FILE] [--yes]'
 }
 fail() { echo "Error: $*" >&2; exit 1; }
 
@@ -15,6 +15,8 @@ service_choice=auto
 assume_yes=no
 shell_choice=auto
 rc_file=
+mixed_port=0
+api_port=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix) [ "$#" -ge 2 ] || fail 'Missing --prefix value'; prefix=$2; shift 2 ;;
@@ -24,6 +26,8 @@ while [ "$#" -gt 0 ]; do
         --yes|-y) assume_yes=yes; shift ;;
         --shell) [ "$#" -ge 2 ] || fail 'Missing --shell value'; shell_choice=$2; shift 2 ;;
         --rc-file) [ "$#" -ge 2 ] || fail 'Missing --rc-file value'; rc_file=$2; shift 2 ;;
+        --mixed-port) [ "$#" -ge 2 ] || fail 'Missing --mixed-port value'; mixed_port=$2; shift 2 ;;
+        --api-port) [ "$#" -ge 2 ] || fail 'Missing --api-port value'; api_port=$2; shift 2 ;;
         --help|-h) usage; exit 0 ;;
         *) usage >&2; fail "Unknown option: $1" ;;
     esac
@@ -59,6 +63,7 @@ if [ -e "$prefix" ] || [ -L "$prefix" ]; then
     [ -z "$requested_mode" ] || [ "$requested_mode" = "$recorded_mode" ] || fail 'Requested mode does not match the installation'
     mode=$recorded_mode
     updating=yes
+    [ "$mixed_port" = 0 ] && [ "$api_port" = 0 ] || fail 'Updates preserve ports; stop the service and use configure to change them'
     existing_service=no
     [ -z "$recorded_unit" ] || existing_service=yes
     [ "$service_choice" = auto ] || [ "$service_choice" = "$existing_service" ] || fail 'Update preserves the existing service configuration'
@@ -67,6 +72,11 @@ if [ -e "$prefix" ] || [ -L "$prefix" ]; then
         shell_choice=registered
         rc_file=$recorded_rc
     fi
+fi
+
+if [ "$mode" = system ] && [ "$updating" = no ]; then
+    [ "$mixed_port" != 0 ] || mixed_port=7890
+    [ "$api_port" != 0 ] || api_port=9090
 fi
 
 if [ "$shell_choice" = auto ]; then
@@ -141,7 +151,16 @@ if [ "$install_service" = yes ]; then
 else
     echo '  Background:   no service; keep the TUI or foreground core running'
 fi
-if [ "$updating" = yes ]; then echo '  Proxy ports:  existing ports preserved'; else echo '  Proxy ports:  random high ports, checked before startup'; fi
+if [ "$updating" = yes ]; then
+    echo '  Proxy ports:  existing ports preserved'
+elif [ "$mode" = system ]; then
+    printf '  Proxy ports:  %s (mixed), %s (API), checked before startup\n' "$mixed_port" "$api_port"
+elif [ "$mixed_port" != 0 ] || [ "$api_port" != 0 ]; then
+    printf '  Proxy ports:  requested mixed=%s, API=%s (0 = automatic)\n' "$mixed_port" "$api_port"
+else
+    echo '  Proxy ports:  random high ports, checked before startup'
+fi
+
 if [ "$mode" = user ]; then echo '  Proxy access: private credentials'; else echo '  Proxy access: shared on loopback; authenticated control API'; fi
 
 if [ "$mode" = system ] && [ "$install_service" != yes ]; then
@@ -159,6 +178,13 @@ if [ "$install_service" = yes ]; then
     if [ "$updating" != yes ]; then
         [ ! -e "$unit_path" ] && [ ! -L "$unit_path" ] || fail 'Service unit already exists'
     fi
+fi
+
+# Port preflight must finish before creating an installation directory. Skip
+# existing ports during updates because the preserved service may own them.
+if [ "$updating" = no ] && { [ "$mixed_port" != 0 ] || [ "$api_port" != 0 ]; }; then
+    (cd "$bundle_dir" && sha256sum --status -c SHA256SUMS) || fail 'Bundle checksum verification failed; installation stopped'
+    "$bundle_dir/bin/mihomo-tui" installation check-ports --mixed-port "$mixed_port" --api-port "$api_port" || fail 'Requested ports are unavailable; use --mixed-port and --api-port to select free ports'
 fi
 
 if [ "$assume_yes" != yes ]; then
@@ -198,7 +224,7 @@ cp -R licenses "$prefix/licenses"
 cp uninstall.sh "$prefix/uninstall.sh"
 printf '%s\n' mihomo-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.mihomo-tui-install"
 app_bin="$prefix/mihomo-tui"
-"$app_bin" configure --install-mode "$mode"
+"$app_bin" configure --install-mode "$mode" --mixed-port "$mixed_port" --api-port "$api_port"
 "$bundle_dir/bin/mihomo-tui" installation seed-geodata --prefix "$prefix"
 "$app_bin" core import "$core_id" "$bundle_dir/cores/mihomo" >/dev/null
 profile_output=$("$app_bin" profile new Default)

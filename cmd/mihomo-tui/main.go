@@ -60,10 +60,24 @@ func run(args []string) error {
 		rc := f.String("rc-file", "", "shell rc to refresh")
 		source := f.String("source-dir", "", "geography database source directory")
 		binary := f.String("core-file", "", "core binary used to verify geography data")
+		mixed := f.Int("mixed-port", 0, "proxy port to check")
+		api := f.Int("api-port", 0, "API port to check")
 		if err := f.Parse(args[2:]); err != nil {
 			return err
 		}
 		switch args[1] {
+		case "check-ports":
+			if *mixed != 0 && *mixed == *api {
+				return errPortsSame
+			}
+			for _, port := range []int{*mixed, *api} {
+				if port != 0 {
+					if err := state.CheckPort(port); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
 		case "check-geodata":
 			return geodata.Verify(context.Background(), *source, *binary)
 		case "seed-geodata":
@@ -336,20 +350,8 @@ func run(args []string) error {
 			if running {
 				return errors.New("stop the core before changing installation mode or ports")
 			}
-			if *mixed != 0 {
-				if err := state.CheckPort(*mixed); err != nil {
-					return err
-				}
-				c.MixedPort = *mixed
-			}
-			if *api != 0 {
-				if err := state.CheckPort(*api); err != nil {
-					return err
-				}
-				c.APIPort = *api
-			}
-			if c.APIPort == c.MixedPort {
-				return errors.New("API and proxy ports must differ")
+			if err := configurePorts(c, *mode, *mixed, *api, state.CheckPort); err != nil {
+				return err
 			}
 			c.InstallMode = *mode
 			if *mode == "user" {
