@@ -33,7 +33,9 @@ func TestDelayProgressRendersBeforeCompletionAndSurvivesReload(t *testing.T) {
 	if len(m.Delays) != 0 {
 		t.Fatal("completed batch retained a progress cache")
 	}
-	m.Modal = nil
+	if m.Modal != nil {
+		t.Fatal("failed delay check opened a modal")
+	}
 	m.Tab = 0
 	if !strings.Contains(m.Render(120, 42).Plain(), "Error") {
 		t.Fatal("Home did not update the current node's latency")
@@ -41,6 +43,21 @@ func TestDelayProgressRendersBeforeCompletionAndSurvivesReload(t *testing.T) {
 	m.Complete(fixture(), app.Action{Kind: "profile-select"}, nil)
 	if delayValue(m.View.Snapshot.Proxies["Node B"]) != -1 {
 		t.Fatal("previous profile's results leaked after switching")
+	}
+}
+
+func TestDelayFailurePreservesOpenDialog(t *testing.T) {
+	m := New(fixture())
+	m.Busy = true
+	m.help()
+	help := m.Modal
+	m.Complete(fixture(), app.Action{Kind: "delay"}, errors.New("core API unavailable"))
+	if m.Busy || m.Modal != help || !strings.Contains(m.Message, "core API unavailable") {
+		t.Fatal("delay failure interrupted the open dialog or lost its status message")
+	}
+	m.Complete(fixture(), app.Action{Kind: "profile-select"}, errors.New("profile rejected"))
+	if m.Modal == nil || m.Modal.Title != "Action Failed" {
+		t.Fatal("other action failures no longer show their error dialog")
 	}
 }
 

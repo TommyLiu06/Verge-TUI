@@ -457,7 +457,9 @@ func (m *Model) Complete(v app.View, a app.Action, err error) {
 	m.Delays = nil
 	if err != nil {
 		m.Message = "Error: " + err.Error()
-		m.Modal = &Modal{Title: "Action Failed", Body: strings.Split(err.Error(), "\n")}
+		if a.Kind != "delay" {
+			m.Modal = &Modal{Title: "Action Failed", Body: strings.Split(err.Error(), "\n")}
+		}
 	} else {
 		m.Message = "Ready"
 		if a.Kind == "profile-import" {
