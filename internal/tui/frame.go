@@ -113,6 +113,16 @@ func (f *Frame) Button(r Rect, label string, a app.Action, selected bool) {
 	f.Add(r, a)
 }
 
+func (f *Frame) NavButton(r Rect, label string, a app.Action, selected bool) {
+	f.Button(r, "", a, selected)
+	if r.X < 0 || r.Y < 0 || r.X >= f.W || r.Y >= f.H {
+		return
+	}
+	style := f.Cells[r.Y*f.W+r.X].Style
+	f.Fill(r, style)
+	f.Line(r.X+1, r.Y+(r.H-1)/2, r.W-2, label, style)
+}
+
 func (f *Frame) DelayButton(r Rect, label string, a app.Action, foreground color.Color) {
 	s := f.Theme.Card.Foreground(foreground)
 	if f.Focus == Key(a) {

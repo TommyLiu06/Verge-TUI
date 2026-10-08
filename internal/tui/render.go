@@ -35,7 +35,7 @@ func (m *Model) Render(w, h int) *Frame {
 		navStep = 1
 	}
 	for i, page := range navigation {
-		f.Button(Rect{1, 5 + i*navStep, side - 2, navHeight}, m.tr(page.Name), app.Action{Kind: "navigate", ID: strconv.Itoa(page.Tab)}, m.Tab == page.Tab)
+		f.NavButton(Rect{1, 5 + i*navStep, side - 2, navHeight}, m.tr(page.Name), app.Action{Kind: "navigate", ID: strconv.Itoa(page.Tab)}, m.Tab == page.Tab)
 	}
 	stateText := m.tr("Core Not Running")
 	if m.View.Online {
@@ -431,6 +431,7 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 func (m *Model) input(f *Frame, r Rect, placeholder, value, id string) {
 	s := f.Theme.Card.Foreground(f.Theme.Text)
 	focused := f.Focus == Key(app.Action{Kind: "input", ID: id})
+	empty := value == ""
 	if focused {
 		s = f.Theme.Card.Reverse(true)
 	}
@@ -454,7 +455,7 @@ func (m *Model) input(f *Frame, r Rect, placeholder, value, id string) {
 			cursorText = value[pos:nextBoundary(value, pos)]
 		}
 		value = value[start:]
-	} else if displaywidth.String(value) > r.W-3 {
+	} else if !empty && displaywidth.String(value) > r.W-3 {
 		value = tail(value, r.W-3)
 	}
 	f.Line(r.X+1, r.Y, r.W-2, value, s)
