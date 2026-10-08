@@ -218,6 +218,8 @@ func (b *Backend) Execute(ctx context.Context, a Action) error {
 		})
 	case "profile-update":
 		return b.updateProfile(ctx, a.ID)
+	case "profile-delete":
+		return b.deleteProfile(ctx, a.ID)
 	case "home-group":
 		return b.Store.Update(func(c *state.Settings) error { c.HomeGroup[c.Current] = a.ID; return nil })
 	case "node-select":

@@ -19,6 +19,7 @@ Commit: `d01f43cc783a9dbd05f064b79ea3ce39dcbfce16`.
 | Import URL | `src/pages/profiles.tsx` | Profile URL field followed by Import and New; import on Enter |
 | New profile | `src/components/profile/profile-viewer.tsx`, `file-input.tsx` | Create Profile dialog, Remote / Local, name, description, URL or YAML file, user agent and request timeout |
 | Profile selection | `src/pages/profiles.tsx` (`onSelect`), `src/components/profile/profile-item.tsx` | Click a profile card to select and reload it |
+| Profile deletion | `src/components/profile/profile-item.tsx` (Delete menu, confirmation dialog), `src/pages/profiles.tsx` (`onDelete`) | Options menu, explicit confirmation; deleting the selected profile reloads the built-in DIRECT configuration |
 | English labels | `src/locales/en/{home,profiles,proxies,shared,settings}.json` | Corresponding page and action labels |
 
 This implementation recreates the requested structure in terminal cells. It does not run React, Tauri or a browser. Charts, connection tracking, log viewers, profile extension scripts, proxy chains and automatic subscription updates are outside this first implementation. Subscription usage is response metadata, not a traffic monitor. The new-profile form includes the basic fields requested here; advanced update scheduling and unsafe TLS options are omitted.

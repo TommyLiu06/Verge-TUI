@@ -381,7 +381,8 @@ func (m *Model) profiles(f *Frame, x, y, width int) int {
 		if p.ID == m.View.Settings.Current {
 			mark = "● "
 		}
-		f.Line(r.X+2, r.Y+1, r.W-4, mark+p.Name, cardStyle.Foreground(accent).Bold(true))
+		f.Line(r.X+2, r.Y+1, r.W-17, mark+p.Name, cardStyle.Foreground(accent).Bold(true))
+		f.Button(Rect{r.X + r.W - 14, r.Y + 1, 12, 1}, "Options", app.Action{Kind: "profile-menu", ID: p.ID}, false)
 		f.Line(r.X+2, r.Y+3, r.W-4, strings.ToUpper(p.Type), cardStyle.Foreground(muted))
 		source := p.Description
 		if source == "" {
@@ -471,11 +472,12 @@ func (m *Model) modal(f *Frame) {
 		m.input(f, Rect{r.X + 2, y, r.W - 4, 1}, label, field.Text, field.Key)
 		y++
 	}
-	for i, choice := range modal.Choices {
-		f.Button(Rect{r.X + 2, y + i*2, r.W - 4, 1}, choice.Label, choice.Action, false)
-	}
 	for i, line := range modal.Body {
 		f.Line(r.X+2, y+i, r.W-4, line, cardStyle.Foreground(muted))
+	}
+	y += len(modal.Body)
+	for i, choice := range modal.Choices {
+		f.Button(Rect{r.X + 2, y + i*2, r.W - 4, 1}, choice.Label, choice.Action, false)
 	}
 	f.Clip = Rect{0, 0, f.W, f.H}
 	if len(modal.Fields) > 0 {

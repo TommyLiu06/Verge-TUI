@@ -155,7 +155,7 @@ func (m *Model) revealFocus() {
 	}
 	for i, c := range m.Modal.Choices {
 		if m.Focus == Key(c.Action) {
-			pos = len(fields)*2 + i*2
+			pos = len(fields)*2 + len(m.Modal.Body) + i*2
 		}
 	}
 	if pos < 0 {

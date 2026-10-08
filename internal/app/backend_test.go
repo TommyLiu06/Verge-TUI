@@ -99,6 +99,13 @@ func TestSubscriptionWorkflowWithRealCore(t *testing.T) {
 	if err := b.Execute(ctx, Action{Kind: "tun"}); err == nil {
 		t.Fatal("user mode allowed TUN")
 	}
+	if err := b.Execute(ctx, Action{Kind: "profile-delete", ID: id}); err != nil {
+		t.Fatal(err)
+	}
+	v, err = b.Load(ctx)
+	if err != nil || v.Settings.Current != "" || len(v.Settings.Profiles) != 0 || v.Snapshot.Proxies["Proxy"].Now != "DIRECT" {
+		t.Fatal("deleting the selected profile did not reload DIRECT")
+	}
 }
 
 func TestPrepareUninstallRestoresDesktopBackup(t *testing.T) {

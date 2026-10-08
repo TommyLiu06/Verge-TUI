@@ -302,6 +302,28 @@ func (m *Model) Activate(a app.Action) *app.Action {
 		}
 	case "new":
 		m.newProfile()
+	case "profile-menu":
+		p, ok := state.Find(m.View.Settings, a.ID)
+		if !ok {
+			return nil
+		}
+		m.Modal = &Modal{Title: "Profile Options", Body: []string{p.Name}, Choices: []Choice{{"Select", app.Action{Kind: "profile-select", ID: p.ID}}}}
+		if p.Type == "remote" {
+			m.Modal.Choices = append(m.Modal.Choices, Choice{"Update", app.Action{Kind: "profile-update", ID: p.ID}})
+		}
+		m.Modal.Choices = append(m.Modal.Choices, Choice{"Delete", app.Action{Kind: "profile-delete-confirm", ID: p.ID}})
+		m.Focus = ""
+	case "profile-delete-confirm":
+		p, ok := state.Find(m.View.Settings, a.ID)
+		if !ok {
+			return nil
+		}
+		body := []string{"Delete this profile?", p.Name}
+		if p.ID == m.View.Settings.Current {
+			body = append(body, "The core will switch to the built-in DIRECT configuration.")
+		}
+		m.Modal = &Modal{Title: "Delete Profile", Body: body, Choices: []Choice{{"Cancel", app.Action{Kind: "close"}}, {"Delete", app.Action{Kind: "profile-delete", ID: p.ID}}}}
+		m.Focus = Key(app.Action{Kind: "close"})
 	case "close":
 		m.closeModal()
 	case "clear":
@@ -441,6 +463,9 @@ func (m *Model) Complete(v app.View, a app.Action, err error) {
 		}
 		if a.Kind == "profile-select" {
 			m.Message = "Profile Switched"
+		}
+		if a.Kind == "profile-delete" {
+			m.Message = "Profile deleted"
 		}
 		if a.Kind == "delay" {
 			m.Message = "Delay check completed"
