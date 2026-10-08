@@ -30,7 +30,7 @@ func TestShellUninstallRemovesRegisteredFunctionsAndPathOnly(t *testing.T) {
 		}
 	}
 	installed, err := os.ReadFile(rc)
-	if err != nil || !strings.Contains(string(installed), "export PATH=") || strings.Count(string(installed), "verge_on()") != 1 {
+	if err != nil || !strings.Contains(string(installed), ".verge-tui/") || strings.Count(string(installed), "# >>> verge-tui") != 1 {
 		t.Fatal("installation did not create one functions/PATH block", err)
 	}
 	if err := run([]string{"--data-dir", s.Root, "shell", "uninstall", "--rc-file", rc}); err == nil {

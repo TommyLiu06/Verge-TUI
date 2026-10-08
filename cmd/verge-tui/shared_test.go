@@ -60,7 +60,7 @@ func TestShellCommandsDoNotOpenPrivateSystemSettings(t *testing.T) {
 		t.Fatal("shell registration needed private settings", err)
 	}
 	data, err := os.ReadFile(rc)
-	if err != nil || !strings.Contains(string(data), "verge_on()") {
+	if err != nil || !strings.Contains(string(data), ".verge-tui/") {
 		t.Fatal("current zsh rc was not registered", err)
 	}
 	if err := run([]string{"--data-dir", s.Root, "shell", "uninstall"}); err != nil {

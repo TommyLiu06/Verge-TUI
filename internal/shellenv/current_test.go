@@ -32,7 +32,7 @@ func TestResolveRCSupportedShells(t *testing.T) {
 		{"bash", "/example/home", "", "/example/home/.bashrc"},
 		{"zsh", "/example/home", "", "/example/home/.zshrc"},
 		{"zsh", "/example/home", "/example/zsh", "/example/zsh/.zshrc"},
-		{"fish", "/example/home", "", ""},
+		{"dash", "/example/home", "", ""},
 		{"bash", "relative", "", ""},
 	} {
 		rc, err := resolveRC(item.shell, item.home, item.zdot)

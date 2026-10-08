@@ -50,6 +50,31 @@ func run(args []string) error {
 		fmt.Println(version)
 		return nil
 	}
+	if len(args) > 0 && args[0] == "env" {
+		f := flag.NewFlagSet("env", flag.ContinueOnError)
+		shell := f.String("shell", "bash", "bash, zsh or fish export syntax")
+		if err := f.Parse(args[1:]); err != nil {
+			return err
+		}
+		abs, err := filepath.Abs(*root)
+		if err != nil {
+			return err
+		}
+		s := &state.Store{Root: abs}
+		c, err := shellenv.ReadFile(shellenv.FilePath(s))
+		if os.IsNotExist(err) {
+			c, err = s.Read()
+		}
+		if err != nil {
+			return err
+		}
+		out, err := shellenv.ExportsForShell(c, *shell)
+		if err != nil {
+			return err
+		}
+		fmt.Print(out)
+		return nil
+	}
 	// Commands that only need the shared environment or this user's rc must
 	// never initialize/chmod the administrator's private data directory.
 	// Bundle installation helpers must not initialize or rewrite existing data
@@ -131,13 +156,14 @@ func run(args []string) error {
 		}
 		f := flag.NewFlagSet("shell", flag.ContinueOnError)
 		rc := f.String("rc-file", "", "shell rc path (defaults to the current shell)")
+		shell := f.String("shell", "", "bash, zsh or fish (defaults to the current shell)")
 		all := f.Bool("all", false, "remove all registered users' functions (uninstallation)")
 		if err := f.Parse(args[2:]); err != nil {
 			return err
 		}
 		switch args[1] {
 		case "uninstall", "remove":
-			if *rc != "" {
+			if *rc != "" || *shell != "" {
 				return errors.New("shell uninstall uses this user's registered rc; --rc-file is only valid for shell install")
 			}
 			if *all {
@@ -148,17 +174,29 @@ func run(args []string) error {
 			if *all {
 				return errors.New("--all is only valid for shell uninstall")
 			}
+			if *shell == "" {
+				if *rc == "" {
+					*shell = shellenv.CurrentShell()
+				} else {
+					*shell = shellenv.RegisteredShell(s, *rc)
+				}
+			}
 			if *rc == "" {
-				*rc, err = shellenv.CurrentRC()
+				*rc, err = shellenv.ResolveRC(*shell)
 				if err != nil {
 					return err
 				}
 			}
-			path, err := shellenv.Register(s, executable, *rc)
+			path, err := shellenv.RegisterShell(s, executable, *rc, *shell)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Shell functions: verge_on, verge_off, verge_status\nExecutable directory added to PATH.\nLoad in this shell: . %s\n", shellenv.Quote(path))
+			fmt.Println("Shell functions: verge_on, verge_off, verge_status\nExecutable directory added to PATH.")
+			if *shell == "fish" {
+				fmt.Printf("Functions autoload from: %s\nLoad PATH in this shell: source %s\n", filepath.Join(filepath.Dir(path), "functions"), shellenv.FishQuote(filepath.Join(filepath.Dir(path), "conf.d", "verge-tui.fish")))
+			} else {
+				fmt.Printf("Load in this shell: . %s\n", shellenv.Quote(path))
+			}
 			return nil
 		default:
 			return errors.New("unknown shell command")
@@ -355,13 +393,6 @@ func run(args []string) error {
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
 		return runManaged(ctx, m, s)
-	case "env":
-		c, err := s.Read()
-		if err != nil {
-			return err
-		}
-		fmt.Print(shellenv.Exports(c))
-		return nil
 	case "service":
 		f := flag.NewFlagSet("service", flag.ContinueOnError)
 		mode := f.String("mode", "user", "user or system")

@@ -17,8 +17,10 @@ import (
 )
 
 type registration struct {
-	RC string `json:"rc"`
-	ID string `json:"id"`
+	RC    string   `json:"rc"`
+	ID    string   `json:"id"`
+	Shell string   `json:"shell"`
+	Files []string `json:"files"`
 }
 
 func registrationPath(s *state.Store) string {
@@ -134,10 +136,22 @@ func writeRC(path, data string, info os.FileInfo) error {
 	return os.Rename(f.Name(), path)
 }
 func Register(s *state.Store, executable, rc string) (string, error) {
-	return registerAt(s, executable, rc, registrationPath(s))
+	return RegisterShell(s, executable, rc, RegisteredShell(s, rc))
+}
+
+func RegisterShell(s *state.Store, executable, rc, shell string) (string, error) {
+	return registerShellAt(s, executable, rc, shell, registrationPath(s))
 }
 
 func registerAt(s *state.Store, executable, rc, metaPath string) (string, error) {
+	return registerShellAt(s, executable, rc, inferShell(rc), metaPath)
+}
+
+func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (string, error) {
+	shell = NormalizeShell(shell)
+	if !Supported(shell) {
+		return "", errors.New("shell integration supports Bash, Zsh and fish")
+	}
 	if !filepath.IsAbs(executable) || !filepath.IsAbs(rc) || strings.ContainsAny(executable+rc, "\r\n\x00") {
 		return "", errors.New("shell integration paths must be absolute single-line paths")
 	}
@@ -147,13 +161,13 @@ func registerAt(s *state.Store, executable, rc, metaPath string) (string, error)
 	if _, err := ReadFile(FilePath(s)); err != nil {
 		return "", err
 	}
-	if _, err := os.Lstat(rc); err == nil {
+	if _, err := os.Lstat(rc); err == nil && shell != "fish" {
 		resolved, err := filepath.EvalSymlinks(rc)
 		if err != nil {
 			return "", err
 		}
 		rc = resolved
-	} else if !os.IsNotExist(err) {
+	} else if err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
 	if data, err := os.ReadFile(metaPath); err == nil {
@@ -161,7 +175,7 @@ func registerAt(s *state.Store, executable, rc, metaPath string) (string, error)
 		if err := json.Unmarshal(data, &old); err != nil {
 			return "", err
 		}
-		if old.RC != rc {
+		if old.RC != rc || old.Shell != "" && old.Shell != shell {
 			return "", errors.New("shell integration is already registered in another rc file; remove it first")
 		}
 	} else if !os.IsNotExist(err) {
@@ -178,15 +192,39 @@ func registerAt(s *state.Store, executable, rc, metaPath string) (string, error)
 	if data != "" && !strings.HasSuffix(data, "\n") {
 		data += "\n"
 	}
-	if err := os.MkdirAll(filepath.Dir(rc), 0700); err != nil {
+	files, loader, err := integrationFiles(s, executable, rc, shell)
+	if err != nil {
 		return "", err
 	}
-	meta, _ := json.Marshal(registration{RC: rc, ID: blockID(s)})
+	for _, file := range files {
+		if err := validateManagedFile(file.Path, blockID(s)); err != nil {
+			return "", err
+		}
+	}
+	reg := registration{RC: rc, ID: blockID(s), Shell: shell}
+	for _, file := range files {
+		reg.Files = append(reg.Files, file.Path)
+	}
+	// Record ownership first, so an interrupted write can still be cleaned up.
+	meta, _ := json.Marshal(reg)
 	if err := state.Write(metaPath, meta, 0600); err != nil {
 		return "", err
 	}
-	if err := writeRC(rc, data+Functions(s, executable), info); err != nil {
-		return "", err
+	for _, file := range files {
+		if err := os.MkdirAll(filepath.Dir(file.Path), 0700); err != nil {
+			return "", err
+		}
+		if err := state.Write(file.Path, []byte(file.Data), 0600); err != nil {
+			return "", err
+		}
+	}
+	if shell != "fish" {
+		if err := os.MkdirAll(filepath.Dir(rc), 0700); err != nil {
+			return "", err
+		}
+		if err := writeRC(rc, data+loader, info); err != nil {
+			return "", err
+		}
 	}
 	return rc, nil
 }
@@ -209,6 +247,14 @@ func removeAt(s *state.Store, metaPath string) error {
 	if reg.ID != blockID(s) || !filepath.IsAbs(reg.RC) {
 		return errors.New("invalid shell integration record")
 	}
+	for _, path := range reg.Files {
+		if !filepath.IsAbs(path) || strings.ContainsAny(path, "\r\n\x00") {
+			return errors.New("invalid managed shell path")
+		}
+		if err := validateManagedFile(path, reg.ID); err != nil {
+			return err
+		}
+	}
 	rc, info, err := readRC(reg.RC)
 	if err != nil {
 		return err
@@ -219,6 +265,11 @@ func removeAt(s *state.Store, metaPath string) error {
 	}
 	if stripped != rc {
 		if err := writeRC(reg.RC, stripped, info); err != nil {
+			return err
+		}
+	}
+	for _, path := range reg.Files {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}

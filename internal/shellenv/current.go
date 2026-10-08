@@ -10,14 +10,49 @@ import (
 )
 
 func CurrentRC() (string, error) {
-	shell := filepath.Base(os.Getenv("SHELL"))
+	return ResolveRC(CurrentShell())
+}
+
+// Prefer the actual interactive parent over the account's login shell. The
+// installer passes --shell explicitly because its immediate parent is sh.
+func CurrentShell() string {
+	shell := NormalizeShell(os.Getenv("SHELL"))
 	if out, err := exec.Command("ps", "-p", strconv.Itoa(os.Getppid()), "-o", "comm=").Output(); err == nil {
-		parent := strings.TrimPrefix(strings.TrimSpace(string(out)), "-")
-		if parent == "bash" || parent == "zsh" {
+		parent := NormalizeShell(strings.TrimSpace(string(out)))
+		if Supported(parent) {
 			shell = parent
 		}
 	}
-	return resolveRC(shell, os.Getenv("HOME"), os.Getenv("ZDOTDIR"))
+	return shell
+}
+
+func NormalizeShell(shell string) string {
+	shell = strings.TrimPrefix(filepath.Base(shell), "-")
+	return shell
+}
+
+func Supported(shell string) bool {
+	switch NormalizeShell(shell) {
+	case "bash", "zsh", "fish":
+		return true
+	}
+	return false
+}
+
+func ResolveRC(shell string) (string, error) {
+	shell = NormalizeShell(shell)
+	home := os.Getenv("HOME")
+	if shell == "fish" {
+		base := os.Getenv("XDG_CONFIG_HOME")
+		if base == "" {
+			base = filepath.Join(home, ".config")
+		}
+		if !filepath.IsAbs(base) {
+			return "", errors.New("fish configuration directory must be absolute")
+		}
+		return filepath.Join(base, "fish", "config.fish"), nil
+	}
+	return resolveRC(shell, home, os.Getenv("ZDOTDIR"))
 }
 
 func resolveRC(shell, home, zdot string) (string, error) {
@@ -33,6 +68,6 @@ func resolveRC(shell, home, zdot string) (string, error) {
 	case "zsh":
 		return filepath.Join(home, ".zshrc"), nil
 	default:
-		return "", errors.New("cannot determine Bash or Zsh; use --rc-file")
+		return "", errors.New("unsupported shell; select --shell bash, zsh or fish")
 	}
 }

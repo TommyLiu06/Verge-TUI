@@ -263,6 +263,11 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 			return err
 		}
 		paths = append(paths, rc)
+		managed, err := shellenv.ManagedPaths(s, filepath.Join(x.Prefix, "verge-tui"), rc, shellenv.RegisteredShell(s, rc))
+		if err != nil {
+			return err
+		}
+		paths = append(paths, managed...)
 	}
 	for _, path := range paths {
 		shot, err := capture(path)
