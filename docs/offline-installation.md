@@ -5,8 +5,8 @@ The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo c
 Extract the archive, enter its directory and install:
 
 ```sh
-tar -xzf verge-tui-0.1.8-linux-amd64.tar.gz
-cd verge-tui-0.1.8-linux-amd64
+tar -xzf verge-tui-0.1.9-linux-amd64.tar.gz
+cd verge-tui-0.1.9-linux-amd64
 sh install.sh --prefix "$HOME/.local/share/verge-tui" --mode user
 "$HOME/.local/share/verge-tui/verge-tui"
 ```
@@ -35,9 +35,9 @@ sudo sh install.sh --prefix /opt/verge-tui --mode system --service
 
 System installation and service management require root. The unit is written to `/etc/systemd/system/verge-tui.service`. Ordinary users can launch the TUI and manage shared subscriptions, profiles, nodes, delay tests, proxy mode, TUN and core versions while the service is running. These operations use a local Unix socket owned by the root service, without exposing its controller API token. Closing an ordinary user's TUI leaves the service running. Enable **TUN Mode** on Home after selecting your subscription. The unit grants network administration capabilities; actual TUN availability depends on the host kernel and container permissions. All local users can connect to `127.0.0.1:<mixed-port>` without proxy credentials. `verge-tui status` reports ports without printing the API secret.
 
-Fresh system installations default to **7890** for HTTP/SOCKS proxy traffic and **9090** for the authenticated, loopback-only mihomo controller API. The shared TUI interface does not reserve another TCP port. Requested ports are checked before creating the installation; conflicts stop installation and leave the destination untouched. Use `--mixed-port PORT --api-port PORT` to override them. Fresh user installations retain random high ports unless explicitly overridden. Updating an installation preserves its current ports. Changing existing ports requires stopping the service first, then running `configure` and restarting it.
+Fresh system installations default to **7890** for HTTP/SOCKS proxy traffic and **9090** as the proposed external-controller port. External Controller is disabled by default, so that TCP port is not reserved or listened on; internal control uses a Unix socket in the private runtime directory. Settings provides the Verge-style switch, address and required secret, and restarts the core when they change. The shared TUI interface does not reserve another TCP port. Active proxy ports are checked before creating the installation; conflicts stop installation and leave the destination untouched. Use `--mixed-port PORT --api-port PORT` to override them. Fresh user installations retain random high ports unless explicitly overridden. Updating an installation preserves its current ports. Changing existing ports requires stopping the service first, then running `configure` and restarting it.
 
-System settings, subscriptions and core files remain private. The data directory permits search access to its deliberately shared subdirectory, with a Unix socket and sticky directories containing private per-user shell registrations and desktop backups. The socket pathname must fit Linux's 107-byte Unix socket limit; use a shorter system installation prefix if the service reports this limit.
+System settings, subscriptions and core files remain private. The data directory permits search access to its deliberately shared subdirectory, with a Unix socket and sticky directories containing private per-user shell registrations and desktop backups. The socket pathname must fit Linux's 107-byte Unix socket limit; use a shorter installation prefix if the service reports this limit. This limit also applies to the private core-control socket in user mode.
 
 ## Updating an existing installation
 
@@ -190,4 +190,6 @@ sh scripts/package.sh /absolute/path/to/mihomo v1.19.32 /absolute/path/to/geodat
 
 The geodata directory must contain Country.mmdb, GeoIP.dat and GeoSite.dat matching the hashes in `packaging/geodata/manifest.json`. The default directory is `.local/geodata-source`. The source release URLs are moving `latest` URLs; keep the verified snapshot files, or explicitly update the manifest when choosing a newer snapshot. Packaging verifies all hashes and tests all three formats with the supplied core before creating an archive.
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.8-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.9-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
+
+Shell installation adds the executable directory to PATH in the same managed rc block as the proxy functions. It avoids duplicate entries; shell removal and uninstallation remove the entire block. Source the rc printed by the installer to activate it in the current shell.

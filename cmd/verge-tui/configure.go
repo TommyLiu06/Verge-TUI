@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"net"
+	"strconv"
 	"verge-tui/internal/state"
 )
 
@@ -33,6 +35,13 @@ func configurePorts(c *state.Settings, mode string, mixed, api int, check func(i
 	}
 	if nextMixed == nextAPI {
 		return errPortsSame
+	}
+	if c.ControllerAddress != "" && nextAPI != c.APIPort {
+		host, _, err := net.SplitHostPort(c.ControllerAddress)
+		if err != nil {
+			return err
+		}
+		c.ControllerAddress = net.JoinHostPort(host, strconv.Itoa(nextAPI))
 	}
 	c.MixedPort, c.APIPort = nextMixed, nextAPI
 	return nil

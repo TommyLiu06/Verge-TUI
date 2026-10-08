@@ -46,7 +46,7 @@ func (m *Model) delayLabel(p controller.Proxy) string {
 func (m *Model) delayColor(p controller.Proxy) color.Color {
 	delay := delayValue(p)
 	if delay < 0 {
-		return color.Default
+		return paletteFor(m.View.Preferences.Theme).Text
 	}
 	palette := [4]int32{0x06943D, 0x007AFF, 0xFF9500, 0xFF3B30}
 	if m.Dark {

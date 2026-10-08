@@ -171,16 +171,16 @@ fi
 if [ "$updating" = yes ]; then
     echo '  Proxy ports:  existing ports preserved'
 elif [ "$restoring" = yes ]; then
-    printf '  Proxy ports:  %s (mixed), %s (API), retained and checked before startup\n' "$mixed_port" "$api_port"
+    printf '  Proxy ports:  %s (mixed), %s (external controller, disabled unless enabled in Settings), retained\n' "$mixed_port" "$api_port"
 elif [ "$mode" = system ]; then
-    printf '  Proxy ports:  %s (mixed), %s (API), checked before startup\n' "$mixed_port" "$api_port"
+    printf '  Proxy ports:  %s (mixed), %s (external controller, disabled by default)\n' "$mixed_port" "$api_port"
 elif [ "$mixed_port" != 0 ] || [ "$api_port" != 0 ]; then
     printf '  Proxy ports:  requested mixed=%s, API=%s (0 = automatic)\n' "$mixed_port" "$api_port"
 else
     echo '  Proxy ports:  random high ports, checked before startup'
 fi
 
-if [ "$mode" = user ]; then echo '  Proxy access: private credentials'; else echo '  Proxy access: shared on loopback; authenticated control API'; fi
+if [ "$mode" = user ]; then echo '  Proxy access: private credentials'; else echo '  Proxy access: shared on loopback; private local control socket'; fi
 
 if [ "$mode" = system ] && [ "$install_service" != yes ]; then
     fail 'System mode requires an available systemd manager and a service'
@@ -203,7 +203,7 @@ fi
 # existing ports during updates because the preserved service may own them.
 if [ "$updating" = no ] && { [ "$mixed_port" != 0 ] || [ "$api_port" != 0 ]; }; then
     (cd "$bundle_dir" && sha256sum --status -c SHA256SUMS) || fail 'Bundle checksum verification failed; installation stopped'
-    if ! "$bundle_dir/bin/verge-tui" installation check-ports --mixed-port "$mixed_port" --api-port "$api_port"; then
+    if ! "$bundle_dir/bin/verge-tui" installation check-ports --mixed-port "$mixed_port" --api-port 0; then
         [ "$restoring" != yes ] || fail 'Retained ports are unavailable; stop the conflicting application before reinstalling'
         fail 'Requested ports are unavailable; use --mixed-port and --api-port to select free ports'
     fi

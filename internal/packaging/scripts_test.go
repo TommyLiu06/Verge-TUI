@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/core"
 	"verge-tui/internal/shellenv"
@@ -29,7 +30,7 @@ func setup(t *testing.T, manager, linger string) fixture {
 	if bundle == "" {
 		t.Skip("set VERGE_TUI_TEST_BUNDLE to an extracted offline bundle")
 	}
-	root := t.TempDir()
+	root := testutil.Dir(t)
 	f := fixture{bundle: bundle, root: root, prefix: filepath.Join(root, "My Proxy"), unit: filepath.Join(root, "config", "systemd", "user", "verge-tui.service"), log: filepath.Join(root, "service.log")}
 	f.rc = filepath.Join(root, "shellrc")
 	write(t, f.rc, "# Existing user configuration\n", 0644)
