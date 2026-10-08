@@ -15,6 +15,7 @@ import (
 	"verge-tui/internal/testutil"
 
 	"verge-tui/internal/core"
+	"verge-tui/internal/desktop"
 	"verge-tui/internal/shellenv"
 	"verge-tui/internal/state"
 )
@@ -661,6 +662,45 @@ func TestSystemModeUninstallWithMockRootAndCustomPrefix(t *testing.T) {
 	out := f.uninstallFromBundle(t, "", true, "--mode", "system", "--prefix", f.prefix, "--purge", "--yes")
 	if !strings.Contains(out, "Mode:         system") {
 		t.Fatal(out)
+	}
+	absent(t, f.prefix)
+}
+
+func TestSystemModeUninstallRestoresCustomPerUserProxyHost(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.run(t, "install.sh", "", true, "--yes", "--no-service")
+	s := &state.Store{Root: filepath.Join(f.prefix, "data")}
+	if err := s.Update(func(c *state.Settings) error { c.InstallMode = "system"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.PrepareShared(s); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := s.Read()
+	user := desktop.UserStore(s)
+	if err := desktop.PrepareUser(user); err != nil {
+		t.Fatal(err)
+	}
+	p := state.DefaultPreferences()
+	p.SystemProxy.Host = "::1"
+	prefRoot := filepath.Join(state.PreferencesUsersPath(s), strconv.Itoa(os.Geteuid()))
+	if err := os.Mkdir(prefRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WritePreferences(prefRoot, p); err != nil {
+		t.Fatal(err)
+	}
+	backup := "[/]\nmode='none'\n"
+	write(t, filepath.Join(user.Root, "gnome-proxy-backup.ini"), backup, 0600)
+	write(t, filepath.Join(user.Root, "session.json"), `{"XDG_CURRENT_DESKTOP":"GNOME","DBUS_SESSION_BUS_ADDRESS":"fixture-bus"}`, 0600)
+	restored := filepath.Join(f.root, "restored-proxy.ini")
+	write(t, filepath.Join(f.root, "tools", "gsettings"), "#!/bin/sh\n[ \"$DBUS_SESSION_BUS_ADDRESS\" = fixture-bus ] || exit 1\ncase \"$3\" in\nmode) printf \"'manual'\\n\" ;;\nhost) printf \"'::1'\\n\" ;;\nport) printf '%s\\n' "+strconv.Itoa(c.MixedPort)+" ;;\nesac\n", 0700)
+	write(t, filepath.Join(f.root, "tools", "dconf"), "#!/bin/sh\n[ \"$DBUS_SESSION_BUS_ADDRESS\" = fixture-bus ] || exit 1\nif [ \"$1\" = load ]; then cat > "+shellenv.Quote(restored)+"; fi\n", 0700)
+	write(t, filepath.Join(f.prefix, ".verge-tui-install"), "verge-tui-install-v1\nsystem\n\n"+f.prefix+"\n", 0600)
+	write(t, filepath.Join(f.root, "tools", "id"), "#!/bin/sh\nprintf '%s\\n' 0\n", 0700)
+	f.uninstallFromBundle(t, "", true, "--mode", "system", "--prefix", f.prefix, "--purge", "--yes")
+	if read(t, restored) != backup || read(t, f.rc) != "# Existing user configuration\n" {
+		t.Fatal("uninstaller did not restore the custom-host proxy and shell rc")
 	}
 	absent(t, f.prefix)
 }
