@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 func store(t *testing.T) *state.Store {
@@ -89,7 +89,7 @@ func TestRegistrationPreservesAndRemovesOnlyOwnedBlock(t *testing.T) {
 		}
 	}
 	data, _ := os.ReadFile(rc)
-	if strings.Count(string(data), "# >>> mihomo-tui") != 1 || !strings.HasPrefix(string(data), original) {
+	if strings.Count(string(data), "# >>> verge-tui") != 1 || !strings.HasPrefix(string(data), original) {
 		t.Fatal("registration duplicated functions or changed unrelated rc content")
 	}
 	if info, _ := os.Lstat(alias); info.Mode()&os.ModeSymlink == 0 {

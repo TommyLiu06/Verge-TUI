@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 type registration struct {
@@ -32,23 +32,23 @@ func blockID(s *state.Store) string {
 	return hex.EncodeToString(hash[:8])
 }
 func markers(id string) (string, string) {
-	return "# >>> mihomo-tui " + id + " >>>", "# <<< mihomo-tui " + id + " <<<"
+	return "# >>> verge-tui " + id + " >>>", "# <<< verge-tui " + id + " <<<"
 }
 func Functions(s *state.Store, executable string) string {
 	start, end := markers(blockID(s))
 	env := Quote(FilePath(s))
 	return fmt.Sprintf(`%s
-mihomo_on() {
+verge_on() {
     if [ ! -r %s ]; then
         printf '%%s\n' 'Proxy environment file is unavailable.' >&2
         return 1
     fi
     . %s
 }
-mihomo_off() {
+verge_off() {
     unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY
 }
-mihomo_status() {
+verge_status() {
     command %s --data-dir %s proxy-status
 }
 %s

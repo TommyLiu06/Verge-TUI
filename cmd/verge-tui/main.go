@@ -11,19 +11,19 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/desktop"
-	"mihomo-tui/internal/geodata"
-	"mihomo-tui/internal/installation"
-	"mihomo-tui/internal/profile"
-	"mihomo-tui/internal/service"
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
-	"mihomo-tui/internal/tui"
+	"verge-tui/internal/app"
+	"verge-tui/internal/core"
+	"verge-tui/internal/desktop"
+	"verge-tui/internal/geodata"
+	"verge-tui/internal/installation"
+	"verge-tui/internal/profile"
+	"verge-tui/internal/service"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
+	"verge-tui/internal/tui"
 )
 
-const version = "0.1.6"
+const version = "0.1.7"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -36,10 +36,10 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	flags := flag.NewFlagSet("mihomo-tui", flag.ContinueOnError)
+	flags := flag.NewFlagSet("verge-tui", flag.ContinueOnError)
 	root := flags.String("data-dir", filepath.Join(filepath.Dir(executable), "data"), "application-owned data directory")
 	flags.Usage = func() {
-		fmt.Println("mihomo-tui [--data-dir DIR] [command]\n\nCommands: tui (default), core install|import|list|use, profile import|new|list|select, run, env, env-file, shell install|remove, proxy-status, service, configure, status, preview, version, prepare-uninstall\n\nGo and a system-wide mihomo installation are not required.")
+		fmt.Println("verge-tui [--data-dir DIR] [command]\n\nCommands: tui (default), core install|import|list|use, profile import|new|list|select, run, env, env-file, shell install|remove, proxy-status, service, configure, status, preview, version, prepare-uninstall\n\nGo and a system-wide mihomo installation are not required.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -158,7 +158,7 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Shell functions: mihomo_on, mihomo_off, mihomo_status\nLoad in this shell: . %s\n", shellenv.Quote(path))
+			fmt.Printf("Shell functions: verge_on, verge_off, verge_status\nLoad in this shell: . %s\n", shellenv.Quote(path))
 			return nil
 		default:
 			return errors.New("unknown shell command")

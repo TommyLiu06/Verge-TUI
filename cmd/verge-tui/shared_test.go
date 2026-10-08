@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
 )
 
 func TestShellCommandsDoNotOpenPrivateSystemSettings(t *testing.T) {
@@ -60,14 +60,14 @@ func TestShellCommandsDoNotOpenPrivateSystemSettings(t *testing.T) {
 		t.Fatal("shell registration needed private settings", err)
 	}
 	data, err := os.ReadFile(rc)
-	if err != nil || !strings.Contains(string(data), "mihomo_on()") {
+	if err != nil || !strings.Contains(string(data), "verge_on()") {
 		t.Fatal("current zsh rc was not registered", err)
 	}
 	if err := run([]string{"--data-dir", s.Root, "shell", "remove"}); err != nil {
 		t.Fatal(err)
 	}
 	data, _ = os.ReadFile(rc)
-	if strings.Contains(string(data), "mihomo_on") {
+	if strings.Contains(string(data), "verge_on") {
 		t.Fatal("shell remove retained functions")
 	}
 	info, _ := os.Stat(settings)

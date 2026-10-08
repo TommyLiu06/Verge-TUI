@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 func TestUninstallCleansRootAndPerUserRCsWithoutDuplicates(t *testing.T) {
@@ -27,17 +27,17 @@ func TestUninstallCleansRootAndPerUserRCsWithoutDuplicates(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := Register(s, "/shared/mihomo-tui", rootRC); err != nil {
+	if _, err := Register(s, "/shared/verge-tui", rootRC); err != nil {
 		t.Fatal(err)
 	}
 	meta := filepath.Join(state.ShellUsersPath(s), strconv.Itoa(os.Geteuid())+".json")
 	for range 2 {
-		if _, err := registerAt(s, "/shared/mihomo-tui", userRC, meta); err != nil {
+		if _, err := registerAt(s, "/shared/verge-tui", userRC, meta); err != nil {
 			t.Fatal(err)
 		}
 	}
 	data, _ := os.ReadFile(userRC)
-	if strings.Count(string(data), "# >>> mihomo-tui") != 1 {
+	if strings.Count(string(data), "# >>> verge-tui") != 1 {
 		t.Fatal("ordinary registration duplicated functions")
 	}
 	called := false

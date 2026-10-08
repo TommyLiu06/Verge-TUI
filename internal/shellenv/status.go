@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/management"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/management"
+	"verge-tui/internal/state"
 )
 
 func Status(ctx context.Context, s *state.Store, environ []string) (string, error) {

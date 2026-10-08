@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"sync"
 
-	"mihomo-tui/internal/controller"
+	"verge-tui/internal/controller"
 )
 
 const DelayConcurrency = 4

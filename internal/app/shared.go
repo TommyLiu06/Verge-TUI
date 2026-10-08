@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"sync"
 
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/desktop"
-	"mihomo-tui/internal/management"
-	"mihomo-tui/internal/profile"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/core"
+	"verge-tui/internal/desktop"
+	"verge-tui/internal/management"
+	"verge-tui/internal/profile"
+	"verge-tui/internal/state"
 )
 
 func NewRemote(s *state.Store, version string) *Backend {

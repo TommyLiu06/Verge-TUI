@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
-const header = "# mihomo-tui proxy.env v1"
+const header = "# verge-tui proxy.env v1"
 const NoProxy = "localhost,127.0.0.1,::1"
 
 var Variables = []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "all_proxy", "ALL_PROXY", "no_proxy", "NO_PROXY"}

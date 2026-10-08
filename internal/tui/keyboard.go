@@ -7,7 +7,7 @@ import (
 
 	"github.com/clipperhouse/uax29/v2/graphemes"
 	"github.com/gdamore/tcell/v3"
-	"mihomo-tui/internal/app"
+	"verge-tui/internal/app"
 )
 
 func (m *Model) cursor(value string) int {

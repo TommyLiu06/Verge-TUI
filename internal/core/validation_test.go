@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 func TestValidationTimeoutIsNotReportedAsInvalidProfile(t *testing.T) {

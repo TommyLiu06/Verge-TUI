@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 var errPortsSame = errors.New("API and proxy ports must differ")

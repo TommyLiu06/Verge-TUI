@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
 )
 
 func UserStore(s *state.Store) *state.Store {

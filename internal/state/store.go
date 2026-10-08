@@ -101,7 +101,7 @@ func Open(root string) (*Store, error) {
 			return err
 		}
 		*c = Settings{Schema: 1, InstallMode: "user", Mode: "rule", MixedPort: mixed, APIPort: api,
-			Secret: secret, ProxyUser: "mihomo-tui", ProxyPassword: password, HomeGroup: map[string]string{}}
+			Secret: secret, ProxyUser: "verge-tui", ProxyPassword: password, HomeGroup: map[string]string{}}
 		return nil
 	})
 	return s, err

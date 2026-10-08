@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 type History struct {

@@ -14,9 +14,9 @@ case "$core_id" in ''|*[!A-Za-z0-9._-]*) fail 'Invalid core identifier' ;; esac
 core_version=$("$core_path" -v)
 case "$core_version" in *'Mihomo Meta '*linux\ amd64*) ;; *) fail 'Core must be Mihomo for Linux amd64' ;; esac
 
-GOOS=linux GOARCH=amd64 GOAMD64=v1 sh scripts/go.sh build -trimpath -ldflags='-s -w' -o bin/mihomo-tui ./cmd/mihomo-tui
-version=$(bin/mihomo-tui version)
-bundle_name="mihomo-tui-$version-linux-amd64"
+GOOS=linux GOARCH=amd64 GOAMD64=v1 sh scripts/go.sh build -trimpath -ldflags='-s -w' -o bin/verge-tui ./cmd/verge-tui
+version=$(bin/verge-tui version)
+bundle_name="verge-tui-$version-linux-amd64"
 mkdir -p dist
 staging_dir=$(mktemp -d "$project_dir/dist/.package.XXXXXX")
 trap 'rm -rf -- "$staging_dir"' EXIT INT TERM
@@ -27,10 +27,10 @@ for file in Country.mmdb GeoIP.dat GeoSite.dat; do
     cp "$geodata_dir/$file" "$bundle_dir/geodata/$file"
 done
 cp packaging/geodata/manifest.json "$bundle_dir/geodata/manifest.json"
-"$project_dir/bin/mihomo-tui" installation check-geodata --source-dir "$bundle_dir/geodata" --core-file "$core_path"
-cp bin/mihomo-tui "$bundle_dir/bin/"
+"$project_dir/bin/verge-tui" installation check-geodata --source-dir "$bundle_dir/geodata" --core-file "$core_path"
+cp bin/verge-tui "$bundle_dir/bin/"
 cp "$core_path" "$bundle_dir/cores/mihomo"
-chmod 755 "$bundle_dir/bin/mihomo-tui" "$bundle_dir/cores/mihomo"
+chmod 755 "$bundle_dir/bin/verge-tui" "$bundle_dir/cores/mihomo"
 cp packaging/install.sh "$bundle_dir/install.sh"
 cp packaging/uninstall.sh "$bundle_dir/uninstall.sh"
 chmod 755 "$bundle_dir/install.sh" "$bundle_dir/uninstall.sh"
@@ -53,7 +53,7 @@ cut -d ' ' -f 1,2 "$bundle_dir/DEPENDENCIES.txt" > "$bundle_dir/DEPENDENCIES.tmp
 mv "$bundle_dir/DEPENDENCIES.tmp" "$bundle_dir/DEPENDENCIES.txt"
 printf '%s\n' "$core_id" > "$bundle_dir/CORE_VERSION"
 cd "$bundle_dir"
-sha256sum bin/mihomo-tui cores/mihomo geodata/* install.sh uninstall.sh CORE_VERSION DEPENDENCIES.txt README.md LICENSE NOTICE.md docs/*.md licenses/* > SHA256SUMS
+sha256sum bin/verge-tui cores/mihomo geodata/* install.sh uninstall.sh CORE_VERSION DEPENDENCIES.txt README.md LICENSE NOTICE.md docs/*.md licenses/* > SHA256SUMS
 cd "$staging_dir"
 tar -czf "$bundle_name.tar.gz" "$bundle_name"
 sha256sum "$bundle_name.tar.gz" > "$bundle_name.tar.gz.sha256"

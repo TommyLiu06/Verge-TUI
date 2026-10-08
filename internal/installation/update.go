@@ -16,14 +16,14 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/geodata"
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/core"
+	"verge-tui/internal/geodata"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
 )
 
-const systemUnit = "/etc/systemd/system/mihomo-tui.service"
+const systemUnit = "/etc/systemd/system/verge-tui.service"
 
 type Existing struct {
 	Prefix, Mode, Unit, RC, Core string
@@ -79,7 +79,7 @@ func inspect(prefix, systemPath string, uid int) (Existing, error) {
 	if x.Mode == "system" && uid != 0 {
 		return x, errors.New("system mode update requires root")
 	}
-	marker := filepath.Join(resolved, ".mihomo-tui-install")
+	marker := filepath.Join(resolved, ".verge-tui-install")
 	if _, err := os.Lstat(marker); err == nil {
 		if err := realPath(marker, false); err != nil {
 			return x, err
@@ -89,23 +89,23 @@ func inspect(prefix, systemPath string, uid int) (Existing, error) {
 			return x, err
 		}
 		lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
-		if len(lines) != 4 || lines[0] != "mihomo-tui-install-v1" || lines[1] != x.Mode || lines[3] != resolved {
+		if len(lines) != 4 || lines[0] != "verge-tui-install-v1" || lines[1] != x.Mode || lines[3] != resolved {
 			return x, errors.New("invalid or moved installation marker")
 		}
 		x.Unit = lines[2]
 	} else if os.IsNotExist(err) {
-		return x, errors.New("no mihomo-tui installation marker")
+		return x, errors.New("no verge-tui installation marker")
 	} else {
 		return x, err
 	}
 	// A data-preserving uninstall removes both application files and clears
 	// the service path in the marker. Accept only that exact retained state;
 	// missing files in an otherwise installed application remain an error.
-	_, appErr := os.Lstat(filepath.Join(resolved, "mihomo-tui"))
-	_, serviceErr := os.Lstat(filepath.Join(resolved, "mihomo-tui.service"))
+	_, appErr := os.Lstat(filepath.Join(resolved, "verge-tui"))
+	_, serviceErr := os.Lstat(filepath.Join(resolved, "verge-tui.service"))
 	x.Retained = x.Unit == "" && os.IsNotExist(appErr) && os.IsNotExist(serviceErr)
 	if !x.Retained {
-		for _, file := range []string{"mihomo-tui", "mihomo-tui.service"} {
+		for _, file := range []string{"verge-tui", "verge-tui.service"} {
 			if err := realPath(filepath.Join(resolved, file), false); err != nil {
 				return x, fmt.Errorf("destination is not a complete installation: %w", err)
 			}
@@ -115,13 +115,13 @@ func inspect(prefix, systemPath string, uid int) (Existing, error) {
 		return x, errors.New("system installation must have its original system service")
 	}
 	if x.Unit != "" {
-		if !filepath.IsAbs(x.Unit) || strings.ContainsAny(x.Unit, "\r\n\x00") || (x.Mode == "user" && !strings.HasSuffix(x.Unit, "/systemd/user/mihomo-tui.service")) {
+		if !filepath.IsAbs(x.Unit) || strings.ContainsAny(x.Unit, "\r\n\x00") || (x.Mode == "user" && !strings.HasSuffix(x.Unit, "/systemd/user/verge-tui.service")) {
 			return x, errors.New("unexpected recorded service path")
 		}
 		if err := realPath(x.Unit, false); err != nil {
 			return x, err
 		}
-		installed, err := os.ReadFile(filepath.Join(resolved, "mihomo-tui.service"))
+		installed, err := os.ReadFile(filepath.Join(resolved, "verge-tui.service"))
 		if err != nil {
 			return x, err
 		}
@@ -224,10 +224,10 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 			os.RemoveAll(stage)
 		}
 	}()
-	files := []string{"mihomo-tui", "uninstall.sh", "README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "docs", "licenses", ".mihomo-tui-install"}
+	files := []string{"verge-tui", "uninstall.sh", "README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "docs", "licenses", ".verge-tui-install"}
 	for _, name := range files[:len(files)-1] {
 		source := filepath.Join(bundle, name)
-		if name == "mihomo-tui" {
+		if name == "verge-tui" {
 			source = filepath.Join(bundle, "bin", name)
 		}
 		if err := copyPath(source, filepath.Join(stage, name)); err != nil {
@@ -238,10 +238,10 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 	if x.Mode == "system" {
 		perm = 0755
 	}
-	if err := os.Chmod(filepath.Join(stage, "mihomo-tui"), perm); err != nil {
+	if err := os.Chmod(filepath.Join(stage, "verge-tui"), perm); err != nil {
 		return err
 	}
-	if err := state.Write(filepath.Join(stage, ".mihomo-tui-install"), []byte(fmt.Sprintf("mihomo-tui-install-v1\n%s\n%s\n%s\n", x.Mode, x.Unit, x.Prefix)), 0600); err != nil {
+	if err := state.Write(filepath.Join(stage, ".verge-tui-install"), []byte(fmt.Sprintf("verge-tui-install-v1\n%s\n%s\n%s\n", x.Mode, x.Unit, x.Prefix)), 0600); err != nil {
 		return err
 	}
 	dataFiles, err := stageData(ctx, bundle, stage, s.Root)
@@ -281,7 +281,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 		if _, err := run(ctx, x.Mode, "show-environment"); err != nil {
 			return err
 		}
-		status, err := run(ctx, x.Mode, "show", "--property=ActiveState", "--value", "mihomo-tui.service")
+		status, err := run(ctx, x.Mode, "show", "--property=ActiveState", "--value", "verge-tui.service")
 		if err != nil {
 			return err
 		}
@@ -307,7 +307,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 		}
 		var recovery []error
 		if modified && active {
-			_, err := run(context.Background(), x.Mode, "stop", "mihomo-tui.service")
+			_, err := run(context.Background(), x.Mode, "stop", "verge-tui.service")
 			recovery = append(recovery, err)
 		}
 		for i := len(changes) - 1; i >= 0; i-- {
@@ -329,7 +329,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 			recovery = append(recovery, unix.Flock(int(lock.Fd()), unix.LOCK_UN))
 		}
 		if errors.Join(recovery...) == nil && stopped && active {
-			_, err := run(context.Background(), x.Mode, "start", "mihomo-tui.service")
+			_, err := run(context.Background(), x.Mode, "start", "verge-tui.service")
 			recovery = append(recovery, err)
 			if err == nil {
 				recovery = append(recovery, ready(context.Background(), s))
@@ -345,7 +345,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 	if active {
 		// A failed stop may still have stopped the process; try restoring state.
 		stopped = true
-		if _, err := run(ctx, x.Mode, "stop", "mihomo-tui.service"); err != nil {
+		if _, err := run(ctx, x.Mode, "stop", "verge-tui.service"); err != nil {
 			return err
 		}
 	}
@@ -389,7 +389,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 		return err
 	}
 	if rc != "" {
-		if _, err := shellenv.Register(s, filepath.Join(x.Prefix, "mihomo-tui"), rc); err != nil {
+		if _, err := shellenv.Register(s, filepath.Join(x.Prefix, "verge-tui"), rc); err != nil {
 			return err
 		}
 	}
@@ -400,10 +400,10 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 		return err
 	}
 	if active {
-		if _, err := run(ctx, x.Mode, "start", "mihomo-tui.service"); err != nil {
+		if _, err := run(ctx, x.Mode, "start", "verge-tui.service"); err != nil {
 			return err
 		}
-		status, err := run(ctx, x.Mode, "show", "--property=ActiveState", "--value", "mihomo-tui.service")
+		status, err := run(ctx, x.Mode, "show", "--property=ActiveState", "--value", "verge-tui.service")
 		if err != nil {
 			return err
 		}

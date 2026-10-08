@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"mihomo-tui/internal/profile"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/profile"
+	"verge-tui/internal/state"
 )
 
 func TestDeleteProfileRemovesYAMLAndSelection(t *testing.T) {

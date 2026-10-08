@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 const MaxRequest = 24 << 20
@@ -49,7 +49,7 @@ func (c *Client) request(ctx context.Context, method, path string, input any) (*
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("system service is unavailable; ask an administrator to start mihomo-tui.service: %w", err)
+		return nil, fmt.Errorf("system service is unavailable; ask an administrator to start verge-tui.service: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"go.yaml.in/yaml/v3"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 const MaxSize = 16 << 20
@@ -121,7 +121,7 @@ func Download(ctx context.Context, p state.Profile) ([]byte, state.Profile, erro
 	}
 	ua := p.UserAgent
 	if ua == "" {
-		ua = "clash-verge/v2 mihomo-tui"
+		ua = "clash-verge/v2 verge-tui"
 	}
 	req.Header.Set("User-Agent", ua)
 	// Subscription fetches are direct and never inherit the host's proxy settings.

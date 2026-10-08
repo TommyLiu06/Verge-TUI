@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"testing"
 
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
 )
 
 func TestPerUserDesktopRestoreUsesSavedSession(t *testing.T) {

@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/core"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
 )
 
 type fixture struct {
@@ -25,12 +25,12 @@ type fixture struct {
 
 func setup(t *testing.T, manager, linger string) fixture {
 	t.Helper()
-	bundle := os.Getenv("MIHOMO_TEST_BUNDLE")
+	bundle := os.Getenv("VERGE_TUI_TEST_BUNDLE")
 	if bundle == "" {
-		t.Skip("set MIHOMO_TEST_BUNDLE to an extracted offline bundle")
+		t.Skip("set VERGE_TUI_TEST_BUNDLE to an extracted offline bundle")
 	}
 	root := t.TempDir()
-	f := fixture{bundle: bundle, root: root, prefix: filepath.Join(root, "My Proxy"), unit: filepath.Join(root, "config", "systemd", "user", "mihomo-tui.service"), log: filepath.Join(root, "service.log")}
+	f := fixture{bundle: bundle, root: root, prefix: filepath.Join(root, "My Proxy"), unit: filepath.Join(root, "config", "systemd", "user", "verge-tui.service"), log: filepath.Join(root, "service.log")}
 	f.rc = filepath.Join(root, "shellrc")
 	write(t, f.rc, "# Existing user configuration\n", 0644)
 	bin := filepath.Join(root, "tools")
@@ -38,51 +38,51 @@ func setup(t *testing.T, manager, linger string) fixture {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(bin, "systemctl"), `#!/bin/sh
-printf '%s\n' "$*" >> "$MIHOMO_SERVICE_LOG"
+printf '%s\n' "$*" >> "$VERGE_TUI_SERVICE_LOG"
 [ "${1:-}" != --user ] || shift
 start_test_service() {
-    [ "${MIHOMO_MANAGED_TEST_SERVICE:-no}" = yes ] || return 0
-    "$MIHOMO_SERVICE_PREFIX/mihomo-tui" run > "$MIHOMO_SERVICE_PREFIX/test-service.log" 2>&1 &
-    echo "$!" > "$MIHOMO_SERVICE_PREFIX/test-supervisor.pid"
+    [ "${VERGE_TUI_MANAGED_TEST_SERVICE:-no}" = yes ] || return 0
+    "$VERGE_TUI_SERVICE_PREFIX/verge-tui" run > "$VERGE_TUI_SERVICE_PREFIX/test-service.log" 2>&1 &
+    echo "$!" > "$VERGE_TUI_SERVICE_PREFIX/test-supervisor.pid"
     attempts=0
-    while [ ! -f "$MIHOMO_SERVICE_PREFIX/data/runtime/status.json" ]; do
+    while [ ! -f "$VERGE_TUI_SERVICE_PREFIX/data/runtime/status.json" ]; do
         attempts=$((attempts + 1))
         [ "$attempts" -lt 100 ] || return 1
         sleep 0.05
     done
 }
 stop_test_service() {
-    [ "${MIHOMO_MANAGED_TEST_SERVICE:-no}" = yes ] || return 0
-    [ -f "$MIHOMO_SERVICE_PREFIX/test-supervisor.pid" ] || return 0
-    kill "$(cat "$MIHOMO_SERVICE_PREFIX/test-supervisor.pid")" 2>/dev/null || true
+    [ "${VERGE_TUI_MANAGED_TEST_SERVICE:-no}" = yes ] || return 0
+    [ -f "$VERGE_TUI_SERVICE_PREFIX/test-supervisor.pid" ] || return 0
+    kill "$(cat "$VERGE_TUI_SERVICE_PREFIX/test-supervisor.pid")" 2>/dev/null || true
     attempts=0
-    while [ -f "$MIHOMO_SERVICE_PREFIX/data/runtime/status.json" ]; do
+    while [ -f "$VERGE_TUI_SERVICE_PREFIX/data/runtime/status.json" ]; do
         attempts=$((attempts + 1))
         [ "$attempts" -lt 100 ] || return 1
         sleep 0.05
     done
-    rm -f "$MIHOMO_SERVICE_PREFIX/test-supervisor.pid"
+    rm -f "$VERGE_TUI_SERVICE_PREFIX/test-supervisor.pid"
 }
 case "${1:-}" in
-    show-environment) [ "$MIHOMO_MANAGER_AVAILABLE" = yes ] ;;
-    show) printf '%s\n' "${MIHOMO_ACTIVE_STATE:-active}" ;;
+    show-environment) [ "$VERGE_TUI_MANAGER_AVAILABLE" = yes ] ;;
+    show) printf '%s\n' "${VERGE_TUI_ACTIVE_STATE:-active}" ;;
     enable|start) start_test_service ;;
     disable|stop) stop_test_service ;;
     *) exit 0 ;;
 esac
 `, 0700)
-	write(t, filepath.Join(bin, "loginctl"), "#!/bin/sh\nprintf '%s\\n' \"$MIHOMO_LINGER\"\n", 0700)
+	write(t, filepath.Join(bin, "loginctl"), "#!/bin/sh\nprintf '%s\\n' \"$VERGE_TUI_LINGER\"\n", 0700)
 	// All service files stay inside the project test directory. Real host
 	// systemd and GNOME tools are never invoked by these integration tests.
 	for _, value := range os.Environ() {
 		name, _, _ := strings.Cut(value, "=")
 		switch name {
-		case "PATH", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CURRENT_DESKTOP", "DBUS_SESSION_BUS_ADDRESS", "MIHOMO_SERVICE_LOG", "MIHOMO_MANAGER_AVAILABLE", "MIHOMO_LINGER":
+		case "PATH", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CURRENT_DESKTOP", "DBUS_SESSION_BUS_ADDRESS", "VERGE_TUI_SERVICE_LOG", "VERGE_TUI_MANAGER_AVAILABLE", "VERGE_TUI_LINGER":
 			continue
 		}
 		f.env = append(f.env, value)
 	}
-	f.env = append(f.env, "PATH="+bin+":"+os.Getenv("PATH"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "XDG_DATA_HOME="+filepath.Join(root, "data-home"), "XDG_CURRENT_DESKTOP=", "DBUS_SESSION_BUS_ADDRESS=", "MIHOMO_SERVICE_LOG="+f.log, "MIHOMO_MANAGER_AVAILABLE="+manager, "MIHOMO_LINGER="+linger)
+	f.env = append(f.env, "PATH="+bin+":"+os.Getenv("PATH"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "XDG_DATA_HOME="+filepath.Join(root, "data-home"), "XDG_CURRENT_DESKTOP=", "DBUS_SESSION_BUS_ADDRESS=", "VERGE_TUI_SERVICE_LOG="+f.log, "VERGE_TUI_MANAGER_AVAILABLE="+manager, "VERGE_TUI_LINGER="+linger)
 	return f
 }
 
@@ -158,7 +158,7 @@ func TestConfirmationBeforeInstallation(t *testing.T) {
 func TestAutomaticUserServiceAndDataPreservingUninstall(t *testing.T) {
 	f := setup(t, "yes", "yes")
 	out := f.run(t, "install.sh", "yes\n", true)
-	if !strings.Contains(out, "lingering enabled") || !strings.Contains(read(t, f.log), "--user enable --now mihomo-tui.service") || strings.Contains(out, ": OK") {
+	if !strings.Contains(out, "lingering enabled") || !strings.Contains(read(t, f.log), "--user enable --now verge-tui.service") || strings.Contains(out, ": OK") {
 		t.Fatal("service detection or concise installation output failed")
 	}
 	settings := read(t, filepath.Join(f.prefix, "data", "settings.json"))
@@ -173,7 +173,7 @@ func TestAutomaticUserServiceAndDataPreservingUninstall(t *testing.T) {
 	if read(t, f.rc) != "# Existing user configuration\n" {
 		t.Fatal("uninstall did not preserve unrelated shell configuration")
 	}
-	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
+	absent(t, filepath.Join(f.prefix, "verge-tui"))
 	absent(t, f.unit)
 	if read(t, filepath.Join(f.prefix, "data", "settings.json")) != settings {
 		t.Fatal("data-preserving uninstall changed subscription settings or credentials")
@@ -181,7 +181,7 @@ func TestAutomaticUserServiceAndDataPreservingUninstall(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(f.prefix, "data", "cores", "v1.19.32", "mihomo")); err != nil {
 		t.Fatal("data-preserving uninstall removed its managed core")
 	}
-	if !strings.Contains(read(t, f.log), "--user disable --now mihomo-tui.service") {
+	if !strings.Contains(read(t, f.log), "--user disable --now verge-tui.service") {
 		t.Fatal("service was not stopped and disabled")
 	}
 	// A later installation's service must survive a purge of retained data.
@@ -206,7 +206,7 @@ func TestUnavailableManagerAndExplicitServiceChoice(t *testing.T) {
 	}
 	absent(t, f.unit)
 	f.run(t, "uninstall.sh", "", false, "--mode", "system", "--purge")
-	if _, err := os.Stat(filepath.Join(f.prefix, "mihomo-tui")); err != nil {
+	if _, err := os.Stat(filepath.Join(f.prefix, "verge-tui")); err != nil {
 		t.Fatal("mode mismatch removed the application")
 	}
 	f.run(t, "uninstall.sh", "", true, "--purge")
@@ -218,11 +218,11 @@ func TestInstallerReinstallsRetainedData(t *testing.T) {
 		t.Run("manager-"+manager, func(t *testing.T) {
 			f := setup(t, manager, "yes")
 			// This fixture records service operations without starting a process.
-			f.env = append(f.env, "MIHOMO_ACTIVE_STATE=inactive")
+			f.env = append(f.env, "VERGE_TUI_ACTIVE_STATE=inactive")
 			f.run(t, "install.sh", "", true, "--yes")
 			s := &state.Store{Root: filepath.Join(f.prefix, "data")}
 			// Retain a nondefault profile, mode and an independently named core.
-			binary := filepath.Join(f.prefix, "mihomo-tui")
+			binary := filepath.Join(f.prefix, "verge-tui")
 			for _, args := range [][]string{
 				{"core", "import", "retained-core", filepath.Join(f.bundle, "cores/mihomo")},
 				{"core", "use", "retained-core"},
@@ -247,13 +247,13 @@ func TestInstallerReinstallsRetainedData(t *testing.T) {
 			}
 			profile := read(t, filepath.Join(s.Root, "profiles", c.Current+".yaml"))
 			f.run(t, "uninstall.sh", "", true)
-			marker := read(t, filepath.Join(f.prefix, ".mihomo-tui-install"))
+			marker := read(t, filepath.Join(f.prefix, ".verge-tui-install"))
 			out := f.run(t, "install.sh", "n\n", true)
-			if !strings.Contains(out, "mihomo-tui reinstallation") || !strings.Contains(out, "Reinstallation cancelled.") {
+			if !strings.Contains(out, "verge-tui reinstallation") || !strings.Contains(out, "Reinstallation cancelled.") {
 				t.Fatal(out)
 			}
 			absent(t, binary)
-			if read(t, filepath.Join(f.prefix, ".mihomo-tui-install")) != marker || read(t, f.rc) != "# Existing user configuration\n" {
+			if read(t, filepath.Join(f.prefix, ".verge-tui-install")) != marker || read(t, f.rc) != "# Existing user configuration\n" {
 				t.Fatal("cancelled reinstallation modified marker or rc")
 			}
 			out = f.run(t, "install.sh", "yes\n", true)
@@ -263,11 +263,11 @@ func TestInstallerReinstallsRetainedData(t *testing.T) {
 			if read(t, filepath.Join(s.Root, "settings.json")) != settings || read(t, filepath.Join(s.Root, "profiles", c.Current+".yaml")) != profile {
 				t.Fatal("reinstallation changed subscriptions, credentials, ports or core selection")
 			}
-			if strings.Count(read(t, f.rc), "# >>> mihomo-tui ") != 1 {
+			if strings.Count(read(t, f.rc), "# >>> verge-tui ") != 1 {
 				t.Fatal("reinstallation did not restore shell functions exactly once")
 			}
 			if manager == "yes" {
-				if _, err := os.Stat(f.unit); err != nil || strings.Count(read(t, f.log), "--user enable --now mihomo-tui.service") != 2 {
+				if _, err := os.Stat(f.unit); err != nil || strings.Count(read(t, f.log), "--user enable --now verge-tui.service") != 2 {
 					t.Fatal("reinstallation did not recreate and enable the service")
 				}
 			} else {
@@ -275,7 +275,7 @@ func TestInstallerReinstallsRetainedData(t *testing.T) {
 			}
 			// Restoring also makes the application eligible for a normal update.
 			out = f.run(t, "install.sh", "", true, "--yes")
-			if !strings.Contains(out, "mihomo-tui update") || read(t, filepath.Join(s.Root, "settings.json")) != settings {
+			if !strings.Contains(out, "verge-tui update") || read(t, filepath.Join(s.Root, "settings.json")) != settings {
 				t.Fatal("restored installation cannot be updated normally")
 			}
 			f.run(t, "uninstall.sh", "", true, "--purge")
@@ -302,7 +302,7 @@ func TestReinstallationPortConflictPreservesRetainedData(t *testing.T) {
 	if !strings.Contains(out, "Retained ports are unavailable") {
 		t.Fatal(out)
 	}
-	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
+	absent(t, filepath.Join(f.prefix, "verge-tui"))
 	if read(t, filepath.Join(s.Root, "settings.json")) != settings || read(t, f.rc) != "# Existing user configuration\n" {
 		t.Fatal("port conflict modified retained data or rc")
 	}
@@ -319,7 +319,7 @@ func TestReinstallationRefusesUnrelatedService(t *testing.T) {
 	if !strings.Contains(out, "Service unit already exists") {
 		t.Fatal(out)
 	}
-	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
+	absent(t, filepath.Join(f.prefix, "verge-tui"))
 	if read(t, f.unit) != "another installation's service" || read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
 		t.Fatal("reinstallation modified an unrelated service or retained settings")
 	}
@@ -356,8 +356,8 @@ func TestUninstallRefusesUnmarkedDirectory(t *testing.T) {
 func TestUnmarkedInstallationCannotBeUpdatedOrUninstalled(t *testing.T) {
 	f := setup(t, "no", "no")
 	f.run(t, "install.sh", "", true, "--yes")
-	marker := read(t, filepath.Join(f.prefix, ".mihomo-tui-install"))
-	if err := os.Remove(filepath.Join(f.prefix, ".mihomo-tui-install")); err != nil {
+	marker := read(t, filepath.Join(f.prefix, ".verge-tui-install"))
+	if err := os.Remove(filepath.Join(f.prefix, ".verge-tui-install")); err != nil {
 		t.Fatal(err)
 	}
 	f.run(t, "uninstall.sh", "", false, "--purge")
@@ -369,7 +369,7 @@ func TestUnmarkedInstallationCannotBeUpdatedOrUninstalled(t *testing.T) {
 	if !strings.Contains(out, "installation marker") {
 		t.Fatal(out)
 	}
-	write(t, filepath.Join(f.prefix, ".mihomo-tui-install"), marker, 0600)
+	write(t, filepath.Join(f.prefix, ".verge-tui-install"), marker, 0600)
 	f.run(t, "uninstall.sh", "", true, "--purge")
 	absent(t, f.prefix)
 }
@@ -383,7 +383,7 @@ func TestUninstallPreservesInaccessibleDesktopBackup(t *testing.T) {
 	if read(t, backup) != "[/]\nmode='none'\n" {
 		t.Fatal("desktop backup was discarded")
 	}
-	if _, err := os.Stat(filepath.Join(f.prefix, "mihomo-tui")); err != nil {
+	if _, err := os.Stat(filepath.Join(f.prefix, "verge-tui")); err != nil {
 		t.Fatal("application was removed before proxy restoration")
 	}
 }
@@ -395,7 +395,7 @@ func TestUninstallRequiresForegroundCoreToStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(filepath.Join(f.prefix, "mihomo-tui"), "run")
+	cmd := exec.Command(filepath.Join(f.prefix, "verge-tui"), "run")
 	cmd.Env = f.env
 	var logs bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &logs, &logs
@@ -419,7 +419,7 @@ func TestUninstallRequiresForegroundCoreToStop(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	statusCmd := exec.Command("bash", "--noprofile", "--norc", "-c", `. "$1"; mihomo_on; mihomo_status`, "proxy-status-test", f.rc)
+	statusCmd := exec.Command("bash", "--noprofile", "--norc", "-c", `. "$1"; verge_on; verge_status`, "proxy-status-test", f.rc)
 	statusCmd.Env = f.env
 	statusOutput, err := statusCmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(statusOutput), "Core: running") || !strings.Contains(string(statusOutput), "loaded and matches") {
@@ -452,15 +452,15 @@ func TestProxyFunctionsInBashAndZsh(t *testing.T) {
 				args = []string{"-f", "-c"}
 			}
 			script := `. "$1"
-mihomo_off
-mihomo_status
-mihomo_on
+verge_off
+verge_status
+verge_on
 [ -n "${http_proxy:-}" ] && [ "$http_proxy" = "$https_proxy" ] && [ "$http_proxy" = "$ALL_PROXY" ] || exit 21
 [ "$no_proxy" = "$NO_PROXY" ] || exit 22
-mihomo_status
-mihomo_off
+verge_status
+verge_off
 [ -z "${http_proxy+x}${HTTPS_PROXY+x}${ALL_PROXY+x}${NO_PROXY+x}" ] || exit 23
-mihomo_status`
+verge_status`
 			cmd := exec.Command(shell, append(args, script, "proxy-functions-test", f.rc)...)
 			cmd.Env = f.env
 			out, err := cmd.CombinedOutput()
@@ -486,7 +486,7 @@ mihomo_status`
 			if err != nil {
 				t.Fatal(err)
 			}
-			configure := exec.Command(filepath.Join(f.prefix, "mihomo-tui"), "configure", "--mixed-port", strconv.Itoa(newPort))
+			configure := exec.Command(filepath.Join(f.prefix, "verge-tui"), "configure", "--mixed-port", strconv.Itoa(newPort))
 			configure.Env = f.env
 			if out, err := configure.CombinedOutput(); err != nil {
 				t.Fatalf("configure: %v\n%s", err, out)
@@ -517,9 +517,9 @@ func TestShellIntegrationCanBeDisabled(t *testing.T) {
 
 func TestInstallerUpdatesExistingInstallationAfterConfirmation(t *testing.T) {
 	f := setup(t, "yes", "yes")
-	f.env = append(f.env, "MIHOMO_MANAGED_TEST_SERVICE=yes", "MIHOMO_SERVICE_PREFIX="+f.prefix)
+	f.env = append(f.env, "VERGE_TUI_MANAGED_TEST_SERVICE=yes", "VERGE_TUI_SERVICE_PREFIX="+f.prefix)
 	t.Cleanup(func() {
-		cmd := exec.Command(filepath.Join(f.root, "tools/systemctl"), "--user", "stop", "mihomo-tui.service")
+		cmd := exec.Command(filepath.Join(f.root, "tools/systemctl"), "--user", "stop", "verge-tui.service")
 		cmd.Env = f.env
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Errorf("test supervisor cleanup: %v\n%s", err, out)
@@ -534,7 +534,7 @@ func TestInstallerUpdatesExistingInstallationAfterConfirmation(t *testing.T) {
 	write(t, f.log, "", 0600)
 	for _, input := range []string{"n\n", ""} {
 		out := f.run(t, "install.sh", input, true)
-		if !strings.Contains(out, "mihomo-tui update") || !strings.Contains(out, "Update cancelled.") {
+		if !strings.Contains(out, "verge-tui update") || !strings.Contains(out, "Update cancelled.") {
 			t.Fatal(out)
 		}
 		if read(t, settingsPath) != settings || read(t, f.rc) != rc || read(t, filepath.Join(f.prefix, "README.md")) != "old documentation" {
@@ -551,7 +551,7 @@ func TestInstallerUpdatesExistingInstallationAfterConfirmation(t *testing.T) {
 	if read(t, settingsPath) != settings || read(t, f.rc) != rc || read(t, f.unit) != unit {
 		t.Fatal("update changed proxy data, shell integration or service configuration")
 	}
-	if !strings.Contains(read(t, f.log), "--user stop mihomo-tui.service") || !strings.Contains(read(t, f.log), "--user start mihomo-tui.service") {
+	if !strings.Contains(read(t, f.log), "--user stop verge-tui.service") || !strings.Contains(read(t, f.log), "--user start verge-tui.service") {
 		t.Fatal("update did not restart the running service")
 	}
 	if strings.Contains(read(t, f.log), "enable") || strings.Contains(read(t, f.log), "disable") {
@@ -568,7 +568,7 @@ func TestInstallerUpdatesForegroundInstallationAndAddsShellFunctions(t *testing.
 	if read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
 		t.Fatal("foreground update reinitialized settings")
 	}
-	if !strings.Contains(read(t, f.rc), "mihomo_on()") {
+	if !strings.Contains(read(t, f.rc), "verge_on()") {
 		t.Fatal("foreground update did not register new shell functions")
 	}
 	if strings.Contains(read(t, f.log), "enable") {
@@ -610,7 +610,7 @@ func (f fixture) uninstallFromBundle(t *testing.T, input string, succeeds bool, 
 
 func TestUninstallFromBundleDetectsUserPrefixAndConfirmsFirst(t *testing.T) {
 	f := setup(t, "yes", "yes")
-	f.prefix = filepath.Join(f.root, "data-home", "mihomo-tui")
+	f.prefix = filepath.Join(f.root, "data-home", "verge-tui")
 	f.run(t, "install.sh", "", true, "--yes")
 	settings := read(t, filepath.Join(f.prefix, "data/settings.json"))
 	rc := read(t, f.rc)
@@ -627,7 +627,7 @@ func TestUninstallFromBundleDetectsUserPrefixAndConfirmsFirst(t *testing.T) {
 		}
 	}
 	f.uninstallFromBundle(t, "yes\n", true, "--mode", "user")
-	absent(t, filepath.Join(f.prefix, "mihomo-tui"))
+	absent(t, filepath.Join(f.prefix, "verge-tui"))
 	if read(t, filepath.Join(f.prefix, "data/settings.json")) != settings {
 		t.Fatal("default uninstall changed retained data")
 	}
@@ -655,7 +655,7 @@ func TestSystemModeUninstallWithMockRootAndCustomPrefix(t *testing.T) {
 	if err := s.Update(func(c *state.Settings) error { c.InstallMode = "system"; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(f.prefix, ".mihomo-tui-install"), "mihomo-tui-install-v1\nsystem\n\n"+f.prefix+"\n", 0600)
+	write(t, filepath.Join(f.prefix, ".verge-tui-install"), "verge-tui-install-v1\nsystem\n\n"+f.prefix+"\n", 0600)
 	write(t, filepath.Join(f.root, "tools", "id"), "#!/bin/sh\nprintf '%s\\n' 0\n", 0700)
 	out := f.uninstallFromBundle(t, "", true, "--mode", "system", "--prefix", f.prefix, "--purge", "--yes")
 	if !strings.Contains(out, "Mode:         system") {

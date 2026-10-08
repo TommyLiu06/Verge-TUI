@@ -35,14 +35,14 @@ done
 case "$mode" in user|system) ;; *) fail 'Mode must be user or system' ;; esac
 # With no explicit mode/prefix, root can rerun the installer for the default
 # system installation. Explicit paths inherit their recorded mode below.
-if [ -z "$prefix" ] && [ -z "$requested_mode" ] && [ "$(id -u)" -eq 0 ] && [ -d /opt/mihomo-tui ]; then
-    prefix=/opt/mihomo-tui
+if [ -z "$prefix" ] && [ -z "$requested_mode" ] && [ "$(id -u)" -eq 0 ] && [ -d /opt/verge-tui ]; then
+    prefix=/opt/verge-tui
 fi
 if [ "$mode" = system ]; then
     [ "$(id -u)" -eq 0 ] || fail 'System mode requires root'
-    [ -n "$prefix" ] || prefix=/opt/mihomo-tui
+    [ -n "$prefix" ] || prefix=/opt/verge-tui
 else
-    [ -n "$prefix" ] || prefix="${XDG_DATA_HOME:-$HOME/.local/share}/mihomo-tui"
+    [ -n "$prefix" ] || prefix="${XDG_DATA_HOME:-$HOME/.local/share}/verge-tui"
 fi
 case "$prefix" in /*) ;; *) fail 'Prefix must be an absolute path' ;; esac
 case "$prefix" in *'
@@ -56,7 +56,7 @@ selected_core=
 if [ -e "$prefix" ] || [ -L "$prefix" ]; then
     # Verify the helper before executing it. Inspection itself is read-only.
     (cd "$bundle_dir" && sha256sum --status -c SHA256SUMS) || fail 'Bundle checksum verification failed; update stopped'
-    existing=$("$bundle_dir/bin/mihomo-tui" installation inspect --prefix "$prefix") || fail 'Existing installation cannot be updated or reinstalled'
+    existing=$("$bundle_dir/bin/verge-tui" installation inspect --prefix "$prefix") || fail 'Existing installation cannot be updated or reinstalled'
     prefix=$(CDPATH= cd -- "$prefix" && pwd -P)
     recorded_mode=$(printf '%s\n' "$existing" | sed -n '1p')
     recorded_unit=$(printf '%s\n' "$existing" | sed -n '2p')
@@ -134,9 +134,9 @@ fi
 install_service=$service_choice
 if [ "$install_service" = auto ]; then install_service=$manager_available; fi
 
-if [ "$updating" = yes ]; then printf '\n%s\n' 'mihomo-tui update'
-elif [ "$restoring" = yes ]; then printf '\n%s\n' 'mihomo-tui reinstallation'
-else printf '\n%s\n' 'mihomo-tui installation'; fi
+if [ "$updating" = yes ]; then printf '\n%s\n' 'verge-tui update'
+elif [ "$restoring" = yes ]; then printf '\n%s\n' 'verge-tui reinstallation'
+else printf '\n%s\n' 'verge-tui installation'; fi
 printf '  Mode:         %s\n' "$mode"
 printf '  Destination:  %s\n' "$prefix"
 printf '  Bundled core: %s (Linux amd64)\n' "$core_id"
@@ -151,7 +151,7 @@ fi
 printf '  Proxy env:    %s/proxy.env\n' "$prefix"
 if [ "$shell_choice" != none ]; then
     printf '  Shell:        %s\n  Shell rc:     %s\n' "$shell_choice" "$rc_file"
-    echo '  Functions:    mihomo_on, mihomo_off, mihomo_status'
+    echo '  Functions:    verge_on, verge_off, verge_status'
 else
     echo '  Shell:        rc integration disabled'
 fi
@@ -190,7 +190,7 @@ unit_path=
 if [ "$install_service" = yes ]; then
     if [ "$updating" = yes ]; then
         unit_path=$recorded_unit
-    elif [ "$mode" = user ]; then unit_path="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/mihomo-tui.service"; else unit_path=/etc/systemd/system/mihomo-tui.service; fi
+    elif [ "$mode" = user ]; then unit_path="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/verge-tui.service"; else unit_path=/etc/systemd/system/verge-tui.service; fi
     case "$unit_path" in /*) ;; *) fail 'Service configuration directory must be absolute' ;; esac
     case "$unit_path" in *'
 '*|*"$(printf '\r')"*) fail 'Service path must be a single-line path' ;; esac
@@ -203,7 +203,7 @@ fi
 # existing ports during updates because the preserved service may own them.
 if [ "$updating" = no ] && { [ "$mixed_port" != 0 ] || [ "$api_port" != 0 ]; }; then
     (cd "$bundle_dir" && sha256sum --status -c SHA256SUMS) || fail 'Bundle checksum verification failed; installation stopped'
-    if ! "$bundle_dir/bin/mihomo-tui" installation check-ports --mixed-port "$mixed_port" --api-port "$api_port"; then
+    if ! "$bundle_dir/bin/verge-tui" installation check-ports --mixed-port "$mixed_port" --api-port "$api_port"; then
         [ "$restoring" != yes ] || fail 'Retained ports are unavailable; stop the conflicting application before reinstalling'
         fail 'Requested ports are unavailable; use --mixed-port and --api-port to select free ports'
     fi
@@ -224,65 +224,65 @@ sha256sum --status -c SHA256SUMS || fail 'Bundle checksum verification failed; i
 if [ "$updating" = yes ]; then
     echo 'Updating application; keeping selected core and proxy data...'
     if [ "$shell_choice" = none ]; then
-        "$bundle_dir/bin/mihomo-tui" installation update --prefix "$prefix"
+        "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix"
     else
-        "$bundle_dir/bin/mihomo-tui" installation update --prefix "$prefix" --rc-file "$rc_file"
+        "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix" --rc-file "$rc_file"
     fi
     echo "Updated in $prefix"
-    echo "Launch: \"$prefix/mihomo-tui\""
+    echo "Launch: \"$prefix/verge-tui\""
     if [ "$shell_choice" != none ]; then echo "Open a new shell or source the existing rc: $rc_file"; fi
     exit 0
 fi
-app_bin="$prefix/mihomo-tui"
+app_bin="$prefix/verge-tui"
 if [ "$restoring" = yes ]; then
     echo 'Restoring application; keeping selected core and proxy data...'
     if [ "$shell_choice" = none ]; then
-        "$bundle_dir/bin/mihomo-tui" installation update --prefix "$prefix"
+        "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix"
     else
-        "$bundle_dir/bin/mihomo-tui" installation update --prefix "$prefix" --rc-file "$rc_file"
+        "$bundle_dir/bin/verge-tui" installation update --prefix "$prefix" --rc-file "$rc_file"
     fi
 else
     echo 'Installing application and managed core...'
 
     mkdir -m 700 -p -- "$prefix"
     prefix=$(CDPATH= cd -- "$prefix" && pwd -P)
-    cp bin/mihomo-tui "$prefix/mihomo-tui"
-    chmod 700 "$prefix/mihomo-tui"
-    if [ "$mode" = system ]; then chmod 755 "$prefix" "$prefix/mihomo-tui"; fi
+    cp bin/verge-tui "$prefix/verge-tui"
+    chmod 700 "$prefix/verge-tui"
+    if [ "$mode" = system ]; then chmod 755 "$prefix" "$prefix/verge-tui"; fi
     cp README.md LICENSE NOTICE.md "$prefix/"
     cp -R docs "$prefix/docs"
     cp DEPENDENCIES.txt "$prefix/"
     cp -R licenses "$prefix/licenses"
     cp uninstall.sh "$prefix/uninstall.sh"
-    printf '%s\n' mihomo-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.mihomo-tui-install"
-    app_bin="$prefix/mihomo-tui"
+    printf '%s\n' verge-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.verge-tui-install"
+    app_bin="$prefix/verge-tui"
     "$app_bin" configure --install-mode "$mode" --mixed-port "$mixed_port" --api-port "$api_port"
-    "$bundle_dir/bin/mihomo-tui" installation seed-geodata --prefix "$prefix"
+    "$bundle_dir/bin/verge-tui" installation seed-geodata --prefix "$prefix"
     "$app_bin" core import "$core_id" "$bundle_dir/cores/mihomo" >/dev/null
     profile_output=$("$app_bin" profile new Default)
     profile_id=${profile_output%% *}
     "$app_bin" profile select "$profile_id"
-    "$app_bin" service --mode "$mode" > "$prefix/mihomo-tui.service"
+    "$app_bin" service --mode "$mode" > "$prefix/verge-tui.service"
     "$app_bin" env-file
     if [ "$shell_choice" != none ]; then "$app_bin" shell install --rc-file "$rc_file"; fi
 fi
 
 if [ "$restoring" = yes ]; then
-    "$app_bin" service --mode "$mode" > "$prefix/mihomo-tui.service"
-    printf '%s\n' mihomo-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.mihomo-tui-install"
+    "$app_bin" service --mode "$mode" > "$prefix/verge-tui.service"
+    printf '%s\n' verge-tui-install-v1 "$mode" "$unit_path" "$prefix" > "$prefix/.verge-tui-install"
 fi
 
 if [ "$install_service" = yes ]; then
     mkdir -p -- "$(dirname -- "$unit_path")"
-    cp "$prefix/mihomo-tui.service" "$unit_path"
+    cp "$prefix/verge-tui.service" "$unit_path"
     chmod 600 "$unit_path"
     if [ "$mode" = user ]; then
         systemctl --user daemon-reload
-        systemctl --user enable --now mihomo-tui.service
+        systemctl --user enable --now verge-tui.service
         echo 'User service enabled. Startup after logout requires administrator-approved lingering.'
     else
         systemctl daemon-reload
-        systemctl enable --now mihomo-tui.service
+        systemctl enable --now verge-tui.service
         echo 'System service enabled. Open Home to enable TUN Mode.'
     fi
 fi

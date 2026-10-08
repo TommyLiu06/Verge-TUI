@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"golang.org/x/sys/unix"
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
 )
 
 type updateFixture struct {
@@ -44,9 +44,9 @@ func newUpdate(t *testing.T, mode, active string, unmarked bool) *updateFixture 
 	t.Helper()
 	root := t.TempDir()
 	f := &updateFixture{prefix: filepath.Join(root, "Proxy's $literal `name`"), bundle: filepath.Join(root, "bundle"), rc: filepath.Join(root, "shellrc"), active: active}
-	f.unit = filepath.Join(root, "systemd", "user", "mihomo-tui.service")
+	f.unit = filepath.Join(root, "systemd", "user", "verge-tui.service")
 	if mode == "system" {
-		f.unit = filepath.Join(root, "systemd", "system", "mihomo-tui.service")
+		f.unit = filepath.Join(root, "systemd", "system", "verge-tui.service")
 	}
 	var err error
 	f.store, err = state.Open(filepath.Join(f.prefix, "data"))
@@ -60,8 +60,8 @@ func newUpdate(t *testing.T, mode, active string, unmarked bool) *updateFixture 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	put(t, filepath.Join(f.prefix, "mihomo-tui"), "old executable")
-	put(t, filepath.Join(f.prefix, "mihomo-tui.service"), "original service configuration\n")
+	put(t, filepath.Join(f.prefix, "verge-tui"), "old executable")
+	put(t, filepath.Join(f.prefix, "verge-tui.service"), "original service configuration\n")
 	put(t, f.unit, "original service configuration\n")
 	put(t, filepath.Join(f.store.Root, "cores/custom-core/mihomo"), "selected core bytes")
 	put(t, filepath.Join(f.store.Root, "profiles/subscription.yaml"), "proxies: []\n")
@@ -70,16 +70,16 @@ func newUpdate(t *testing.T, mode, active string, unmarked bool) *updateFixture 
 		put(t, filepath.Join(f.prefix, name), "old "+name)
 		put(t, filepath.Join(f.bundle, name), "new "+name)
 	}
-	put(t, filepath.Join(f.bundle, "bin/mihomo-tui"), "new executable")
+	put(t, filepath.Join(f.bundle, "bin/verge-tui"), "new executable")
 	put(t, f.rc, "# User configuration\n")
 	if err := shellenv.Write(f.store); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := shellenv.Register(f.store, filepath.Join(f.prefix, "mihomo-tui"), f.rc); err != nil {
+	if _, err := shellenv.Register(f.store, filepath.Join(f.prefix, "verge-tui"), f.rc); err != nil {
 		t.Fatal(err)
 	}
 	if !unmarked {
-		put(t, filepath.Join(f.prefix, ".mihomo-tui-install"), fmt.Sprintf("mihomo-tui-install-v1\n%s\n%s\n%s\n", mode, f.unit, f.prefix))
+		put(t, filepath.Join(f.prefix, ".verge-tui-install"), fmt.Sprintf("verge-tui-install-v1\n%s\n%s\n%s\n", mode, f.unit, f.prefix))
 	}
 	return f
 }
@@ -134,7 +134,7 @@ func TestUpdatePreservesDataCoreAndServiceState(t *testing.T) {
 				if err := f.update(f.rc); err != nil {
 					t.Fatal(err)
 				}
-				if content(t, filepath.Join(f.prefix, "mihomo-tui")) != "new executable" {
+				if content(t, filepath.Join(f.prefix, "verge-tui")) != "new executable" {
 					t.Fatal("executable was not replaced")
 				}
 				if content(t, filepath.Join(f.prefix, "docs/offline.md")) != "new docs/offline.md" {
@@ -160,13 +160,13 @@ func TestUpdatePreservesDataCoreAndServiceState(t *testing.T) {
 					t.Fatal("service enablement changed")
 				}
 				if active == "active" {
-					if !strings.Contains(calls, "stop mihomo-tui.service") || !strings.Contains(calls, "start mihomo-tui.service") || f.active != "active" {
+					if !strings.Contains(calls, "stop verge-tui.service") || !strings.Contains(calls, "start verge-tui.service") || f.active != "active" {
 						t.Fatal("running service was not restored")
 					}
 				} else if strings.Contains(calls, "start") || strings.Contains(calls, "stop") {
 					t.Fatal("stopped service was started")
 				}
-				info, _ := os.Stat(filepath.Join(f.prefix, "mihomo-tui"))
+				info, _ := os.Stat(filepath.Join(f.prefix, "verge-tui"))
 				want := os.FileMode(0700)
 				if mode == "system" {
 					want = 0755
@@ -191,7 +191,7 @@ func retainData(t *testing.T, f *updateFixture) {
 	if err := shellenv.Remove(f.store); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{filepath.Join(f.prefix, "mihomo-tui"), filepath.Join(f.prefix, "mihomo-tui.service"), f.unit} {
+	for _, path := range []string{filepath.Join(f.prefix, "verge-tui"), filepath.Join(f.prefix, "verge-tui.service"), f.unit} {
 		if err := os.Remove(path); err != nil {
 			t.Fatal(err)
 		}
@@ -200,7 +200,7 @@ func retainData(t *testing.T, f *updateFixture) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	put(t, filepath.Join(f.prefix, ".mihomo-tui-install"), fmt.Sprintf("mihomo-tui-install-v1\n%s\n\n%s\n", c.InstallMode, f.prefix))
+	put(t, filepath.Join(f.prefix, ".verge-tui-install"), fmt.Sprintf("verge-tui-install-v1\n%s\n\n%s\n", c.InstallMode, f.prefix))
 }
 
 func TestRestoreRetainedInstallationPreservesData(t *testing.T) {
@@ -221,13 +221,13 @@ func TestRestoreRetainedInstallationPreservesData(t *testing.T) {
 			if err := f.update(f.rc); err != nil {
 				t.Fatal(err)
 			}
-			if content(t, filepath.Join(f.prefix, "mihomo-tui")) != "new executable" || len(f.calls) != 0 {
+			if content(t, filepath.Join(f.prefix, "verge-tui")) != "new executable" || len(f.calls) != 0 {
 				t.Fatal("application was not restored or removed service was managed")
 			}
 			if content(t, filepath.Join(f.store.Root, "settings.json")) != settings || content(t, filepath.Join(f.store.Root, "cores/custom-core/mihomo")) != "selected core bytes" || content(t, filepath.Join(f.store.Root, "profiles/subscription.yaml")) != "proxies: []\n" {
 				t.Fatal("reinstallation changed settings, selected core or subscription")
 			}
-			if strings.Count(content(t, f.rc), "# >>> mihomo-tui") != 1 {
+			if strings.Count(content(t, f.rc), "# >>> verge-tui") != 1 {
 				t.Fatal("shell functions were not restored exactly once")
 			}
 		})
@@ -241,17 +241,17 @@ func TestRetainedInspectionRejectsIncompleteOrUnmarkedInstallation(t *testing.T)
 			retainData(t, f)
 			switch kind {
 			case "executable-present":
-				put(t, filepath.Join(f.prefix, "mihomo-tui"), "unexpected executable")
+				put(t, filepath.Join(f.prefix, "verge-tui"), "unexpected executable")
 			case "service-present":
-				put(t, filepath.Join(f.prefix, "mihomo-tui.service"), "unexpected service")
+				put(t, filepath.Join(f.prefix, "verge-tui.service"), "unexpected service")
 			case "service-recorded":
-				put(t, filepath.Join(f.prefix, ".mihomo-tui-install"), fmt.Sprintf("mihomo-tui-install-v1\nuser\n%s\n%s\n", f.unit, f.prefix))
+				put(t, filepath.Join(f.prefix, ".verge-tui-install"), fmt.Sprintf("verge-tui-install-v1\nuser\n%s\n%s\n", f.unit, f.prefix))
 			case "unmarked":
-				if err := os.Remove(filepath.Join(f.prefix, ".mihomo-tui-install")); err != nil {
+				if err := os.Remove(filepath.Join(f.prefix, ".verge-tui-install")); err != nil {
 					t.Fatal(err)
 				}
 			case "symlink-executable":
-				if err := os.Symlink(filepath.Join(f.bundle, "bin/mihomo-tui"), filepath.Join(f.prefix, "mihomo-tui")); err != nil {
+				if err := os.Symlink(filepath.Join(f.bundle, "bin/verge-tui"), filepath.Join(f.prefix, "verge-tui")); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -266,7 +266,7 @@ func TestRestoreRetainedInstallationRollsBackShellFailure(t *testing.T) {
 	f := newUpdate(t, "system", "inactive", false)
 	var start string
 	for _, line := range strings.Split(content(t, f.rc), "\n") {
-		if strings.HasPrefix(line, "# >>> mihomo-tui ") {
+		if strings.HasPrefix(line, "# >>> verge-tui ") {
 			start = line
 		}
 	}
@@ -276,7 +276,7 @@ func TestRestoreRetainedInstallationRollsBackShellFailure(t *testing.T) {
 	if err := f.update(f.rc); err == nil || !strings.Contains(err.Error(), "original installation restored") {
 		t.Fatalf("restoration rollback: %v", err)
 	}
-	if _, err := os.Lstat(filepath.Join(f.prefix, "mihomo-tui")); !os.IsNotExist(err) {
+	if _, err := os.Lstat(filepath.Join(f.prefix, "verge-tui")); !os.IsNotExist(err) {
 		t.Fatalf("failed restoration left an executable: %v", err)
 	}
 	if content(t, f.rc) != rc || content(t, filepath.Join(f.store.Root, "settings.json")) != settings {
@@ -297,7 +297,7 @@ func TestUnmarkedInstallationIsRejectedWithoutWrites(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), "installation marker") {
 				t.Fatalf("unmarked inspection: %v", err)
 			}
-			if _, err := os.Stat(filepath.Join(f.prefix, ".mihomo-tui-install")); !os.IsNotExist(err) {
+			if _, err := os.Stat(filepath.Join(f.prefix, ".verge-tui-install")); !os.IsNotExist(err) {
 				t.Fatal("inspection wrote a marker")
 			}
 			if _, err := os.Stat(filepath.Join(f.store.Root, "runtime/core.lock")); !os.IsNotExist(err) {
@@ -325,7 +325,7 @@ func TestUpdateRollsBackStartupFailure(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "original installation restored") {
 		t.Fatalf("missing rollback result: %v", err)
 	}
-	if f.active != "active" || content(t, filepath.Join(f.prefix, "mihomo-tui")) != "old executable" {
+	if f.active != "active" || content(t, filepath.Join(f.prefix, "verge-tui")) != "old executable" {
 		t.Fatal("old executable or service was not restored")
 	}
 	if content(t, filepath.Join(f.prefix, "docs/offline.md")) != "old docs/offline.md" {
@@ -345,7 +345,7 @@ func TestUpdateRollsBackCoreReadinessFailure(t *testing.T) {
 	if err := f.update(f.rc); err == nil || !strings.Contains(err.Error(), "original installation restored") {
 		t.Fatalf("readiness rollback: %v", err)
 	}
-	if f.active != "active" || content(t, filepath.Join(f.prefix, "mihomo-tui")) != "old executable" {
+	if f.active != "active" || content(t, filepath.Join(f.prefix, "verge-tui")) != "old executable" {
 		t.Fatal("unhealthy core did not roll back to the old application")
 	}
 }
@@ -372,10 +372,10 @@ func TestIncompleteRollbackRetainsPrivateRecoveryFiles(t *testing.T) {
 
 func TestUpdateRollsBackMalformedShellRC(t *testing.T) {
 	f := newUpdate(t, "user", "active", false)
-	marker := content(t, filepath.Join(f.prefix, ".mihomo-tui-install"))
+	marker := content(t, filepath.Join(f.prefix, ".verge-tui-install"))
 	lines := strings.Split(content(t, f.rc), "\n")
 	for i, line := range lines {
-		if strings.HasPrefix(line, "# <<< mihomo-tui") {
+		if strings.HasPrefix(line, "# <<< verge-tui") {
 			lines[i] = "# Incomplete marker"
 		}
 	}
@@ -385,10 +385,10 @@ func TestUpdateRollsBackMalformedShellRC(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "incomplete shell integration") {
 		t.Fatalf("expected shell marker failure: %v", err)
 	}
-	if f.active != "active" || content(t, filepath.Join(f.prefix, "mihomo-tui")) != "old executable" || content(t, f.rc) != rc {
+	if f.active != "active" || content(t, filepath.Join(f.prefix, "verge-tui")) != "old executable" || content(t, f.rc) != rc {
 		t.Fatal("failed rc update was not rolled back")
 	}
-	if content(t, filepath.Join(f.prefix, ".mihomo-tui-install")) != marker {
+	if content(t, filepath.Join(f.prefix, ".verge-tui-install")) != marker {
 		t.Fatal("failed update changed its marker")
 	}
 }
@@ -414,7 +414,7 @@ func TestUpdateRefusesChangedServiceAndForegroundCore(t *testing.T) {
 	if err := f.update(f.rc); err == nil || !strings.Contains(err.Error(), "core is still running") {
 		t.Fatalf("expected foreground rejection: %v", err)
 	}
-	if content(t, filepath.Join(f.prefix, "mihomo-tui")) != "old executable" {
+	if content(t, filepath.Join(f.prefix, "verge-tui")) != "old executable" {
 		t.Fatal("running foreground installation was modified")
 	}
 }
@@ -441,7 +441,7 @@ func TestUpdateCancellationRestoresStoppedService(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "original installation restored") {
 		t.Fatalf("cancelled update: %v", err)
 	}
-	if f.active != "active" || content(t, filepath.Join(f.prefix, "mihomo-tui")) != "old executable" {
+	if f.active != "active" || content(t, filepath.Join(f.prefix, "verge-tui")) != "old executable" {
 		t.Fatal("interrupted update did not restore the running installation")
 	}
 }

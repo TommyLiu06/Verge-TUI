@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 const maxSize = 64 << 20

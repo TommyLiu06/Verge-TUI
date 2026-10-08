@@ -9,9 +9,9 @@ import (
 	"github.com/clipperhouse/displaywidth"
 	"github.com/gdamore/tcell/v3"
 	"github.com/gdamore/tcell/v3/color"
-	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/app"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/state"
 )
 
 func fixture() app.View {

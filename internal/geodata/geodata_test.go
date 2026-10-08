@@ -6,16 +6,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/profile"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/core"
+	"verge-tui/internal/profile"
+	"verge-tui/internal/state"
 )
 
 func testSource(t *testing.T) (string, string) {
 	t.Helper()
-	bundle := os.Getenv("MIHOMO_TEST_BUNDLE")
+	bundle := os.Getenv("VERGE_TUI_TEST_BUNDLE")
 	if bundle == "" {
-		t.Skip("set MIHOMO_TEST_BUNDLE to a bundle containing geodata")
+		t.Skip("set VERGE_TUI_TEST_BUNDLE to a bundle containing geodata")
 	}
 	return filepath.Join(bundle, "geodata"), filepath.Join(bundle, "cores", "mihomo")
 }

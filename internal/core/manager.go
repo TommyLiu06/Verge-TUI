@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/profile"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/profile"
+	"verge-tui/internal/state"
 )
 
 type Status struct {

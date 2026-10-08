@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/desktop"
-	"mihomo-tui/internal/management"
-	"mihomo-tui/internal/profile"
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/core"
+	"verge-tui/internal/desktop"
+	"verge-tui/internal/management"
+	"verge-tui/internal/profile"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
 )
 
 type View struct {

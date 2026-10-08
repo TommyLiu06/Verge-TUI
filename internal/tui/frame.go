@@ -8,7 +8,7 @@ import (
 	"github.com/clipperhouse/uax29/v2/graphemes"
 	"github.com/gdamore/tcell/v3"
 	"github.com/gdamore/tcell/v3/color"
-	"mihomo-tui/internal/app"
+	"verge-tui/internal/app"
 )
 
 var (

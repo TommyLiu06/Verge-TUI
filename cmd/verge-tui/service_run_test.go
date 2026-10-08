@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/management"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/app"
+	"verge-tui/internal/core"
+	"verge-tui/internal/management"
+	"verge-tui/internal/state"
 )
 
 func TestSharedCoreReplacementDoesNotStopSupervisor(t *testing.T) {

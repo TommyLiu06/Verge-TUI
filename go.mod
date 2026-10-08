@@ -1,4 +1,4 @@
-module mihomo-tui
+module verge-tui
 
 go 1.27.0
 

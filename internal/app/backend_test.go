@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/profile"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/core"
+	"verge-tui/internal/profile"
+	"verge-tui/internal/state"
 )
 
 func TestSubscriptionWorkflowWithRealCore(t *testing.T) {

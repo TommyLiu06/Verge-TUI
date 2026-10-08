@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/state"
 )
 
 func delayBackend(t *testing.T, names []string, handler http.HandlerFunc) *Backend {

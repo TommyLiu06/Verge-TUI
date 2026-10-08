@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"go.yaml.in/yaml/v3"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 func TestImportSubscriptionAndSecurityOverlay(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/gdamore/tcell/v3"
-	"mihomo-tui/internal/app"
+	"verge-tui/internal/app"
 )
 
 type result struct {

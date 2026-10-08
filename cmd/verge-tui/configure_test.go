@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 func TestSystemPortsDefaultAndPreserveUpdates(t *testing.T) {

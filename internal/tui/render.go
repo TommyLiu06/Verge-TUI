@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/clipperhouse/displaywidth"
-	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/app"
+	"verge-tui/internal/state"
 )
 
 func (m *Model) Render(w, h int) *Frame {
@@ -25,7 +25,7 @@ func (m *Model) Render(w, h int) *Frame {
 		side = 16
 	}
 	f.Fill(Rect{0, 0, side, h - 1}, cardStyle)
-	f.Line(2, 1, side-4, "MIHOMO TUI", cardStyle.Foreground(accent).Bold(true))
+	f.Line(2, 1, side-4, "VERGE TUI", cardStyle.Foreground(accent).Bold(true))
 	f.Line(2, 2, side-4, "v"+m.View.Version, cardStyle.Foreground(muted))
 	for i, name := range []string{"Home", "Proxies", "Profiles"} {
 		f.Button(Rect{1, 5 + i*3, side - 2, 2}, name, app.Action{Kind: "navigate", ID: strconv.Itoa(i)}, m.Tab == i)

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 type Runner func(context.Context, string, []string, string) (string, error)

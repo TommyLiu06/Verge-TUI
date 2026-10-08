@@ -11,11 +11,11 @@ import (
 	"sync"
 	"testing"
 
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/management"
-	"mihomo-tui/internal/profile"
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/management"
+	"verge-tui/internal/profile"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
 )
 
 func shortenStore(t *testing.T, s *state.Store) {

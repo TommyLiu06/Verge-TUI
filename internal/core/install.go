@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 type Asset struct {
@@ -163,7 +163,7 @@ func fetch(ctx context.Context, client *http.Client, location string, limit int6
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "mihomo-tui")
+	req.Header.Set("User-Agent", "verge-tui")
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := client.Do(req)
 	if err != nil {

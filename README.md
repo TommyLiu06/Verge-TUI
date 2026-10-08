@@ -1,4 +1,4 @@
-# mihomo-tui
+# verge-tui
 
 A lightweight English terminal interface following Clash Verge Rev's Home, Proxies and Profiles pages. The application owns its mihomo binaries and profile data.
 
@@ -8,7 +8,7 @@ Build with the globally installed official Go toolchain while keeping build data
 
 ```sh
 sh scripts/go.sh test ./...
-sh scripts/go.sh build -trimpath -ldflags='-s -w' -o bin/mihomo-tui ./cmd/mihomo-tui
+sh scripts/go.sh build -trimpath -ldflags='-s -w' -o bin/verge-tui ./cmd/verge-tui
 ```
 
 The first release supports Linux. Home, Proxies and Profiles use the upstream sidebar, card order, page labels and basic forms. Mouse clicks, wheel scrolling, keyboard focus and bracketed paste are supported. Use a terminal with Unicode and mouse reporting; 120 × 42 shows all six Home cards, and narrower terminals use a single column.
@@ -18,8 +18,8 @@ The interface inherits the terminal's foreground and background, so light and da
 Run the application after importing a core:
 
 ```sh
-./bin/mihomo-tui --data-dir "$PWD/.local/dev" core import v1.19.32 /path/to/mihomo
-./bin/mihomo-tui --data-dir "$PWD/.local/dev"
+./bin/verge-tui --data-dir "$PWD/.local/dev" core import v1.19.32 /path/to/mihomo
+./bin/verge-tui --data-dir "$PWD/.local/dev"
 ```
 
 Select **Start Core**, then open **Profiles** to import a subscription URL or create a local profile. Select the profile before choosing a node on **Proxies**. New local profiles default to DIRECT until you provide proxy configuration. Switching profiles validates and reloads the core. Importing a profile does not select it automatically. Each profile's **Options** menu includes **Delete**, followed by a confirmation. Deleting the selected profile validates and reloads the built-in DIRECT configuration before removing its YAML; a failed switch preserves the profile.
@@ -37,9 +37,9 @@ The TUI requests mouse reporting and temporarily disables xterm alternate-scroll
 The installer creates `<prefix>/proxy.env` and adds three functions to your Bash or Zsh rc:
 
 ```sh
-mihomo_on      # Load this installation's proxy environment into the current shell.
-mihomo_off     # Clear proxy and bypass environment variables in the current shell.
-mihomo_status  # Check the core, proxy listener and exported environment separately.
+verge_on      # Load this installation's proxy environment into the current shell.
+verge_off     # Clear proxy and bypass environment variables in the current shell.
+verge_status  # Check the core, proxy listener and exported environment separately.
 ```
 
 Open a new shell or source the rc shown by the installer to load the functions in an existing shell. User-mode `proxy.env` is private and includes proxy credentials; rc files only contain paths. The environment file is refreshed when `configure` changes ports or installation mode. Status output never prints credentials. Clearing environment variables leaves the core and TUN running.
@@ -47,8 +47,8 @@ Open a new shell or source the rc shown by the installer to load the functions i
 For a system installation, each ordinary user can register or remove the functions in their own current Bash/Zsh rc without sudo:
 
 ```sh
-/opt/mihomo-tui/mihomo-tui shell install
-/opt/mihomo-tui/mihomo-tui shell remove
+/opt/verge-tui/verge-tui shell install
+/opt/verge-tui/verge-tui shell remove
 ```
 
 `shell install` prints the rc to source. Use `--rc-file /absolute/path` to override detection. Registrations are kept separately per user. The root installer still registers its own rc; uninstallation removes all registered users' blocks while preserving unrelated settings and file ownership. It runs each user's cleanup with that user's privileges.
@@ -57,15 +57,15 @@ The UI is event driven: there are no periodic API requests or redraws while idle
 
 Delay check failures appear on the affected nodes and in the status bar without opening an error dialog or interrupting an open form.
 
-**Network Settings** supports GNOME System Proxy through `gsettings` and `dconf`, with a private backup restored when disabled. In a shared system installation this switch affects the calling user's GNOME session and keeps a separate backup per user. These host tools and a GNOME session are only required for that switch. On headless servers, use the displayed proxy environment or `eval "$(./mihomo-tui env)"`. User mode requires proxy credentials and keeps the API token private. Both listeners bind to loopback. User-mode ports are randomly chosen from 20000–59999; fresh system installations default to mixed port 7890 and controller API port 9090. Requested ports are checked before creating the installation, and TCP/UDP ports are checked again before startup. Override fresh-install ports with `--mixed-port` and `--api-port`. Updates preserve existing ports.
+**Network Settings** supports GNOME System Proxy through `gsettings` and `dconf`, with a private backup restored when disabled. In a shared system installation this switch affects the calling user's GNOME session and keeps a separate backup per user. These host tools and a GNOME session are only required for that switch. On headless servers, use the displayed proxy environment or `eval "$(./verge-tui env)"`. User mode requires proxy credentials and keeps the API token private. Both listeners bind to loopback. User-mode ports are randomly chosen from 20000–59999; fresh system installations default to mixed port 7890 and controller API port 9090. Requested ports are checked before creating the installation, and TCP/UDP ports are checked again before startup. Override fresh-install ports with `--mixed-port` and `--api-port`. Updates preserve existing ports.
 
 The core runs either under the TUI or under a systemd service. Quitting the TUI stops a core it started; a service keeps running. User services need an available user systemd manager. Continuing after logout or starting at boot requires lingering enabled by the server administrator. System mode runs with root service privileges, permits TUN and shares the loopback proxy without proxy credentials; the control API remains authenticated. All local users can run the TUI and manage shared profiles, nodes, delay checks, proxy mode, TUN and managed core versions through a local Unix socket. The service keeps its API secret and private files inaccessible to other users. The service must be running for shared management; only root installs, removes, starts or stops that service. The system TUI's **System Service** button shows the administrative commands. There are no polling loops in the shared management server.
 
 Use **Core** to install or select a managed version. For an offline replacement:
 
 ```sh
-./mihomo-tui core import vNEXT /path/to/extracted/mihomo
-./mihomo-tui core use vNEXT
+./verge-tui core import vNEXT /path/to/extracted/mihomo
+./verge-tui core use vNEXT
 ```
 
 In system mode, ordinary users can import and select versions while the service is running. The binary is uploaded from the calling user's file permissions, and selecting a new version restarts the core within the same supervisor. For user services, stop the service before selecting a different core and restart it afterward. Core downloads use HTTP(S) proxy environment variables and verify the release SHA-256. Subscription downloads use a direct connection. The application stores binaries under `data/cores/<version>/mihomo`; no system-wide mihomo is used.

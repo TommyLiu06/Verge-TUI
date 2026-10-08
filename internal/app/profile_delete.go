@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/state"
 )
 
 func (b *Backend) deleteProfile(ctx context.Context, id string) error {

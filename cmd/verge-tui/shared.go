@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/shellenv"
-	"mihomo-tui/internal/state"
-	"mihomo-tui/internal/tui"
+	"verge-tui/internal/app"
+	"verge-tui/internal/shellenv"
+	"verge-tui/internal/state"
+	"verge-tui/internal/tui"
 )
 
 func sharedBackend(root string) (*app.Backend, error) {

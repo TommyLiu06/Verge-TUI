@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/gdamore/tcell/v3"
-	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/controller"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/app"
+	"verge-tui/internal/controller"
+	"verge-tui/internal/state"
 )
 
 const mouseWheelMask = tcell.WheelDown | tcell.WheelUp | tcell.WheelLeft | tcell.WheelRight
@@ -377,9 +377,9 @@ func (m *Model) Activate(a app.Action) *app.Action {
 		m.Modal = &Modal{Title: "Delay check URL", Kind: "test-url", Fields: []Field{{Key: "group", Label: "Group", Text: a.ID}, {Key: "testurl", Label: "Delay check URL", Text: m.TestURL[a.ID]}}}
 		m.Focus = Key(app.Action{Kind: "input", ID: "testurl"})
 	case "service-info":
-		m.Modal = &Modal{Title: "Auto Launch", Body: []string{"Use the systemd service to keep the core running.", "Generate a unit with: mihomo-tui service --mode user", "Enable it with: systemctl --user enable --now mihomo-tui", "Boot startup requires a permitted user session or lingering.", "System mode uses: mihomo-tui service --mode system"}}
+		m.Modal = &Modal{Title: "Auto Launch", Body: []string{"Use the systemd service to keep the core running.", "Generate a unit with: verge-tui service --mode user", "Enable it with: systemctl --user enable --now verge-tui", "Boot startup requires a permitted user session or lingering.", "System mode uses: verge-tui service --mode system"}}
 		if m.View.Settings.InstallMode == "system" {
-			m.Modal = &Modal{Title: "System Service", Body: []string{"Service management requires root.", "Start: sudo systemctl start mihomo-tui.service", "Stop: sudo systemctl stop mihomo-tui.service", "Status: systemctl status mihomo-tui.service", "Profiles, nodes, TUN and managed cores are shared."}}
+			m.Modal = &Modal{Title: "System Service", Body: []string{"Service management requires root.", "Start: sudo systemctl start verge-tui.service", "Stop: sudo systemctl stop verge-tui.service", "Status: systemctl status verge-tui.service", "Profiles, nodes, TUN and managed cores are shared."}}
 		}
 	case "environment":
 		m.Modal = &Modal{Title: "Proxy Environment", Body: strings.Split(app.ProxyEnvironment(m.View.Settings), "\n")}

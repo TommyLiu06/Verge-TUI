@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"sync"
 
-	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/core"
-	"mihomo-tui/internal/management"
-	"mihomo-tui/internal/state"
+	"verge-tui/internal/app"
+	"verge-tui/internal/core"
+	"verge-tui/internal/management"
+	"verge-tui/internal/state"
 )
 
 func runManaged(ctx context.Context, m *core.Manager, s *state.Store) error {

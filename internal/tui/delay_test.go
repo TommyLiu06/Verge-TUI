@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/gdamore/tcell/v3/color"
-	"mihomo-tui/internal/app"
-	"mihomo-tui/internal/controller"
+	"verge-tui/internal/app"
+	"verge-tui/internal/controller"
 )
 
 func TestDelayProgressRendersBeforeCompletionAndSurvivesReload(t *testing.T) {

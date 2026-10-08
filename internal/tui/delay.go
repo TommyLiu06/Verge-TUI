@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/gdamore/tcell/v3/color"
-	"mihomo-tui/internal/controller"
+	"verge-tui/internal/controller"
 )
 
 func delayValue(p controller.Proxy) int {
