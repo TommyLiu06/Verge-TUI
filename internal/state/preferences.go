@@ -34,7 +34,7 @@ func (p Preferences) Validate() error {
 	if !slices.Contains(Themes, p.Theme) {
 		return errors.New("invalid theme")
 	}
-	if p.StartPage != "home" && p.StartPage != "proxies" && p.StartPage != "profiles" && p.StartPage != "settings" {
+	if p.StartPage != "home" && p.StartPage != "proxies" && p.StartPage != "profiles" && p.StartPage != "settings" && p.StartPage != "connections" && p.StartPage != "rules" && p.StartPage != "logs" {
 		return errors.New("invalid start page")
 	}
 	if p.ProxyColumns < 0 || p.ProxyColumns > 5 {

@@ -6,7 +6,7 @@ import json,re
 from pathlib import Path
 root=Path('.reference/clash-verge-rev/src/locales')
 langs=['en','ru','zh','fa','tt','id','ar','ko','tr','de','es','jp','zhtw']
-sections=['layout','home','shared','profiles','proxies','settings']
+sections=['layout','home','shared','profiles','proxies','settings','connections','rules','logs']
 def flatten(d,p=''):
  out={}
  for k,v in d.items():

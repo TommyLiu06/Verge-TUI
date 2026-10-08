@@ -107,7 +107,7 @@ func (m *Model) visibleFields() []Field {
 	}
 	var fields []Field
 	for _, f := range m.Modal.Fields {
-		if !local || f.Key != "agent" && f.Key != "timeout" {
+		if !local || f.Key != "agent" && f.Key != "timeout" && (m.Modal.Kind != "profile-info-save" || f.Key != "source") {
 			fields = append(fields, f)
 		}
 	}
@@ -232,6 +232,9 @@ func (m *Model) closeModal() {
 		return
 	}
 	m.Modal, m.Focus = nil, ""
+	if m.Editor != nil {
+		m.Focus = Key(app.Action{Kind: "editor-input"})
+	}
 }
 func (m *Model) help() {
 	if m.Modal != nil && m.Modal.Kind == "help" {
@@ -242,9 +245,11 @@ func (m *Model) help() {
 		"Tab / Shift+Tab / ↑ / ↓: " + m.tr("Move Focus"),
 		"Enter / Space: " + m.tr("Activate"), "← / →: " + m.tr("Change Options"),
 		"PageUp / PageDown / Home / End: " + m.tr("Scroll"),
-		"1 / 2 / 3 / 4: " + m.tr("Home") + " / " + m.tr("Proxies") + " / " + m.tr("Profiles") + " / " + m.tr("Settings"),
+		"1–7: " + m.tr("Home") + " / " + m.tr("Proxies") + " / " + m.tr("Profiles") + " / " + m.tr("Connections") + " / " + m.tr("Rules") + " / " + m.tr("Logs") + " / " + m.tr("Settings"),
 		"r: " + m.tr("Refresh") + "; n: " + m.tr("New") + "; i: " + m.tr("Profile URL"),
 		"Ctrl+A / Ctrl+E; Ctrl+U / Ctrl+W; Backspace / Delete",
+		"YAML: Tab inserts two spaces; Shift+Tab moves focus",
+		"YAML: Ctrl+Z Undo; Ctrl+Y Redo; Ctrl+S Save",
 		"Ctrl+S: " + m.tr("Save") + "; Esc: " + m.tr("Close") + "; q / Ctrl+C: " + m.tr("Quit"),
 	}}
 	m.Focus = Key(app.Action{Kind: "close"})

@@ -54,7 +54,7 @@ func runShared(args []string, b *app.Backend) error {
 		return nil
 	case "preview":
 		f := flag.NewFlagSet("preview", flag.ContinueOnError)
-		page := f.String("page", "home", "home, proxies, profiles or settings")
+		page := f.String("page", "home", "home, proxies, profiles, connections, rules, logs or settings")
 		width, height := f.Int("width", 120, "terminal width"), f.Int("height", 42, "terminal height")
 		if err := f.Parse(args[1:]); err != nil {
 			return err
@@ -73,10 +73,23 @@ func runShared(args []string, b *app.Backend) error {
 			m.Tab = 1
 		case "profiles":
 			m.Tab = 2
+		case "connections":
+			m.Tab = 4
+		case "rules":
+			m.Tab = 5
+		case "logs":
+			m.Tab = 6
 		case "settings":
 			m.Tab = 3
 		default:
 			return errors.New("unknown preview page")
+		}
+		if m.Tab == 4 || m.Tab == 5 {
+			data, e := b.ReadPage(ctx, *page, "")
+			if e == nil {
+				m.Connections = data.Connections
+				m.Rules = data.Rules
+			}
 		}
 		fmt.Print(m.Render(*width, *height).Plain())
 		return nil

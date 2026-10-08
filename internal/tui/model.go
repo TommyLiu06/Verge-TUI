@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v3"
 	"verge-tui/internal/app"
@@ -34,36 +35,56 @@ type Modal struct {
 	ParentFocus        string
 }
 type Model struct {
-	View       app.View
-	Tab        int
-	Scroll     [4]int
-	MaxScroll  int
-	Focus      string
-	URL        string
-	Modal      *Modal
-	Frame      *Frame
-	Collapsed  map[string]bool
-	TestURL    map[string]string
-	NetworkTab string
-	Busy       bool
-	Message    string
-	Quit       bool
-	MouseDown  bool
-	Pasting    bool
-	Cursors    map[string]int
-	HelpBack   *Modal
-	HelpFocus  string
-	Delays     map[string]app.DelayResult
-	Dark       bool
-	Loaded     bool
+	View              app.View
+	Tab               int
+	Scroll            [7]int
+	MaxScroll         int
+	Focus             string
+	URL               string
+	Modal             *Modal
+	Frame             *Frame
+	Collapsed         map[string]bool
+	TestURL           map[string]string
+	NetworkTab        string
+	Busy              bool
+	Message           string
+	Quit              bool
+	MouseDown         bool
+	Pasting           bool
+	Cursors           map[string]int
+	HelpBack          *Modal
+	HelpFocus         string
+	Delays            map[string]app.DelayResult
+	Dark              bool
+	Loaded            bool
+	Search            [7]string
+	Connections       controller.Connections
+	ClosedConnections []controller.Connection
+	ConnectionTime    time.Time
+	ConnectionClosed  bool
+	ConnectionOrder   string
+	ConnectionTable   bool
+	Rules             controller.Rules
+	Logs              []controller.Log
+	LogsPaused        bool
+	LogsDescending    bool
+	LogLevel          string
+	PageError         [7]string
+	Editor            *Editor
+	PendingProfile    *Modal
+	PendingEditor     *Editor
+	WatchRevision     int
 }
 
 func New(v app.View) *Model {
-	m := &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, Cursors: map[string]int{}, NetworkTab: "system", Message: "Ready", Dark: darkTerminal()}
+	m := &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, Cursors: map[string]int{}, NetworkTab: "system", Message: "Ready", ConnectionOrder: "Default", LogLevel: "All", Dark: darkTerminal()}
 	m.applyPreferences()
 	return m
 }
 func (m *Model) Input() *string {
+	if m.Modal == nil && m.Tab >= 4 && m.Focus == Key(app.Action{Kind: "input", ID: "search"}) {
+		return &m.Search[m.Tab]
+	}
 	if m.Focus == Key(app.Action{Kind: "input", ID: "url"}) && m.Modal == nil {
 		return &m.URL
 	}
@@ -120,6 +141,9 @@ func (m *Model) FocusNext(delta int) {
 	m.revealFocus()
 }
 func (m *Model) Handle(ev tcell.Event) *app.Action {
+	if m.Editor != nil && m.Modal == nil {
+		return m.handleEditor(ev)
+	}
 	switch e := ev.(type) {
 	case *tcell.EventPaste:
 		m.Pasting = e.Start()
@@ -199,6 +223,10 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 		if e.Key() == tcell.KeyEnter {
 			if input := m.Input(); input != nil {
 				if m.Modal == nil {
+					if m.Tab >= 4 {
+						m.Focus = ""
+						return nil
+					}
 					return m.Activate(app.Action{Kind: "import"})
 				}
 				return m.Activate(app.Action{Kind: "submit"})
@@ -259,10 +287,14 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 			switch e.Str() {
 			case "q":
 				m.Quit = true
-			case "1", "2", "3", "4":
-				m.Tab = int(e.Str()[0] - '1')
+			case "1", "2", "3", "4", "5", "6", "7":
+				m.Tab = navigation[int(e.Str()[0]-'1')].Tab
 				m.Focus = ""
 			case "r":
+				if m.Tab >= 4 {
+					a := m.refreshAction()
+					return m.Activate(a)
+				}
 				return &app.Action{Kind: "refresh"}
 			case "n":
 				if m.Tab == 2 {
@@ -286,12 +318,15 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 	return nil
 }
 func (m *Model) Activate(a app.Action) *app.Action {
+	if handled, action := m.pageAction(a); handled {
+		return action
+	}
 	if handled, action := m.settingsAction(a); handled {
 		return action
 	}
 	switch a.Kind {
 	case "navigate":
-		if tab, err := strconv.Atoi(a.ID); err == nil && tab >= 0 && tab < 4 {
+		if tab, err := strconv.Atoi(a.ID); err == nil && tab >= 0 && tab < 7 {
 			m.Tab = tab
 		}
 		m.Focus = ""
@@ -322,10 +357,11 @@ func (m *Model) Activate(a app.Action) *app.Action {
 		if !ok {
 			return nil
 		}
-		m.Modal = &Modal{Title: "Profile Options", Body: []string{p.Name}, Choices: []Choice{{"Select", app.Action{Kind: "profile-select", ID: p.ID}}}}
+		m.Modal = &Modal{Title: "Profile Options", List: true, Body: []string{p.Name}, Choices: []Choice{{"Select", app.Action{Kind: "profile-select", ID: p.ID}}}}
 		if p.Type == "remote" {
 			m.Modal.Choices = append(m.Modal.Choices, Choice{"Update", app.Action{Kind: "profile-update", ID: p.ID}})
 		}
+		m.Modal.Choices = append(m.Modal.Choices, Choice{"Edit Info", app.Action{Kind: "profile-info", ID: p.ID}}, Choice{"Edit File", app.Action{Kind: "profile-file", ID: p.ID}})
 		m.Modal.Choices = append(m.Modal.Choices, Choice{"Delete", app.Action{Kind: "profile-delete-confirm", ID: p.ID}})
 		m.Focus = ""
 	case "profile-delete-confirm":
@@ -446,6 +482,8 @@ func (m *Model) submit() *app.Action {
 		values[f.Key] = strings.TrimSpace(f.Text)
 	}
 	switch m.Modal.Kind {
+	case "profile-info-save":
+		return m.submitProfileInfo(values)
 	case "settings-save", "preferences-save":
 		section, profileID, kind := m.Modal.Section, m.Modal.ProfileID, m.Modal.Kind
 		m.Modal = nil
@@ -492,9 +530,9 @@ func (m *Model) Complete(v app.View, a app.Action, err error) {
 	m.View = v
 	m.applyPreferences()
 	if !m.Loaded && a.Kind == "refresh" && err == nil {
-		for i, page := range []string{"home", "proxies", "profiles", "settings"} {
-			if page == v.Preferences.StartPage {
-				m.Tab = i
+		for _, page := range navigation {
+			if page.Kind == v.Preferences.StartPage {
+				m.Tab = page.Tab
 			}
 		}
 		m.Loaded = true
@@ -509,11 +547,24 @@ func (m *Model) Complete(v app.View, a app.Action, err error) {
 	m.Delays = nil
 	if err != nil {
 		m.Message = "Error: " + err.Error()
-		if a.Kind != "delay" {
+		if a.Kind == "profile-file-save" {
+			m.Editor = m.PendingEditor
+			m.PendingEditor = nil
+		}
+		if a.Kind == "profile-info-save" {
+			m.Modal = m.PendingProfile
+			m.PendingProfile = nil
+		}
+		if a.Kind != "delay" && a.Kind != "profile-file-save" && a.Kind != "profile-info-save" {
 			m.Modal = &Modal{Title: "Action Failed", Body: strings.Split(err.Error(), "\n")}
 		}
 	} else {
 		m.Message = "Ready"
+		if a.Kind == "profile-info-save" || a.Kind == "profile-file-save" {
+			m.PendingProfile = nil
+			m.PendingEditor = nil
+			m.Message = "Save successfully"
+		}
 		if a.Kind == "profile-import" {
 			m.URL = ""
 			m.Message = "Profile imported"

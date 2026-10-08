@@ -350,7 +350,7 @@ func selectionLabel(key, value string) string {
 	case "language":
 		return i18n.Names[value]
 	case "start-page":
-		return map[string]string{"home": "Home", "proxies": "Proxies", "profiles": "Profiles", "settings": "Settings"}[value]
+		return map[string]string{"home": "Home", "proxies": "Proxies", "profiles": "Profiles", "settings": "Settings", "connections": "Connections", "rules": "Rules", "logs": "Logs"}[value]
 	case "level":
 		return map[string]string{"debug": "Debug", "info": "Info", "warning": "Warn", "error": "Error", "silent": "Silent"}[value]
 	}
@@ -387,7 +387,7 @@ func (m *Model) preferenceList(section, current string) {
 	case "language":
 		title, options = "Language", i18n.Languages
 	case "start-page":
-		title, options = "Start Page", []string{"home", "proxies", "profiles", "settings"}
+		title, options = "Start Page", []string{"home", "proxies", "profiles", "connections", "rules", "logs", "settings"}
 	}
 	m.selectionList(title, "preferences-save", section, section, current, options)
 }

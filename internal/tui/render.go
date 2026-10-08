@@ -27,12 +27,15 @@ func (m *Model) Render(w, h int) *Frame {
 	f.Fill(Rect{0, 0, side, h - 1}, f.Theme.Sidebar)
 	f.Line(2, 1, side-4, "VERGE TUI", f.Theme.Card.Foreground(f.Theme.Accent).Bold(true))
 	f.Line(2, 2, side-4, "v"+m.View.Version, f.Theme.Card.Foreground(f.Theme.Muted))
-	navStep := 3
-	if h < 25 {
-		navStep = 2
+	navStep, navHeight := 3, 2
+	if h < 33 {
+		navStep, navHeight = 2, 1
 	}
-	for i, name := range []string{m.tr("Home"), m.tr("Proxies"), m.tr("Profiles"), m.tr("Settings")} {
-		f.Button(Rect{1, 5 + i*navStep, side - 2, 2}, name, app.Action{Kind: "navigate", ID: strconv.Itoa(i)}, m.Tab == i)
+	if h < 26 {
+		navStep = 1
+	}
+	for i, page := range navigation {
+		f.Button(Rect{1, 5 + i*navStep, side - 2, navHeight}, m.tr(page.Name), app.Action{Kind: "navigate", ID: strconv.Itoa(page.Tab)}, m.Tab == page.Tab)
 	}
 	stateText := m.tr("Core Not Running")
 	if m.View.Online {
@@ -51,9 +54,9 @@ func (m *Model) Render(w, h int) *Frame {
 	}
 	f.Button(Rect{1, h - 4, side - 2, 2}, label, app.Action{Kind: kind}, false)
 	x, width := side+2, w-side-4
-	title := []string{m.tr("Home"), m.tr("Proxy Groups"), m.tr("Profiles"), m.tr("Settings")}[m.Tab]
+	title := m.tr(pageTitle(m.Tab))
 	f.Line(x, 1, width-27, title, f.Theme.Base.Bold(true))
-	f.Button(Rect{w - 27, 1, 14, 1}, m.tr("Refresh"), app.Action{Kind: "refresh"}, false)
+	f.Button(Rect{w - 27, 1, 14, 1}, m.tr("Refresh"), m.refreshAction(), false)
 	f.Button(Rect{w - 13, 1, 11, 1}, m.tr("Core"), app.Action{Kind: "cores"}, false)
 	f.Line(x, 3, width, strings.Repeat("─", width), f.Theme.Base.Foreground(f.Theme.Border))
 	f.Clip = Rect{x, 4, width, h - 6}
@@ -67,6 +70,12 @@ func (m *Model) Render(w, h int) *Frame {
 		bottom = m.profiles(f, x, 5, width)
 	case 3:
 		bottom = m.settings(f, x, 5, width)
+	case 4:
+		bottom = m.connectionsPage(f, x, 5, width)
+	case 5:
+		bottom = m.rulesPage(f, x, 5, width)
+	case 6:
+		bottom = m.logsPage(f, x, 5, width)
 	}
 	m.MaxScroll = max(0, bottom+m.Scroll[m.Tab]-(h-2))
 	if m.Scroll[m.Tab] > m.MaxScroll {
@@ -80,7 +89,10 @@ func (m *Model) Render(w, h int) *Frame {
 	}
 	f.Fill(Rect{0, h - 1, w, 1}, f.Theme.Card)
 	f.Line(1, h-1, max(0, w-45), status, f.Theme.Card.Foreground(f.Theme.Muted))
-	f.Line(max(1, w-43), h-1, 42, m.tr("1/2/3/4 Pages  Tab Focus  F1 Help  q Quit"), f.Theme.Card.Foreground(f.Theme.Muted))
+	f.Line(max(1, w-43), h-1, 42, m.tr("1–7 Pages  Tab Focus  F1 Help  q Quit"), f.Theme.Card.Foreground(f.Theme.Muted))
+	if m.Editor != nil {
+		m.renderEditor(f)
+	}
 	if m.Modal != nil {
 		m.modal(f)
 	}
@@ -480,7 +492,7 @@ func (m *Model) modal(f *Frame) {
 		}
 	}
 	for _, field := range modal.Fields {
-		if isLocal && (field.Key == "agent" || field.Key == "timeout") {
+		if isLocal && (field.Key == "agent" || field.Key == "timeout" || modal.Kind == "profile-info-save" && field.Key == "source") {
 			continue
 		}
 		label := m.tr(field.Label)

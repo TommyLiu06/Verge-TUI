@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
+	"verge-tui/internal/controller"
 
 	"github.com/gdamore/tcell/v3"
 	"verge-tui/internal/app"
@@ -15,6 +17,7 @@ type result struct {
 	Err    error
 	Delay  *app.DelayResult
 	Body   []string
+	Page   *app.PageData
 }
 
 func Run(ctx context.Context, b *app.Backend) (runErr error) {
@@ -50,7 +53,18 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 			case action := <-jobs:
 				var err error
 				var body []string
-				if action.Kind == "delay" {
+				var page *app.PageData
+				if action.Kind == "profile-info" || action.Kind == "profile-file" || action.Kind == "page-refresh" {
+					kind := action.Kind
+					id := action.ID
+					if action.Kind == "page-refresh" {
+						kind = action.ID
+						id = ""
+					}
+					data, e := b.ReadPage(ctx, kind, id)
+					err = e
+					page = &data
+				} else if action.Kind == "delay" {
 					err = b.TestDelay(ctx, action, func(update app.DelayResult) {
 						select {
 						case results <- result{Delay: &update}:
@@ -62,10 +76,19 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 				} else {
 					err = b.Execute(ctx, action)
 				}
-				view, loadErr := b.Load(ctx)
-				err = errors.Join(err, loadErr)
+				var view app.View
+				if page == nil {
+					var loadErr error
+					view, loadErr = b.Load(ctx)
+					err = errors.Join(err, loadErr)
+					if action.Kind == "provider-update" || action.Kind == "providers-update" {
+						data, e := b.ReadPage(ctx, "rules", "")
+						page = &data
+						err = errors.Join(err, e)
+					}
+				}
 				select {
-				case results <- result{View: view, Action: action, Err: err, Body: body}:
+				case results <- result{View: view, Action: action, Err: err, Body: body, Page: page}:
 				case <-ctx.Done():
 					return
 				}
@@ -77,17 +100,91 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 	m.Busy = true
 	m.Message = "Loading"
 	jobs <- app.Action{Kind: "refresh"}
+	updates := make(chan pageUpdate, 128)
+	var watchers sync.WaitGroup
+	var stopPage context.CancelFunc
+	generation, watchedTab, watchedRevision := 0, -1, -1
+	var pendingLogs []controller.Log
+	flush := time.NewTicker(200 * time.Millisecond)
+	defer flush.Stop()
+	defer func() {
+		if stopPage != nil {
+			stopPage()
+		}
+		watchers.Wait()
+	}()
+	syncPage := func() {
+		desired := -1
+		if m.Tab >= 4 && m.View.Online && !(m.Tab == 6 && m.LogsPaused) {
+			desired = m.Tab
+		}
+		if desired == watchedTab && watchedRevision == m.WatchRevision {
+			return
+		}
+		if stopPage != nil {
+			stopPage()
+		}
+		generation++
+		watchedTab = desired
+		watchedRevision = m.WatchRevision
+		pendingLogs = nil
+		if desired < 0 {
+			return
+		}
+		pageCtx, stop := context.WithCancel(ctx)
+		stopPage = stop
+		currentGeneration := generation
+		watchers.Go(func() { watchPage(pageCtx, b, desired, currentGeneration, updates) })
+	}
 	redraw := func() { w, h := screen.Size(); m.Render(w, h).Show(screen) }
 	redraw()
 	for !m.Quit {
 		select {
 		case <-ctx.Done():
 			return nil
+		case update := <-updates:
+			if update.Generation != generation {
+				continue
+			}
+			if update.Log != nil {
+				pendingLogs = append(pendingLogs, *update.Log)
+				if len(pendingLogs) > 1000 {
+					pendingLogs = pendingLogs[len(pendingLogs)-1000:]
+				}
+				m.PageError[6] = ""
+				continue
+			}
+			m.applyPage(update.Tab, update.Data, update.Err)
+		case <-flush.C:
+			if len(pendingLogs) == 0 {
+				continue
+			}
+			m.AppendLogs(pendingLogs)
+			pendingLogs = nil
 		case done := <-results:
 			if done.Delay != nil {
 				m.ApplyDelay(*done.Delay)
 			} else {
-				m.Complete(done.View, done.Action, done.Err)
+				if done.Page != nil && (done.Action.Kind == "profile-info" || done.Action.Kind == "profile-file" || done.Action.Kind == "page-refresh") {
+					m.Busy = false
+					if done.Action.Kind == "page-refresh" {
+						for _, p := range navigation {
+							if p.Kind == done.Action.ID && p.Tab >= 4 {
+								m.applyPage(p.Tab, *done.Page, done.Err)
+							}
+						}
+					} else if done.Err == nil {
+						m.showProfileDocument(done.Action.Kind, done.Page.Document)
+					} else {
+						m.Message = "Error: " + done.Err.Error()
+						m.Modal = &Modal{Title: "Action Failed", Body: []string{done.Err.Error()}}
+					}
+				} else {
+					m.Complete(done.View, done.Action, done.Err)
+					if done.Page != nil {
+						m.applyPage(5, *done.Page, done.Err)
+					}
+				}
 				if done.Action.Kind == "settings-view" && done.Err == nil {
 					m.showSettingsView(done.Action.ID, done.Body)
 				}
@@ -133,6 +230,7 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 				jobs <- *action
 			}
 		}
+		syncPage()
 		redraw()
 	}
 	return nil

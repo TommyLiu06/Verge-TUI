@@ -16,7 +16,7 @@ func TestSettingsMatchesUpstreamSectionsAndTerminalTheme(t *testing.T) {
 	v.Settings.InstallMode = "system"
 	v.Preferences = state.DefaultPreferences()
 	m := New(v)
-	m.Handle(tcell.NewEventKey(tcell.KeyRune, "4", tcell.ModNone))
+	m.Handle(tcell.NewEventKey(tcell.KeyRune, "7", tcell.ModNone))
 	f := m.Render(120, 50)
 	for _, label := range []string{"System Setting", "Clash Setting", "Verge Basic Setting", "Verge Advanced Setting", "DNS Overwrite", "IPv6", "Unified Delay", "Log Level", "Port Config", "Runtime Config"} {
 		if !strings.Contains(f.Plain(), label) {
@@ -99,7 +99,7 @@ func TestPreferencesAndDNSFormsCaptureProfileAndStartupPage(t *testing.T) {
 	}
 	m.Activate(app.Action{Kind: "settings-form", ID: "start-page"})
 	m.Render(60, 18)
-	for range 3 {
+	for range 6 {
 		m.Handle(tcell.NewEventKey(tcell.KeyDown, "", tcell.ModNone))
 	}
 	a = m.Handle(tcell.NewEventKey(tcell.KeyCtrlS, "", tcell.ModNone))

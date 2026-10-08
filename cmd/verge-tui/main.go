@@ -198,7 +198,7 @@ func run(args []string) error {
 		return tui.Run(ctx, app.New(s, version))
 	case "preview":
 		f := flag.NewFlagSet("preview", flag.ContinueOnError)
-		page := f.String("page", "home", "home, proxies, profiles or settings")
+		page := f.String("page", "home", "home, proxies, profiles, connections, rules, logs or settings")
 		width := f.Int("width", 120, "terminal width")
 		height := f.Int("height", 42, "terminal height")
 		if err := f.Parse(args[1:]); err != nil {
@@ -219,10 +219,23 @@ func run(args []string) error {
 			model.Tab = 1
 		case "profiles":
 			model.Tab = 2
+		case "connections":
+			model.Tab = 4
+		case "rules":
+			model.Tab = 5
+		case "logs":
+			model.Tab = 6
 		case "settings":
 			model.Tab = 3
 		default:
 			return errors.New("unknown preview page")
+		}
+		if model.Tab == 4 || model.Tab == 5 {
+			data, e := app.New(s, version).ReadPage(ctx, *page, "")
+			if e == nil {
+				model.Connections = data.Connections
+				model.Rules = data.Rules
+			}
 		}
 		fmt.Print(model.Render(*width, *height).Plain())
 		return nil

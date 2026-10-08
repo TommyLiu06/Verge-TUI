@@ -159,6 +159,10 @@ func (b *Backend) editProfileInfo(a Action) error {
 			if a.Value != revision(data) {
 				return errors.New("profile information changed; reopen Edit Info before saving")
 			}
+			if a.Profile.Type != "local" && a.Profile.Type != "remote" {
+				return errors.New("invalid profile type")
+			}
+			p.Type = a.Profile.Type
 			p.Name, p.Description = strings.TrimSpace(a.Profile.Name), a.Profile.Description
 			if p.Name == "" {
 				p.Name = p.Type + " file"

@@ -23,7 +23,7 @@ func TestPreferenceListsShowAllChoicesAndSelectWithMouse(t *testing.T) {
 			case "language":
 				options, current = i18n.Languages, v.Preferences.Language
 			case "start-page":
-				options, current = []string{"home", "proxies", "profiles", "settings"}, v.Preferences.StartPage
+				options, current = []string{"home", "proxies", "profiles", "connections", "rules", "logs", "settings"}, v.Preferences.StartPage
 			case "log-level":
 				options, current = []string{"debug", "info", "warning", "error", "silent"}, "info"
 				kind, field = "settings-save", "level"
