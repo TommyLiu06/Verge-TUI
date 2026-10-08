@@ -339,7 +339,7 @@ if [ "$mode" = system ]; then
     printf '  Command:      %s/verge-tui\n' "$bin_dir"
 fi
 printf '  Shell owner:  uid %s\n' "$registration_uid"
-if [ "$shell_choice" = fish ]; then echo '  Shell files:  fish functions/ and conf.d/; config.fish unchanged'; fi
+if [ "$shell_choice" = fish ]; then echo '  Shell files:  bundled functions; conf.d/ loader; config.fish unchanged'; fi
 finish_registration() {
     app_bin="$prefix/verge-tui"
     "$app_bin" installation record --prefix "$prefix" --bin-dir "$bin_dir"
@@ -383,6 +383,9 @@ else
     mkdir -m 700 -p -- "$prefix"
     prefix=$(CDPATH= cd -- "$prefix" && pwd -P)
     cp bin/verge-tui "$prefix/verge-tui"
+    cp -R shell "$prefix/"
+    chmod 755 "$prefix/shell" "$prefix/shell/fish" "$prefix/shell/fish/functions"
+    chmod 644 "$prefix/shell/proxy.sh" "$prefix/shell/fish/init.fish" "$prefix/shell/fish/functions/"*.fish
     chmod 700 "$prefix/verge-tui"
     if [ "$mode" = system ]; then chmod 755 "$prefix" "$prefix/verge-tui"; fi
     cp README.md LICENSE NOTICE.md "$prefix/"

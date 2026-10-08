@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"verge-tui/internal/testutil"
 )
 
 func TestDelegatedRegistrationDoesNotInheritRootConfiguration(t *testing.T) {
@@ -22,7 +23,9 @@ func TestRegisteredConfigReportsTheExistingCustomShell(t *testing.T) {
 		t.Fatal(err)
 	}
 	rc := filepath.Join(filepath.Dir(s.Root), "custom-fish", "startup.fish")
-	if _, err := RegisterShell(s, "/example/verge-tui", rc, "fish"); err != nil {
+	executable := filepath.Join(filepath.Dir(s.Root), "verge-tui")
+	testutil.ShellScripts(t, filepath.Dir(executable))
+	if _, err := RegisterShell(s, executable, rc, "fish"); err != nil {
 		t.Fatal(err)
 	}
 	path, kind, err := RegisteredConfig(s, os.Geteuid())

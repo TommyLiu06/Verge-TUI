@@ -224,7 +224,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 			os.RemoveAll(stage)
 		}
 	}()
-	files := []string{"verge-tui", "uninstall.sh", "README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "docs", "licenses", ".verge-tui-install"}
+	files := []string{"verge-tui", "uninstall.sh", "README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "docs", "licenses", "shell", ".verge-tui-install"}
 	for _, name := range files[:len(files)-1] {
 		source := filepath.Join(bundle, name)
 		if name == "verge-tui" {
@@ -232,6 +232,22 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 		}
 		if err := copyPath(source, filepath.Join(stage, name)); err != nil {
 			return err
+		}
+		if name == "shell" {
+			// The installer uses umask 077, but system clients must be able to
+			// source these credential-free assets without root permissions.
+			if err := filepath.WalkDir(filepath.Join(stage, name), func(path string, entry os.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				mode := os.FileMode(0644)
+				if entry.IsDir() {
+					mode = 0755
+				}
+				return os.Chmod(path, mode)
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	perm := os.FileMode(0700)
@@ -370,11 +386,12 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 		target := filepath.Join(x.Prefix, name)
 		change := replaced{target: target}
 		if _, err := os.Lstat(target); err == nil {
-			if err := realPath(target, name == "docs" || name == "licenses"); err != nil {
+			isDirectory := name == "docs" || name == "licenses" || name == "shell"
+			if err := realPath(target, isDirectory); err != nil {
 				return err
 			}
 			change.backup = filepath.Join(stage, fmt.Sprintf("backup-%d", i))
-			if name == "docs" || name == "licenses" {
+			if isDirectory {
 				if err := os.Rename(target, change.backup); err != nil {
 					return err
 				}

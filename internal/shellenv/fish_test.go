@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"verge-tui/internal/testutil"
 )
 
 func TestFishAutoloadAndCleanupPreserveUserConfiguration(t *testing.T) {
@@ -35,6 +36,7 @@ func TestFishAutoloadAndCleanupPreserveUserConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 	executable := filepath.Join(dir, "verge-tui")
+	testutil.ShellScripts(t, dir)
 	c, _ := s.Read()
 	exports, err := ExportsForShell(c, "fish")
 	if err != nil {
@@ -94,6 +96,8 @@ func TestFishRefusesToOverwriteExistingUserFunctions(t *testing.T) {
 	if err := Write(s); err != nil {
 		t.Fatal(err)
 	}
+	executable := filepath.Join(filepath.Dir(s.Root), "verge-tui")
+	testutil.ShellScripts(t, filepath.Dir(executable))
 	rc := filepath.Join(filepath.Dir(s.Root), "fish", "config.fish")
 	path := filepath.Join(filepath.Dir(rc), "functions", "verge_on.fish")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -103,7 +107,7 @@ func TestFishRefusesToOverwriteExistingUserFunctions(t *testing.T) {
 	if err := os.WriteFile(path, []byte(original), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := RegisterShell(s, "/my/verge-tui", rc, "fish"); err == nil {
+	if _, err := RegisterShell(s, executable, rc, "fish"); err == nil {
 		t.Fatal("overwrote an unrelated fish function")
 	}
 	data, _ := os.ReadFile(path)

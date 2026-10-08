@@ -10,12 +10,18 @@ import (
 
 	"verge-tui/internal/shellenv"
 	"verge-tui/internal/state"
+	"verge-tui/internal/testutil"
 )
 
 func TestShellCommandsDoNotOpenPrivateSystemSettings(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("requires ordinary permission enforcement")
 	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.ShellScripts(t, filepath.Dir(executable))
 	s, err := state.Open(filepath.Join(t.TempDir(), "data"))
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +66,7 @@ func TestShellCommandsDoNotOpenPrivateSystemSettings(t *testing.T) {
 		t.Fatal("shell registration needed private settings", err)
 	}
 	data, err := os.ReadFile(rc)
-	if err != nil || !strings.Contains(string(data), ".verge-tui/") {
+	if err != nil || !strings.Contains(string(data), "/shell/proxy.sh") {
 		t.Fatal("current zsh rc was not registered", err)
 	}
 	if err := run([]string{"--data-dir", s.Root, "shell", "uninstall"}); err != nil {

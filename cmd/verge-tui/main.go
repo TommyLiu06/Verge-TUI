@@ -24,7 +24,7 @@ import (
 	"verge-tui/internal/tui"
 )
 
-const version = "0.1.14"
+const version = "0.1.15"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -268,9 +268,12 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Println("Shell functions: verge_on, verge_off, verge_status\nExecutable directory added to PATH.")
+			fmt.Println("Shell functions: verge_on, verge_off, verge_status\nLoader registered for bundled shell scripts.")
+			if c, err := shellenv.ReadFile(shellenv.FilePath(s)); err == nil && c.InstallMode == "user" {
+				fmt.Println("Executable directory added to PATH in user mode.")
+			}
 			if *shell == "fish" {
-				fmt.Printf("Functions autoload from: %s\nLoad PATH in this shell: source %s\n", filepath.Join(filepath.Dir(path), "functions"), shellenv.FishQuote(filepath.Join(filepath.Dir(path), "conf.d", "verge-tui.fish")))
+				fmt.Printf("Functions autoload from: %s\nLoad in this shell: source %s\n", filepath.Join(filepath.Dir(executable), "shell", "fish", "functions"), shellenv.FishQuote(filepath.Join(filepath.Dir(path), "conf.d", "verge-tui.fish")))
 			} else {
 				fmt.Printf("Load in this shell: . %s\n", shellenv.Quote(path))
 			}

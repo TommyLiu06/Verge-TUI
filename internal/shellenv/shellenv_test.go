@@ -84,7 +84,11 @@ func TestRegistrationPreservesAndRemovesOnlyOwnedBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if _, err := Register(s, "/fake/My ' proxy/$bin", alias); err != nil {
+		executable := filepath.Join(filepath.Dir(s.Root), "My ' proxy", "$bin")
+		if _, err := os.Stat(filepath.Join(filepath.Dir(executable), "shell")); os.IsNotExist(err) {
+			testutil.ShellScripts(t, filepath.Dir(executable))
+		}
+		if _, err := Register(s, executable, alias); err != nil {
 			t.Fatal(err)
 		}
 	}

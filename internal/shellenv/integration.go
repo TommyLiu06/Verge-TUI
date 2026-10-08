@@ -36,30 +36,6 @@ func blockID(s *state.Store) string {
 func markers(id string) (string, string) {
 	return "# >>> verge-tui " + id + " >>>", "# <<< verge-tui " + id + " <<<"
 }
-func Functions(s *state.Store, executable string) string {
-	start, end := markers(blockID(s))
-	env := Quote(FilePath(s))
-	return fmt.Sprintf(`%s
-case ":${PATH-}:" in
-    *:%s:*) ;;
-    *) export PATH=%s"${PATH:+:$PATH}" ;;
-esac
-verge_on() {
-    if [ ! -r %s ]; then
-        printf '%%s\n' 'Proxy environment file is unavailable.' >&2
-        return 1
-    fi
-    . %s
-}
-verge_off() {
-    unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY
-}
-verge_status() {
-    command %s --data-dir %s proxy-status
-}
-%s
-`, start, Quote(filepath.Dir(executable)), Quote(filepath.Dir(executable)), env, env, Quote(executable), Quote(s.Root), end)
-}
 func stripBlock(data, id string) (string, error) {
 	start, end := markers(id)
 	lines := strings.SplitAfter(data, "\n")
@@ -161,6 +137,9 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 	if _, err := ReadFile(FilePath(s)); err != nil {
 		return "", err
 	}
+	if err := verifyScripts(executable, shell); err != nil {
+		return "", err
+	}
 	if _, err := os.Lstat(rc); err == nil && shell != "fish" {
 		resolved, err := filepath.EvalSymlinks(rc)
 		if err != nil {
@@ -170,16 +149,37 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 	} else if err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
+	var old registration
 	if data, err := os.ReadFile(metaPath); err == nil {
-		var old registration
 		if err := json.Unmarshal(data, &old); err != nil {
 			return "", err
+		}
+		if old.ID != blockID(s) {
+			return "", errors.New("invalid shell integration record")
 		}
 		if old.RC != rc || old.Shell != "" && old.Shell != shell {
 			return "", errors.New("shell integration is already registered in another rc file; remove it first")
 		}
 	} else if !os.IsNotExist(err) {
 		return "", err
+	}
+	for _, path := range old.Files {
+		if !filepath.IsAbs(path) || strings.ContainsAny(path, "\r\n\x00") {
+			return "", errors.New("invalid managed shell path")
+		}
+		if err := validateManagedFile(path, blockID(s)); err != nil {
+			return "", err
+		}
+	}
+	if shell == "fish" {
+		// Prepending the bundled autoload directory must not shadow unrelated
+		// user functions. Previously registered owned files may be replaced.
+		for _, name := range []string{"verge_on", "verge_off", "verge_status"} {
+			path := filepath.Join(filepath.Dir(rc), "functions", name+".fish")
+			if err := validateManagedFile(path, blockID(s)); err != nil {
+				return "", err
+			}
+		}
 	}
 	data, info, err := readRC(rc)
 	if err != nil {
@@ -206,7 +206,14 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 		reg.Files = append(reg.Files, file.Path)
 	}
 	// Record ownership first, so an interrupted write can still be cleaned up.
-	meta, _ := json.Marshal(reg)
+	pending := reg
+	pending.Files = append([]string(nil), reg.Files...)
+	for _, path := range old.Files {
+		if !containsPath(pending.Files, path) {
+			pending.Files = append(pending.Files, path)
+		}
+	}
+	meta, _ := json.Marshal(pending)
 	if err := state.Write(metaPath, meta, 0600); err != nil {
 		return "", err
 	}
@@ -225,6 +232,17 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 		if err := writeRC(rc, data+loader, info); err != nil {
 			return "", err
 		}
+	}
+	for _, path := range old.Files {
+		if !containsPath(reg.Files, path) {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return "", err
+			}
+		}
+	}
+	meta, _ = json.Marshal(reg)
+	if err := state.Write(metaPath, meta, 0600); err != nil {
+		return "", err
 	}
 	return rc, nil
 }

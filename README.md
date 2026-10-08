@@ -9,6 +9,7 @@ Build with the globally installed official Go toolchain while keeping build data
 ```sh
 sh scripts/go.sh test ./...
 sh scripts/go.sh build -trimpath -ldflags='-s -w' -o bin/verge-tui ./cmd/verge-tui
+cp -R packaging/shell bin/
 ```
 
 The application supports Linux. All seven pages use the upstream sidebar, card order, page labels and basic forms. Mouse clicks, wheel scrolling, keyboard focus and bracketed paste are supported. Use a terminal with Unicode and mouse reporting; 120 × 42 shows all six Home cards, and narrower terminals use a single column.
@@ -51,7 +52,7 @@ For a system installation, each ordinary user can register or remove the functio
 /opt/verge-tui/verge-tui shell uninstall
 ```
 
-`shell install` detects the current Bash, Zsh or fish session, falling back to the login shell. Use `--shell bash|zsh|fish` and `--rc-file /absolute/path` to override detection. Bash/Zsh keep functions in an independent `.verge-tui/<installation-id>.sh` file beside the selected rc, which contains only a short marked loader. fish uses separate `functions/verge_on.fish`, `verge_off.fish`, `verge_status.fish` and `conf.d/verge-tui.fish` files under its user configuration directory; `config.fish` is not changed. It respects `ZDOTDIR` and `XDG_CONFIG_HOME`. Functions load without starting the program or enabling the proxy. Existing unrelated files are never overwritten.
+`shell install` detects the current Bash, Zsh or fish session, falling back to the login shell. Use `--shell bash|zsh|fish` and `--rc-file /absolute/path` to override detection. All function implementations ship as static files in `<prefix>/shell/` and are copied with the application. Bash/Zsh rc files only contain a short marked reference to `shell/proxy.sh`. fish registers a `conf.d/verge-tui.fish` reference to `shell/fish/init.fish`, which adds the bundled functions directory to `fish_function_path`; `config.fish` is not changed. No function implementations are generated in the user configuration directory. It respects `ZDOTDIR` and `XDG_CONFIG_HOME`. Functions load without starting the program or enabling the proxy. Existing unrelated files are never overwritten.
 
 Registrations belong to the account that starts installation. Internal sudo elevation preserves that account and its chosen configuration path; registration runs with its UID/GID, rather than editing its files as root. An external sudo system installation also uses its initiating account. A direct root invocation uses root's configuration, including root user-mode installations. Uninstallation removes every registered user's owned loader and files while preserving unrelated content, ownership and permissions; cleanup runs with that user's privileges.
 
@@ -98,4 +99,4 @@ After uninstalling with data retained, rerun the installer with the same mode an
 
 See [offline installation](docs/offline-installation.md) for self-contained packages, user services, system services and uninstallation. Online script installation is deferred. End users do not need Go.
 
-`verge-tui shell install` configures PATH without duplicate entries. Bash/Zsh load the printed rc; fish autoloads its functions and can source the printed `conf.d` file for PATH. New shells load the integration automatically. `shell uninstall` and `uninstall.sh` remove the owned loader and independent files; fish universal variables are not modified.
+`verge-tui shell install` only registers references to the bundled scripts. User mode adds the executable directory to PATH without duplicate entries. System mode uses its system command link and leaves PATH unchanged. Bash/Zsh source the printed rc; fish sources the printed `conf.d` loader and autoloads its functions from the installation directory. New shells load the integration automatically. `shell uninstall` removes only the calling user's references; `uninstall.sh` also removes the bundled scripts after removing all user registrations. fish universal variables are not modified.

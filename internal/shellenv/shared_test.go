@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"verge-tui/internal/state"
+	"verge-tui/internal/testutil"
 )
 
 func TestUninstallCleansRootAndPerUserRCsWithoutDuplicates(t *testing.T) {
@@ -27,12 +28,14 @@ func TestUninstallCleansRootAndPerUserRCsWithoutDuplicates(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := Register(s, "/shared/verge-tui", rootRC); err != nil {
+	executable := filepath.Join(filepath.Dir(s.Root), "verge-tui")
+	testutil.ShellScripts(t, filepath.Dir(executable))
+	if _, err := Register(s, executable, rootRC); err != nil {
 		t.Fatal(err)
 	}
 	meta := filepath.Join(state.ShellUsersPath(s), strconv.Itoa(os.Geteuid())+".json")
 	for range 2 {
-		if _, err := registerAt(s, "/shared/verge-tui", userRC, meta); err != nil {
+		if _, err := registerAt(s, executable, userRC, meta); err != nil {
 			t.Fatal(err)
 		}
 	}

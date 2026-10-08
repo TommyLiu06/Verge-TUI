@@ -45,32 +45,49 @@ func inferShell(rc string) string {
 
 type shellFile struct{ Path, Data string }
 
+// Scripts ship with the application; registration only writes references.
+func ScriptPath(executable, shell string) string {
+	root := filepath.Join(filepath.Dir(executable), "shell")
+	if shell == "fish" {
+		return filepath.Join(root, "fish", "init.fish")
+	}
+	return filepath.Join(root, "proxy.sh")
+}
+
+func verifyScripts(executable, shell string) error {
+	paths := []string{ScriptPath(executable, shell)}
+	if shell == "fish" {
+		for _, name := range []string{"verge_on", "verge_off", "verge_status"} {
+			paths = append(paths, filepath.Join(filepath.Dir(executable), "shell", "fish", "functions", name+".fish"))
+		}
+	}
+	for _, path := range paths {
+		info, err := os.Lstat(path)
+		if err != nil {
+			return fmt.Errorf("bundled shell script unavailable; reinstall the offline package: %w", err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("bundled shell script must be a real regular file: %s", path)
+		}
+	}
+	return nil
+}
+
 func integrationFiles(s *state.Store, executable, rc, shell string) ([]shellFile, string, error) {
 	id := blockID(s)
 	start, end := markers(id)
-	if shell == "fish" {
-		dir := filepath.Dir(rc)
-		var files []shellFile
-		bodies := map[string]string{
-			"verge_on":     fmt.Sprintf("function verge_on\n    set -l proxy_commands (command %s --data-dir %s env --shell fish)\n    or return $status\n    printf '%%s\\n' $proxy_commands | source\nend\n", FishQuote(executable), FishQuote(s.Root)),
-			"verge_off":    "function verge_off\n    for proxy_variable in http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY\n        set -eg $proxy_variable\n        if set -qU $proxy_variable\n            set -gu $proxy_variable ''\n        end\n    end\nend\n",
-			"verge_status": fmt.Sprintf("function verge_status\n    command %s --data-dir %s proxy-status\nend\n", FishQuote(executable), FishQuote(s.Root)),
-		}
-		for _, name := range []string{"verge_on", "verge_off", "verge_status"} {
-			files = append(files, shellFile{filepath.Join(dir, "functions", name+".fish"), start + "\n" + bodies[name] + end + "\n"})
-		}
-		path := filepath.Join(dir, "conf.d", "verge-tui.fish")
-		// Global, session-only PATH changes are removable without leaving
-		// fish universal variables behind after uninstalling the application.
-		body := fmt.Sprintf("if not contains -- %s $PATH\n    set -gx PATH %s $PATH\nend\n", FishQuote(filepath.Dir(executable)), FishQuote(filepath.Dir(executable)))
-		files = append(files, shellFile{path, start + "\n" + body + end + "\n"})
-		return files, "", nil
+	c, err := ReadFile(FilePath(s))
+	if err != nil {
+		return nil, "", err
 	}
-	// Keep all application-owned shell files beside the chosen rc, including
-	// custom rc paths; neither tests nor installers need to touch another home.
-	path := filepath.Join(filepath.Dir(rc), ".verge-tui", id+".sh")
-	loader := fmt.Sprintf("%s\nif [ -r %s ]; then\n    . %s\nfi\n%s\n", start, Quote(path), Quote(path), end)
-	return []shellFile{{path, Functions(s, executable)}}, loader, nil
+	script := ScriptPath(executable, shell)
+	if shell == "fish" {
+		path := filepath.Join(filepath.Dir(rc), "conf.d", "verge-tui.fish")
+		loader := fmt.Sprintf("%s\nif test -r %s\n    source %s %s %s %s\nend\n%s\n", start, FishQuote(script), FishQuote(script), FishQuote(executable), FishQuote(s.Root), FishQuote(c.InstallMode), end)
+		return []shellFile{{path, loader}}, "", nil
+	}
+	loader := fmt.Sprintf("%s\nif [ -r %s ]; then\n    . %s %s %s %s\nfi\n%s\n", start, Quote(script), Quote(script), Quote(executable), Quote(s.Root), Quote(c.InstallMode), end)
+	return nil, loader, nil
 }
 
 // Only rewrite/remove files carrying this installation's complete markers.
@@ -113,7 +130,36 @@ func ManagedPaths(s *state.Store, executable, rc, shell string) ([]string, error
 	for _, file := range files {
 		paths = append(paths, file.Path)
 	}
+	data, err := os.ReadFile(registrationPath(s))
+	if err == nil {
+		var reg registration
+		if err := json.Unmarshal(data, &reg); err != nil {
+			return nil, err
+		}
+		if reg.ID != blockID(s) {
+			return nil, errors.New("invalid shell registration")
+		}
+		for _, path := range reg.Files {
+			if !filepath.IsAbs(path) || strings.ContainsAny(path, "\r\n\x00") {
+				return nil, errors.New("invalid managed shell path")
+			}
+			if !containsPath(paths, path) {
+				paths = append(paths, path)
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
 	return paths, nil
+}
+
+func containsPath(paths []string, path string) bool {
+	for _, item := range paths {
+		if item == path {
+			return true
+		}
+	}
+	return false
 }
 
 func RegisteredShell(s *state.Store, rc string) string {

@@ -462,6 +462,7 @@ func TestProxyFunctionsInBashAndZsh(t *testing.T) {
 			f := setup(t, "no", "no")
 			f.prefix = filepath.Join(f.root, "Proxy's $literal `name`")
 			f.run(t, "install.sh", "", true, "--yes", "--shell", shell, "--rc-file", f.rc)
+			absent(t, filepath.Join(filepath.Dir(f.rc), ".verge-tui"))
 			args := []string{"--noprofile", "--norc", "-c"}
 			if shell == "zsh" {
 				args = []string{"-f", "-c"}
@@ -632,6 +633,10 @@ func TestFishInstallationUsesAutoloadedFilesAndUninstallRemovesThem(t *testing.T
 	}
 	write(t, f.rc, "# My fish configuration\n", 0600)
 	f.run(t, "install.sh", "", true, "--yes", "--shell", "fish", "--rc-file", f.rc, "--no-service")
+	absent(t, filepath.Join(filepath.Dir(f.rc), "functions", "verge_on.fish"))
+	if strings.Contains(read(t, filepath.Join(filepath.Dir(f.rc), "conf.d", "verge-tui.fish")), "function verge_") {
+		t.Fatal("fish registration generated function implementations")
+	}
 	script := "set -g fish_function_path " + shellenv.FishQuote(filepath.Join(filepath.Dir(f.rc), "functions")) + " $fish_function_path\nsource " + shellenv.FishQuote(filepath.Join(filepath.Dir(f.rc), "conf.d", "verge-tui.fish")) + "\n" + `
 verge_off
 verge_status
@@ -750,11 +755,15 @@ func TestInstallerUpdatesForegroundInstallationAndAddsShellFunctions(t *testing.
 	}
 	s := &state.Store{Root: filepath.Join(f.prefix, "data")}
 	paths, err := shellenv.ManagedPaths(s, filepath.Join(f.prefix, "verge-tui"), f.rc, "bash")
-	if err != nil || len(paths) != 1 {
+	if err != nil || len(paths) != 0 {
 		t.Fatalf("managed shell paths: %v", err)
 	}
-	if !strings.Contains(read(t, f.rc), shellenv.Quote(paths[0])) || !strings.Contains(read(t, paths[0]), "verge_on()") {
-		t.Fatal("foreground update did not register a loader and independent shell functions")
+	script := shellenv.ScriptPath(filepath.Join(f.prefix, "verge-tui"), "bash")
+	if !strings.Contains(read(t, f.rc), shellenv.Quote(script)) || !strings.Contains(read(t, script), "verge_on()") {
+		t.Fatal("foreground update did not reference the bundled shell functions")
+	}
+	if read(t, script) != read(t, filepath.Join(f.bundle, "shell", "proxy.sh")) {
+		t.Fatal("installer generated functions instead of copying the bundled script")
 	}
 	if strings.Contains(read(t, f.log), "enable") {
 		t.Fatal("foreground update installed a service")

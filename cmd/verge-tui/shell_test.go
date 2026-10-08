@@ -8,9 +8,15 @@ import (
 
 	"verge-tui/internal/shellenv"
 	"verge-tui/internal/state"
+	"verge-tui/internal/testutil"
 )
 
 func TestShellUninstallRemovesRegisteredFunctionsAndPathOnly(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.ShellScripts(t, filepath.Dir(executable))
 	dir := t.TempDir()
 	s, err := state.Open(filepath.Join(dir, "data"))
 	if err != nil {
@@ -30,7 +36,7 @@ func TestShellUninstallRemovesRegisteredFunctionsAndPathOnly(t *testing.T) {
 		}
 	}
 	installed, err := os.ReadFile(rc)
-	if err != nil || !strings.Contains(string(installed), ".verge-tui/") || strings.Count(string(installed), "# >>> verge-tui") != 1 {
+	if err != nil || !strings.Contains(string(installed), "/shell/proxy.sh") || strings.Count(string(installed), "# >>> verge-tui") != 1 {
 		t.Fatal("installation did not create one functions/PATH block", err)
 	}
 	if err := run([]string{"--data-dir", s.Root, "shell", "uninstall", "--rc-file", rc}); err == nil {

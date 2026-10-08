@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 	"verge-tui/internal/shellenv"
 	"verge-tui/internal/state"
+	"verge-tui/internal/testutil"
 )
 
 type updateFixture struct {
@@ -71,6 +72,9 @@ func newUpdate(t *testing.T, mode, active string, unmarked bool) *updateFixture 
 		put(t, filepath.Join(f.bundle, name), "new "+name)
 	}
 	put(t, filepath.Join(f.bundle, "bin/verge-tui"), "new executable")
+	testutil.ShellScripts(t, f.prefix)
+	testutil.ShellScripts(t, f.bundle)
+	put(t, filepath.Join(f.prefix, "shell/proxy.sh"), "# previous installed shell implementation\n"+content(t, filepath.Join(f.prefix, "shell/proxy.sh")))
 	put(t, f.rc, "# User configuration\n")
 	if err := shellenv.Write(f.store); err != nil {
 		t.Fatal(err)
@@ -139,6 +143,15 @@ func TestUpdatePreservesDataCoreAndServiceState(t *testing.T) {
 				}
 				if content(t, filepath.Join(f.prefix, "docs/offline.md")) != "new docs/offline.md" {
 					t.Fatal("documentation was not updated")
+				}
+				if content(t, filepath.Join(f.prefix, "shell/proxy.sh")) != content(t, filepath.Join(f.bundle, "shell/proxy.sh")) {
+					t.Fatal("update did not install the bundled shell scripts")
+				}
+				for _, name := range []string{"shell", "shell/fish", "shell/fish/functions", "shell/proxy.sh", "shell/fish/init.fish"} {
+					info, err := os.Stat(filepath.Join(f.prefix, name))
+					if err != nil || info.Mode().Perm()&0044 != 0044 || (info.IsDir() && info.Mode().Perm()&0011 != 0011) {
+						t.Fatal("updated shell assets are inaccessible to ordinary users", name, err)
+					}
 				}
 				if content(t, filepath.Join(f.store.Root, "settings.json")) != settings {
 					t.Fatal("update changed credentials, ports, TUN, core or subscriptions")
@@ -321,6 +334,7 @@ func TestUpdateRollsBackStartupFailure(t *testing.T) {
 	put(t, filepath.Join(f.store.Root, "runtime", "Country.mmdb"), "old geography bytes")
 	f.failedStarts = 1
 	settings, rc := content(t, filepath.Join(f.store.Root, "settings.json")), content(t, f.rc)
+	script := content(t, filepath.Join(f.prefix, "shell/proxy.sh"))
 	err := f.update(f.rc)
 	if err == nil || !strings.Contains(err.Error(), "original installation restored") {
 		t.Fatalf("missing rollback result: %v", err)
@@ -330,6 +344,9 @@ func TestUpdateRollsBackStartupFailure(t *testing.T) {
 	}
 	if content(t, filepath.Join(f.prefix, "docs/offline.md")) != "old docs/offline.md" {
 		t.Fatal("old documentation was not restored")
+	}
+	if content(t, filepath.Join(f.prefix, "shell/proxy.sh")) != script {
+		t.Fatal("failed update did not restore the previous shell implementation")
 	}
 	if content(t, filepath.Join(f.store.Root, "settings.json")) != settings || content(t, f.rc) != rc {
 		t.Fatal("rollback changed proxy data or shell rc")

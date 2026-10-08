@@ -5,8 +5,8 @@ The Linux amd64 bundle contains the TUI executable, an amd64-compatible mihomo c
 Extract the archive, enter its directory and install:
 
 ```sh
-tar -xzf verge-tui-0.1.14-linux-amd64.tar.gz
-cd verge-tui-0.1.14-linux-amd64
+tar -xzf verge-tui-0.1.15-linux-amd64.tar.gz
+cd verge-tui-0.1.15-linux-amd64
 ./install.sh
 # Choose User or System, review the summary, then confirm.
 ```
@@ -71,7 +71,7 @@ If a profile still needs other resources, such as an ASN database or remote prov
 
 ## Shell proxy functions
 
-The installer prepares `<prefix>/proxy.env` and registers independent `verge_on`, `verge_off` and `verge_status` files for Bash, Zsh or fish. It detects the parent shell, falling back to `$SHELL`. Bash uses `$HOME/.bashrc`; Zsh uses `${ZDOTDIR:-$HOME}/.zshrc`. They receive only a short marked loader for `.verge-tui/<installation-id>.sh` beside the selected rc. fish uses `${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/*.fish` for autoloaded functions and `conf.d/verge-tui.fish` for PATH; `config.fish` is unchanged. The displayed configuration path lets you check this before confirming. Override with `--shell bash|zsh|fish --rc-file /absolute/path`, or use `--shell none` to skip registration. dash/ash/ksh and other unsupported shells are not registered.
+The package includes static Bash/Zsh and fish scripts, copied into `<prefix>/shell/` during installation and replaced during updates. The installer prepares `<prefix>/proxy.env`; `shell install` only registers references to these scripts. It detects the parent shell, falling back to `$SHELL`. Bash uses `$HOME/.bashrc`; Zsh uses `${ZDOTDIR:-$HOME}/.zshrc`. They receive only a short marked reference to `<prefix>/shell/proxy.sh`. fish registers `${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/verge-tui.fish` with a reference to `<prefix>/shell/fish/init.fish`. This initializes the context and adds `<prefix>/shell/fish/functions` to `fish_function_path` for native autoloading; `config.fish` is unchanged. The displayed configuration path lets you check this before confirming. Override with `--shell bash|zsh|fish --rc-file /absolute/path`, or use `--shell none` to skip registration. dash/ash/ksh and other unsupported shells are not registered.
 
 Open a new shell, or source the rc printed after installation, then use:
 
@@ -107,7 +107,7 @@ Rerunning the installer can also register functions for an account that has not 
 . "${ZDOTDIR:-$HOME}/.zshrc"
 ```
 
-Repeated registration updates the owned files without duplicate PATH entries. Existing unrelated fish function files are refused. Uninstall removes only this installation's loader and files, preserving other user content. fish uses session variables rather than persistent universal variables. For a one-time export without registering functions:
+Repeated registration updates the owned files without duplicate PATH entries. Existing unrelated fish function files are refused. User-level shell removal deletes only its loader, preserving bundled scripts for other users. Full uninstallation removes the installation's bundled scripts after removing all registered loaders. fish uses session variables rather than persistent universal variables. For a one-time export without registering functions:
 
 ```sh
 eval "$("$HOME/.local/share/verge-tui/verge-tui" env)"
@@ -190,8 +190,8 @@ sh scripts/package.sh /absolute/path/to/mihomo v1.19.32 /absolute/path/to/geodat
 
 The geodata directory must contain Country.mmdb, GeoIP.dat and GeoSite.dat matching the hashes in `packaging/geodata/manifest.json`. The default directory is `.local/geodata-source`. The source release URLs are moving `latest` URLs; keep the verified snapshot files, or explicitly update the manifest when choosing a newer snapshot. Packaging verifies all hashes and tests all three formats with the supplied core before creating an archive.
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.14-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.15-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
 
-Shell integration adds the executable directory to PATH from its independent managed file. It avoids duplicate entries; shell removal and uninstallation remove the loader and owned files. Source the printed Bash/Zsh rc or fish `conf.d` file for the current session. fish functions are autoloaded by name.
+User-mode shell integration adds the executable directory to PATH without duplicates. System mode leaves PATH unchanged and uses the system command link. Function implementations are bundled under `<prefix>/shell/`; registration writes only loading references. Shell removal deletes user loaders; full uninstallation also removes the bundled files. Source the printed Bash/Zsh rc or fish `conf.d` file for the current session. fish functions are autoloaded by name.
 
 In Settings, System Proxy and TUN each have separate `Configure | Disabled` / `Enabled` controls on one row. System Proxy configuration saves the proxy host and bypass choices privately for the calling user. On GNOME, saving updates an already-enabled managed proxy and keeps the original desktop backup for disabling or uninstalling. Changing only these settings does not change listening ports or TUN; the proxy address uses the managed mixed port. With no desktop session, settings are saved for later use in that user's supported desktop session. PAC and proxy guard are not provided.
