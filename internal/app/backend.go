@@ -164,6 +164,9 @@ func (b *Backend) Load(ctx context.Context) (View, error) {
 }
 func (b *Backend) Execute(ctx context.Context, a Action) error {
 	if a.Kind == "preferences-save" {
+		if a.ID == "system-proxy" {
+			return b.saveSystemProxy(ctx, a.Fields)
+		}
 		return b.savePreferences(a.Fields)
 	}
 	if b.Remote != nil {

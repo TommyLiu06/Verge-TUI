@@ -90,7 +90,7 @@ func RestoreUser(ctx context.Context, s *state.Store) error {
 		}
 		return strings.TrimSpace(string(out)), nil
 	}
-	if err := (GNOME{Store: user, Run: run}).Disable(ctx, c); err != nil {
+	if err := (GNOME{Store: user, PreferencesRoot: filepath.Join(state.PreferencesUsersPath(s), strconv.Itoa(os.Geteuid())), Run: run}).Disable(ctx, c); err != nil {
 		return err
 	}
 	if err := os.Remove(filepath.Join(user.Root, "session.json")); err != nil {

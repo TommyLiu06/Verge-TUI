@@ -88,6 +88,69 @@ func (b *Backend) savePreferences(fields map[string]string) error {
 	return state.WritePreferences(b.preferencesRoot(), p)
 }
 
+func (b *Backend) saveSystemProxy(ctx context.Context, fields map[string]string) error {
+	root := b.preferencesRoot()
+	previous, err := state.ReadPreferences(root)
+	if err != nil {
+		return err
+	}
+	next := previous
+	for key, value := range fields {
+		switch key {
+		case "proxy-host":
+			next.SystemProxy.Host = strings.TrimSpace(value)
+			if strings.HasPrefix(next.SystemProxy.Host, "[") && strings.HasSuffix(next.SystemProxy.Host, "]") {
+				next.SystemProxy.Host = next.SystemProxy.Host[1 : len(next.SystemProxy.Host)-1]
+			}
+		case "use-default-bypass":
+			next.SystemProxy.UseDefaultBypass, err = boolField(fields, key)
+		case "proxy-bypass":
+			next.SystemProxy.Bypass = strings.TrimSpace(value)
+		default:
+			return errors.New("unknown System Proxy setting")
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	var c state.Settings
+	if b.Remote != nil {
+		v, loadErr := b.Load(ctx)
+		if loadErr != nil {
+			return loadErr
+		}
+		c = v.Settings
+		if err := desktop.PrepareUser(&state.Store{Root: root}); err != nil {
+			return err
+		}
+	} else {
+		c, err = b.Store.Read()
+		if err != nil {
+			return err
+		}
+	}
+	observed := b.Desktop.Read(ctx, c)
+	owned := observed.Owned
+	if !owned && fileExists(filepath.Join(b.Desktop.Store.Root, "gnome-proxy-backup.ini")) {
+		return errors.New("restore System Proxy before changing its settings; the existing backup could not be verified")
+	}
+	if owned {
+		if err := b.Desktop.Reconfigure(ctx, c, previous.SystemProxy, next.SystemProxy); err != nil {
+			return err
+		}
+	}
+	if err := state.WritePreferences(root, next); err != nil {
+		if owned {
+			return errors.Join(err, b.Desktop.Reconfigure(ctx, c, next.SystemProxy, previous.SystemProxy))
+		}
+		return err
+	}
+	return nil
+}
+
 func list(value string) []string {
 	var items []string
 	for _, item := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ';' || r == '\n' }) {

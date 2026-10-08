@@ -14,16 +14,17 @@ var Themes = []string{"terminal", "dark", "light", "mist-dark", "mist-light", "m
 
 // Preferences belong to the calling user, independently of shared core settings.
 type Preferences struct {
-	Language     string `json:"language"`
-	Theme        string `json:"theme"`
-	StartPage    string `json:"start_page"`
-	ProxyColumns int    `json:"proxy_columns"`
-	DelayURL     string `json:"delay_url"`
-	DelayTimeout int    `json:"delay_timeout_ms"`
+	Language     string              `json:"language"`
+	Theme        string              `json:"theme"`
+	StartPage    string              `json:"start_page"`
+	ProxyColumns int                 `json:"proxy_columns"`
+	DelayURL     string              `json:"delay_url"`
+	DelayTimeout int                 `json:"delay_timeout_ms"`
+	SystemProxy  SystemProxySettings `json:"system_proxy"`
 }
 
 func DefaultPreferences() Preferences {
-	return Preferences{Language: "en", Theme: "terminal", StartPage: "home", DelayTimeout: 5000}
+	return Preferences{Language: "en", Theme: "terminal", StartPage: "home", DelayTimeout: 5000, SystemProxy: DefaultSystemProxy()}
 }
 
 func (p Preferences) Validate() error {
@@ -48,7 +49,7 @@ func (p Preferences) Validate() error {
 			return errors.New("enter an HTTP or HTTPS delay test URL")
 		}
 	}
-	return nil
+	return p.SystemProxy.Validate()
 }
 
 func ReadPreferences(root string) (Preferences, error) {

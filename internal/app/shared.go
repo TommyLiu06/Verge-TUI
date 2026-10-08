@@ -21,6 +21,7 @@ func NewRemote(s *state.Store, version string) *Backend {
 	b := New(s, version)
 	b.Remote = management.NewClient(s)
 	b.Desktop.Store = desktop.UserStore(s)
+	b.Desktop.PreferencesRoot = b.preferencesRoot()
 	return b
 }
 

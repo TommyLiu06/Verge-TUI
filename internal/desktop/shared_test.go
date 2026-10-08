@@ -27,13 +27,22 @@ func TestPerUserDesktopRestoreUsesSavedSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	c, _ := s.Read()
+	preferences := state.DefaultPreferences()
+	preferences.SystemProxy.Host = "::1"
+	preferencesRoot := filepath.Join(state.PreferencesUsersPath(s), strconv.Itoa(os.Geteuid()))
+	if err := os.MkdirAll(preferencesRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WritePreferences(preferencesRoot, preferences); err != nil {
+		t.Fatal(err)
+	}
 	tools := filepath.Join(filepath.Dir(s.Root), "tools")
 	if err := os.Mkdir(tools, 0700); err != nil {
 		t.Fatal(err)
 	}
 	restored := filepath.Join(filepath.Dir(s.Root), "restored.ini")
 	bus := "unix:path=" + filepath.Join(filepath.Dir(s.Root), "saved-session-bus")
-	gsettings := "#!/bin/sh\n[ \"$DBUS_SESSION_BUS_ADDRESS\" = " + shellenv.Quote(bus) + " ] || exit 1\ncase \"$3\" in\nmode) printf \"'manual'\\n\" ;;\nhost) printf \"'127.0.0.1'\\n\" ;;\nport) printf '%s\\n' " + strconv.Itoa(c.MixedPort) + " ;;\nesac\n"
+	gsettings := "#!/bin/sh\n[ \"$DBUS_SESSION_BUS_ADDRESS\" = " + shellenv.Quote(bus) + " ] || exit 1\ncase \"$3\" in\nmode) printf \"'manual'\\n\" ;;\nhost) printf \"'::1'\\n\" ;;\nport) printf '%s\\n' " + strconv.Itoa(c.MixedPort) + " ;;\nesac\n"
 	dconf := "#!/bin/sh\n[ \"$DBUS_SESSION_BUS_ADDRESS\" = " + shellenv.Quote(bus) + " ] || exit 1\nif [ \"$1\" = load ]; then cat > " + shellenv.Quote(restored) + "; fi\n"
 	for name, body := range map[string]string{"gsettings": gsettings, "dconf": dconf} {
 		if err := os.WriteFile(filepath.Join(tools, name), []byte(body), 0700); err != nil {
