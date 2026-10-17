@@ -5,4 +5,5 @@ function verge_off
             set -gu $proxy_variable ''
         end
     end
+    _verge_tui_message red 'Proxy environment disabled.'
 end

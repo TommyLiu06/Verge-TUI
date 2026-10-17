@@ -57,7 +57,7 @@ func ScriptPath(executable, shell string) string {
 func verifyScripts(executable, shell string) error {
 	paths := []string{ScriptPath(executable, shell)}
 	if shell == "fish" {
-		for _, name := range []string{"verge_on", "verge_off", "verge_status"} {
+		for _, name := range []string{"verge_on", "verge_off", "verge_status", "_verge_tui_message"} {
 			paths = append(paths, filepath.Join(filepath.Dir(executable), "shell", "fish", "functions", name+".fish"))
 		}
 	}

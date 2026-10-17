@@ -195,6 +195,9 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
+		if shellenv.TerminalColor(os.Stdout) {
+			out = shellenv.ColorStatus(out)
+		}
 		fmt.Print(out)
 		return nil
 	}

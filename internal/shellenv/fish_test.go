@@ -74,7 +74,7 @@ verge_status
 	command := exec.Command(fish, "--no-config", "-c", script)
 	command.Env = append(os.Environ(), "HOME="+root, "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "XDG_DATA_HOME="+filepath.Join(root, "user-data"), "XDG_CACHE_HOME="+filepath.Join(root, "cache"))
 	out, err := command.CombinedOutput()
-	if err != nil || string(out) != ProxyURL(c)+"\nunset\n" {
+	if err != nil || string(out) != "Proxy environment enabled.\n"+ProxyURL(c)+"\nProxy environment disabled.\nunset\n" {
 		t.Fatalf("fish functions: %v\n%s", err, out)
 	}
 	if err := Remove(s); err != nil {

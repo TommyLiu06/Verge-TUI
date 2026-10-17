@@ -11,16 +11,26 @@ if [ "$3" = user ]; then
     esac
 fi
 
+_verge_tui_message() {
+    if [ -t 1 ] && [ "${TERM-}" != dumb ] && [ "${NO_COLOR+x}" != x ]; then
+        printf '\033[%sm%s\033[0m\n' "$1" "$2"
+    else
+        printf '%s\n' "$2"
+    fi
+}
+
 verge_on() {
     if [ ! -r "$_verge_tui_env_file" ]; then
-        printf '%s\n' 'Proxy environment file is unavailable.' >&2
+        _verge_tui_message 31 'Proxy environment file is unavailable.' >&2
         return 1
     fi
-    . "$_verge_tui_env_file"
+    . "$_verge_tui_env_file" || return
+    _verge_tui_message 32 'Proxy environment enabled.'
 }
 
 verge_off() {
-    unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY
+    unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY || return
+    _verge_tui_message 31 'Proxy environment disabled.'
 }
 
 verge_status() {
