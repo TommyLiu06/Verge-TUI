@@ -27,9 +27,10 @@ func Unit(executable, root, mode string) (string, error) {
 	unit += "ReadWritePaths=" + quote(root) + "\n"
 	if mode == "system" {
 		unit += "User=root\nCapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE\nAmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE\n"
-	} else {
-		unit += "CapabilityBoundingSet=\n"
 	}
+	// No CapabilityBoundingSet in user mode: dropping capabilities from the
+	// bounding set requires CAP_SETPCAP, which the systemd user manager does
+	// not hold, so the service would die at spawn with 218/CAPABILITIES.
 	unit += "\n[Install]\nWantedBy="
 	if mode == "system" {
 		unit += "multi-user.target\n"
