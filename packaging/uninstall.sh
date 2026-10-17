@@ -119,5 +119,5 @@ else
     echo 'Use the offline bundle uninstall.sh with --prefix and --purge to remove retained data.'
 fi
 echo 'Shell rc integration removed. Already loaded functions and variables remain in existing shells.'
-echo 'Bash/Zsh: verge_off; unset -f verge_on verge_off verge_status'
-echo 'fish: verge_off; functions --erase verge_on verge_off verge_status'
+echo 'Bash/Zsh: verge_off; unset -f verge_on verge_off verge_status _verge_tui_message'
+echo 'fish: verge_off; functions --erase verge_on verge_off verge_status _verge_tui_message'
