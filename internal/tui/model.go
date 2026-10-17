@@ -9,6 +9,7 @@ import (
 	"github.com/gdamore/tcell/v3"
 	"verge-tui/internal/app"
 	"verge-tui/internal/controller"
+	"verge-tui/internal/core"
 	"verge-tui/internal/state"
 )
 
@@ -35,6 +36,9 @@ type Modal struct {
 	ParentFocus        string
 }
 type Model struct {
+	CoreReleases      []core.ReleaseOption
+	CoreReleaseNext   int
+	CoreReleaseEpoch  int
 	PreferencesEpoch  uint64
 	Tasks             map[string]app.Action
 	DelayActive       bool
@@ -434,8 +438,19 @@ func (m *Model) Activate(a app.Action) *app.Action {
 		m.Modal = modal
 		m.Focus = ""
 	case "core-form":
-		m.Modal = &Modal{Title: "Install Core", Kind: "core-install", Fields: []Field{{Key: "tag", Label: "Release Tag", Text: "latest"}}}
-		m.Focus = Key(app.Action{Kind: "input", ID: "tag"})
+		request := app.Action{Kind: "core-releases", ID: "1", Node: strconv.Itoa(m.CoreReleaseEpoch + 1)}
+		if !m.canRun(request) {
+			return nil
+		}
+		m.CoreReleaseEpoch++
+		m.CoreReleases, m.CoreReleaseNext = nil, 0
+		m.Modal = &Modal{Title: "Install Core", Kind: "core-releases", List: true, Body: []string{"Loading official mihomo releases..."}}
+		m.Focus = ""
+		return &request
+	case "core-releases":
+		if m.Modal != nil && m.Modal.Kind == "core-releases" && a.Node == strconv.Itoa(m.CoreReleaseEpoch) && m.canRun(a) {
+			return &a
+		}
 	case "test-url":
 		m.Modal = &Modal{Title: "Delay check URL", Kind: "test-url", Fields: []Field{{Key: "group", Label: "Group", Text: a.ID}, {Key: "testurl", Label: "Delay check URL", Text: m.TestURL[a.ID]}}}
 		m.Focus = Key(app.Action{Kind: "input", ID: "testurl"})
@@ -542,9 +557,6 @@ func (m *Model) submit() *app.Action {
 		}
 		m.Modal = nil
 		return &app.Action{Kind: "profile-new", Profile: p, File: file}
-	case "core-install":
-		m.Modal = nil
-		return &app.Action{Kind: "core-install", Value: values["tag"]}
 	case "test-url":
 		m.TestURL[values["group"]] = values["testurl"]
 		m.Modal = nil

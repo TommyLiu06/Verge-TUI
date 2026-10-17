@@ -28,8 +28,10 @@ type Asset struct {
 	Digest string `json:"digest"`
 }
 type Release struct {
-	Tag    string  `json:"tag_name"`
-	Assets []Asset `json:"assets"`
+	Tag        string  `json:"tag_name"`
+	Prerelease bool    `json:"prerelease"`
+	Draft      bool    `json:"draft"`
+	Assets     []Asset `json:"assets"`
 }
 type Installed struct {
 	ID      string `json:"id"`
@@ -101,23 +103,38 @@ func Choose(r Release, goos, arch string) (Asset, error) {
 			}
 		}
 	}
+	if r.Prerelease {
+		for _, name := range names {
+			prefix := strings.TrimSuffix(name, r.Tag+".gz")
+			for _, a := range r.Assets {
+				if strings.HasPrefix(a.Name, prefix+"alpha-") && strings.HasSuffix(a.Name, ".gz") {
+					return a, nil
+				}
+			}
+		}
+	}
 	return Asset{}, fmt.Errorf("no compatible core asset for %s/%s", goos, arch)
 }
 func Download(ctx context.Context, s *state.Store, tag string) (Installed, error) {
 	if runtime.GOOS != "linux" {
 		return Installed{}, errors.New("this first release supports Linux")
 	}
-	endpoint := "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest"
+	endpoint := releasesAPI + "/latest"
 	if tag != "latest" && tag != "" {
 		if !state.ValidID(tag) {
 			return Installed{}, errors.New("invalid release tag")
 		}
-		endpoint = "https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/" + url.PathEscape(tag)
+		endpoint = releasesAPI + "/tags/" + url.PathEscape(tag)
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = http.ProxyFromEnvironment
-	client := &http.Client{Timeout: 3 * time.Minute, Transport: transport}
+	client, err := downloadClient(ctx, s)
+	if err != nil {
+		return Installed{}, err
+	}
 	defer client.CloseIdleConnections()
+	return downloadRelease(ctx, s, client, endpoint)
+}
+
+func downloadRelease(ctx context.Context, s *state.Store, client *http.Client, endpoint string) (Installed, error) {
 	b, err := fetch(ctx, client, endpoint, 8<<20)
 	if err != nil {
 		return Installed{}, err
@@ -133,9 +150,11 @@ func Download(ctx context.Context, s *state.Store, tag string) (Installed, error
 	if err != nil {
 		return Installed{}, err
 	}
-	u, err := url.Parse(asset.URL)
-	if err != nil || u.Scheme != "https" || u.Host != "github.com" {
+	if !officialAsset(asset) {
 		return Installed{}, errors.New("unexpected core download origin")
+	}
+	if !validDigest(asset.Digest) {
+		return Installed{}, errors.New("release asset has no valid SHA-256 digest")
 	}
 	archive, err := fetch(ctx, client, asset.URL, 100<<20)
 	if err != nil {
@@ -156,7 +175,7 @@ func Download(ctx context.Context, s *state.Store, tag string) (Installed, error
 	if len(data) > 160<<20 {
 		return Installed{}, errors.New("core binary exceeds size limit")
 	}
-	return install(ctx, s, release.Tag, data, asset.URL)
+	return install(ctx, s, releaseID(release, asset), data, asset.URL)
 }
 func fetch(ctx context.Context, client *http.Client, location string, limit int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", location, nil)
@@ -167,11 +186,11 @@ func fetch(ctx context.Context, client *http.Client, location string, limit int6
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("core download failed: %w", err)
+		return nil, fmt.Errorf("core request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("core download returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("core request returned HTTP %d", resp.StatusCode)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {

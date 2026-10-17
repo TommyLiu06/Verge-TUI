@@ -50,6 +50,8 @@ Shell integration:
   shell install references bundled Bash/Zsh and fish scripts in the installation directory.
   Source the printed loader once for this shell; new shells load it automatically.
   verge_on loads proxy.env; verge_off clears proxy variables; verge_status checks status.
+  Only state keywords are colored: enabled/true/healthy green; disabled/false/unavailable red.
+  Redirected output, TERM=dumb and NO_COLOR disable colors.
   Bash/Zsh use a short rc loader; fish uses conf.d/ and the bundled autoload directory.
   shell uninstall removes user loaders; uninstall.sh also removes the bundled scripts.
   Only user mode adds the executable directory to PATH; system mode uses its command link.
@@ -63,6 +65,7 @@ Run 'verge-tui COMMAND --help' for command options and examples.
 `
 
 var helpTopics = map[string]string{
+	"core available":             "Usage: verge-tui core available\n\nList compatible verified release assets from MetaCubeX/mihomo on GitHub.\nIncludes stable and compatible Alpha releases; follows official pagination.\nUses the running managed proxy automatically; otherwise honors proxy environment variables.\nThe TUI loads pages only when opening Install Core or choosing Load More/Refresh.\n",
 	"shell info":                 "Usage: verge-tui shell info [--user UID]\n\nReport the existing registered configuration path and shell type.\nInspecting another account requires root. Does not initialize application data.\n",
 	"installation account":       "Usage: verge-tui installation account --user UID\n\nRead the initiating account name and home for a sudo system installation.\nThis helper does not register functions or modify account files.\n",
 	"installation retain":        "Usage: verge-tui installation retain --prefix DIR\n\nUninstaller helper: mark public discovery metadata as retained data.\nThe recorded command directory remains available for reinstallation.\n",
@@ -72,8 +75,8 @@ var helpTopics = map[string]string{
 	"installation discover":      "Usage: verge-tui installation discover --prefix DIR\n\nRead public installation mode/version/state and command-link metadata.\nNo configuration secrets are read. Menu hints still require private inspection after elevation.\n",
 	"tui":                        "Usage: verge-tui [--data-dir DIR] tui\n\nOpen the TUI (also the default when no command is given).\nKeyboard: 1–7 pages, Tab/arrows focus, Enter activate, F1 help, q quit.\nMouse: click controls; wheel scrolls and clears focus.\nClosing a service-connected TUI leaves the service running.\n",
 	"run":                        "Usage: verge-tui [--data-dir DIR] run\n\nStart the selected managed core and supervise it in the foreground.\nSIGINT/SIGTERM stops the owned core. System mode requires root.\nThe generated systemd unit runs this command.\n",
-	"core":                       "Usage: verge-tui core install [TAG] | import ID FILE | list | use ID\n\n  install [TAG]  Download an official mihomo release (default: latest).\n  import ID FILE Import an extracted mihomo executable into the managed core directory.\n  list           List installed versions; * marks the selection.\n  use ID         Select an installed version; restart the owned running core.\n\nInstalling/importing selects the new core only when no core is selected yet.\nExample: verge-tui core import vNEXT /path/to/mihomo\n",
-	"core install":               "Usage: verge-tui core install [TAG]\n\nDownload a mihomo release into the application's managed directory.\nTAG defaults to latest. Network access is required.\nExample: verge-tui core install v1.19.32\n",
+	"core":                       "Usage: verge-tui core available | install [TAG] | import ID FILE | list | use ID\n\n  available      List compatible releases from the official GitHub repository.\n  install [TAG]  Download an official mihomo release (default: latest).\n  import ID FILE Import an extracted mihomo executable into the managed core directory.\n  list           List installed versions; * marks the selection.\n  use ID         Select an installed version; restart the owned running core.\n\nInstalling/importing selects the new core only when no core is selected yet.\nExample: verge-tui core import vNEXT /path/to/mihomo\n",
+	"core install":               "Usage: verge-tui core install [TAG]\n\nDownload and verify an official mihomo release into the managed directory.\nTAG defaults to latest; use core available to list official versions.\nA running managed proxy is used automatically, with private credentials in user mode.\nOtherwise HTTP(S) proxy environment variables apply. Network access is required.\nExample: verge-tui core install v1.19.32\n",
 	"core import":                "Usage: verge-tui core import ID FILE\n\nImport and validate an extracted mihomo executable. No download is needed.\nID identifies the installed version; FILE is read by the calling user.\nExample: verge-tui core import vNEXT ./mihomo\n",
 	"core list":                  "Usage: verge-tui core list\n\nList application-managed core versions; * marks the selected core.\n",
 	"core use":                   "Usage: verge-tui core use ID\n\nSelect an installed core. The owning supervisor restarts a running core.\nIf another supervisor owns it, use that supervisor's TUI or stop its service first.\n",

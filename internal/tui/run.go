@@ -134,7 +134,12 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 			if done.Delay != nil {
 				m.ApplyDelay(*done.Delay)
 			} else {
-				if done.Page != nil && (done.Action.Kind == "profile-info" || done.Action.Kind == "profile-file" || done.Action.Kind == "page-refresh") {
+				if done.Action.Kind == "core-releases" {
+					m.finishTask(done.Action)
+					if done.Page != nil {
+						m.showCoreReleases(done.Action, done.Page.Releases, done.Err)
+					}
+				} else if done.Page != nil && (done.Action.Kind == "profile-info" || done.Action.Kind == "profile-file" || done.Action.Kind == "page-refresh") {
 					m.finishTask(done.Action)
 					if done.Action.Kind == "page-refresh" {
 						for _, p := range navigation {

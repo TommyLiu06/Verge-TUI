@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"verge-tui/internal/app"
@@ -109,9 +110,11 @@ func runShared(args []string, b *app.Backend) error {
 		return nil
 	case "core":
 		if len(args) < 2 {
-			return errors.New("usage: core install [TAG] | list | use ID")
+			return errors.New("usage: core available | install [TAG] | list | use ID")
 		}
 		switch args[1] {
+		case "available":
+			return printCoreReleases(ctx, b)
 		case "import":
 			if len(args) != 4 {
 				return errors.New("usage: core import ID FILE")
@@ -186,4 +189,21 @@ func runShared(args []string, b *app.Backend) error {
 		}
 	}
 	return errors.New("service installation, removal and start/stop require root; use the TUI for shared configuration")
+}
+
+func printCoreReleases(ctx context.Context, b *app.Backend) error {
+	for page := 1; page != 0; {
+		data, err := b.ReadPage(ctx, "core-releases", strconv.Itoa(page))
+		if err != nil {
+			return err
+		}
+		if data.Releases == nil {
+			return errors.New("missing official release metadata")
+		}
+		for _, release := range data.Releases.Releases {
+			fmt.Println(release.Tag, release.ID)
+		}
+		page = data.Releases.NextPage
+	}
+	return nil
 }

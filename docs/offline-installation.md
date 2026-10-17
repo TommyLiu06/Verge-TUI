@@ -81,7 +81,7 @@ verge_status
 verge_off
 ```
 
-`verge_on` reads the prepared file and applies shell-appropriate exports in the current session. fish invokes `env --shell fish` only when the function is called; shell startup does not execute the application. It sets lower- and upper-case HTTP, HTTPS, ALL_PROXY and NO_PROXY variables. `verge_off` clears them. The functions do not start or stop the core; clearing variables does not disable TUN. Proxy variables are not loaded automatically on shell startup.
+`verge_on` reads the prepared file and applies shell-appropriate exports in the current session. fish invokes `env --shell fish` only when the function is called; shell startup does not execute the application. It sets lower- and upper-case HTTP, HTTPS, ALL_PROXY and NO_PROXY variables. `verge_off` clears them. Terminal confirmations color only `enabled` green and `disabled` red; `verge_status` colors the individual state keywords independently for the core, listener and shell environment. Other text keeps terminal colors. Redirected output, `TERM=dumb` and `NO_COLOR` disable colors. The functions do not start or stop the core; clearing variables does not disable TUN. Proxy variables are not loaded automatically on shell startup.
 
 `verge_status` queries the core API, checks the loopback proxy listener and compares each exported environment variable with the current installation. It reports unset, matching, empty and different variables without printing passwords or foreign proxy values. It does not contact an external test site or collect traffic statistics. Unexported shell variables are not visible to child processes.
 
@@ -127,6 +127,8 @@ systemctl --user stop verge-tui.service
 ./verge-tui core use vNEXT
 systemctl --user start verge-tui.service
 ```
+
+For online core installation, **Install Core** displays compatible stable and Alpha builds from the official GitHub release list, with Load More and Refresh. The CLI provides `verge-tui core available` and `verge-tui core install TAG`. Release queries and downloads automatically use the managed proxy when its authenticated controller and mixed-port listener are reachable; user-mode authentication is included. Otherwise existing HTTP(S) proxy environment variables apply. A selected managed proxy is not bypassed after a request fails. Official origin and SHA-256 verification remain required; an Alpha build is stored under its commit identifier. No release polling runs in the background.
 
 For a running system service, ordinary users can instead import an offline core and select it without stopping the service:
 

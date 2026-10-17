@@ -362,9 +362,11 @@ func run(args []string) error {
 		return nil
 	case "core":
 		if len(args) < 2 {
-			return errors.New("usage: core install [TAG] | import ID FILE | list | use ID")
+			return errors.New("usage: core available | install [TAG] | import ID FILE | list | use ID")
 		}
 		switch args[1] {
+		case "available":
+			return printCoreReleases(ctx, app.New(s, version))
 		case "list":
 			installed, err := core.List(s)
 			if err != nil {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ type PageData struct {
 	Connections controller.Connections
 	Rules       controller.Rules
 	Document    *ProfileDocument
+	Releases    *core.ReleasePage
 }
 
 func revision(data []byte) string {
@@ -40,6 +42,15 @@ func (b *Backend) ReadPage(ctx context.Context, kind, id string) (PageData, erro
 	var out PageData
 	if b.Remote != nil {
 		err := b.Remote.Call(ctx, "GET", "/data/"+url.PathEscape(kind)+"?id="+url.QueryEscape(id), nil, &out)
+		return out, err
+	}
+	if kind == "core-releases" {
+		page, err := strconv.Atoi(id)
+		if err != nil {
+			return out, errors.New("invalid release page")
+		}
+		releases, err := core.Available(ctx, b.Store, page)
+		out.Releases = &releases
 		return out, err
 	}
 	c, err := b.Store.Read()

@@ -85,6 +85,9 @@ func (r *taskRunner) work(b taskBackend, jobs <-chan task) {
 			done := result{TaskID: job.ID, Action: job.Action}
 			a, ctx := job.Action, job.Context
 			switch a.Kind {
+			case "core-releases":
+				data, err := b.ReadPage(ctx, "core-releases", a.ID)
+				done.Page, done.Err = &data, err
 			case "profile-info", "profile-file", "page-refresh":
 				kind, id := a.Kind, a.ID
 				if a.Kind == "page-refresh" {
@@ -204,6 +207,9 @@ func (m *Model) beginTask(a app.Action) bool {
 	m.Tasks[taskKey(a)] = a
 	m.Busy = true
 	m.Message = a.Kind
+	if a.Kind == "core-releases" {
+		m.Message = "Loading official mihomo releases..."
+	}
 	if a.Kind == "delay" {
 		m.DelayActive = true
 		m.DelayMessage = ""

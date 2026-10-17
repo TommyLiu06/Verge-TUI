@@ -133,6 +133,9 @@ func (b *Backend) SharedHandlers(mu *sync.RWMutex) management.Handlers {
 	}
 	return management.Handlers{
 		ReadData: func(ctx context.Context, kind, id string) (any, error) {
+			if kind == "core-releases" {
+				return b.ReadPage(ctx, kind, id)
+			}
 			mu.RLock()
 			defer mu.RUnlock()
 			return b.ReadPage(ctx, kind, id)
