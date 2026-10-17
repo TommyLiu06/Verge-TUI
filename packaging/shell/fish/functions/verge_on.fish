@@ -3,5 +3,5 @@ function verge_on
     or return $status
     printf '%s\n' $proxy_commands | source
     or return $status
-    _verge_tui_message green 'Proxy environment enabled.'
+    _verge_tui_message green 'Proxy environment: ' enabled '.'
 end

@@ -18,25 +18,51 @@ func ColorStatus(output string) string {
 	var out strings.Builder
 	for _, line := range strings.SplitAfter(output, "\n") {
 		text := strings.TrimSuffix(line, "\n")
-		colored, good := false, false
+		value, good := "", false
 		switch {
 		case strings.HasPrefix(text, "Core:"):
-			colored, good = true, strings.HasPrefix(text, "Core: running")
+			switch {
+			case strings.HasPrefix(text, "Core: running"):
+				value, good = "running", true
+			case strings.Contains(text, "unavailable"):
+				value = "unavailable"
+			case strings.Contains(text, "reachable"):
+				value, good = "reachable", true
+			}
 		case strings.HasPrefix(text, "Proxy listener:"):
-			colored, good = true, text == "Proxy listener: listening"
+			value = strings.TrimPrefix(text, "Proxy listener: ")
+			good = value == "listening"
 		case strings.HasPrefix(text, "Shell environment:"):
-			colored, good = true, text == "Shell environment: loaded and matches this installation"
+			if strings.Contains(text, "not loaded") {
+				value = "not loaded"
+			} else if strings.Contains(text, "partial or different") {
+				value = "partial"
+			} else {
+				value, good = "loaded", true
+			}
 		case strings.HasPrefix(text, "TUN:"):
-			colored, good = true, text == "TUN: true"
+			value = strings.TrimPrefix(text, "TUN: ")
+			good = value == "true"
 		case strings.HasPrefix(text, "  "):
-			colored, good = true, strings.HasSuffix(text, ": matches")
+			if _, after, found := strings.Cut(text, ": "); found {
+				value = strings.SplitN(after, " ", 2)[0]
+				good = value == "matches"
+			}
 		}
-		if colored {
+		if value != "" {
 			code := "31"
 			if good {
 				code = "32"
 			}
-			out.WriteString("\x1b[" + code + "m" + text + "\x1b[0m")
+			painted := strings.Replace(text, value, "\x1b["+code+"m"+value+"\x1b[0m", 1)
+			if strings.HasPrefix(text, "Core:") {
+				painted = strings.Replace(painted, "failed", "\x1b[31mfailed\x1b[0m", 1)
+			}
+			if strings.HasPrefix(text, "Shell environment:") {
+				painted = strings.Replace(painted, "matches", "\x1b[32mmatches\x1b[0m", 1)
+				painted = strings.Replace(painted, "different", "\x1b[31mdifferent\x1b[0m", 1)
+			}
+			out.WriteString(painted)
 			out.WriteString(strings.TrimPrefix(line, text))
 		} else {
 			out.WriteString(line)
