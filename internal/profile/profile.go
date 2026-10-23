@@ -21,6 +21,7 @@ import (
 
 const MaxSize = 16 << 20
 const DefaultConfig = "proxies: []\nproxy-groups:\n  - name: Proxy\n    type: select\n    proxies: [DIRECT]\nrules:\n  - MATCH,Proxy\n"
+const subscriptionUserAgent = "clash-verge/v2.5.8"
 
 func Parse(data []byte) (map[string]any, error) {
 	if len(data) == 0 || len(data) > MaxSize {
@@ -119,11 +120,7 @@ func Download(ctx context.Context, p state.Profile) ([]byte, state.Profile, erro
 	if err != nil {
 		return nil, p, err
 	}
-	ua := p.UserAgent
-	if ua == "" {
-		ua = "clash-verge/v2 verge-tui"
-	}
-	req.Header.Set("User-Agent", ua)
+	req.Header.Set("User-Agent", subscriptionUserAgent)
 	// Subscription fetches are direct and never inherit the host's proxy settings.
 	client := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: time.Duration(timeout) * time.Second}
 	defer client.CloseIdleConnections()

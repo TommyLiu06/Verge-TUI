@@ -493,7 +493,7 @@ func (m *Model) scroll(delta int) {
 }
 func (m *Model) newProfile() {
 	m.Cursors = map[string]int{}
-	m.Modal = &Modal{Title: "Create Profile", Kind: "profile-new", Fields: []Field{{Key: "type", Label: "Type", Text: "Remote", Options: []string{"Remote", "Local"}}, {Key: "name", Label: "Name"}, {Key: "description", Label: "Descriptions"}, {Key: "source", Label: "Subscription URL"}, {Key: "agent", Label: "User Agent"}, {Key: "timeout", Label: "HTTP Request Timeout", Text: "30"}}}
+	m.Modal = &Modal{Title: "Create Profile", Kind: "profile-new", Fields: []Field{{Key: "type", Label: "Type", Text: "Remote", Options: []string{"Remote", "Local"}}, {Key: "name", Label: "Name"}, {Key: "description", Label: "Descriptions"}, {Key: "source", Label: "Subscription URL"}, {Key: "timeout", Label: "HTTP Request Timeout", Text: "30"}}}
 	m.Focus = Key(app.Action{Kind: "input", ID: "type"})
 }
 func (m *Model) submit() *app.Action {
@@ -543,7 +543,7 @@ func (m *Model) submit() *app.Action {
 			m.Message = "HTTP Request Timeout must be between 1 and 300 seconds"
 			return nil
 		}
-		p := state.Profile{Name: values["name"], Type: strings.ToLower(values["type"]), Description: values["description"], UserAgent: values["agent"], Timeout: timeout}
+		p := state.Profile{Name: values["name"], Type: strings.ToLower(values["type"]), Description: values["description"], Timeout: timeout}
 		if p.Type == "remote" {
 			p.URL = values["source"]
 			if p.URL == "" {

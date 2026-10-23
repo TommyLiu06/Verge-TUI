@@ -24,7 +24,7 @@ import (
 	"verge-tui/internal/tui"
 )
 
-const version = "0.1.17"
+const version = "0.1.18"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
