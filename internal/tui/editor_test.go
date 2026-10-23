@@ -99,6 +99,7 @@ func TestProfileEditInfoUsesOriginalURLAndRetainsFailedForm(t *testing.T) {
 	m := New(fixture())
 	p := m.View.Settings.Profiles[0]
 	p.URL = "https://example.com/profile?token=private"
+	p.UserAgent = "CustomClient/1.0"
 	p.Timeout = 30
 	m.showProfileDocument("profile-info", &app.ProfileDocument{Profile: p, Revision: "rev"})
 	for i := range m.Modal.Fields {
@@ -107,7 +108,7 @@ func TestProfileEditInfoUsesOriginalURLAndRetainsFailedForm(t *testing.T) {
 		}
 	}
 	a := keyEditor(m, tcell.KeyCtrlS, "")
-	if a == nil || a.Profile.URL != p.URL || a.Profile.Name != "Renamed" || a.Value != "rev" {
+	if a == nil || a.Profile.URL != p.URL || a.Profile.UserAgent != p.UserAgent || a.Profile.Name != "Renamed" || a.Value != "rev" {
 		t.Fatal("editor used redacted public metadata", a)
 	}
 	m.Complete(fixture(), *a, errors.New("subscription URL invalid"))

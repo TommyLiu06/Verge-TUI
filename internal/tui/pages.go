@@ -481,19 +481,13 @@ func (m *Model) showProfileDocument(kind string, doc *app.ProfileDocument) {
 	m.Modal = &Modal{Title: "Edit Info", Kind: "profile-info-save", ProfileID: p.ID, Section: doc.Revision, Fields: []Field{
 		{Key: "type", Label: "Type", Text: map[string]string{"remote": "Remote", "local": "Local"}[p.Type], Options: []string{"Remote", "Local"}},
 		{Key: "name", Label: "Name", Text: p.Name}, {Key: "description", Label: "Descriptions", Text: p.Description},
-		{Key: "source", Label: "Subscription URL", Text: p.URL},
+		{Key: "source", Label: "Subscription URL", Text: p.URL}, {Key: "agent", Label: "User Agent", Text: p.UserAgent},
 		{Key: "timeout", Label: "HTTP Request Timeout", Text: strconv.Itoa(timeout)},
 	}}
 	m.Focus = Key(app.Action{Kind: "input", ID: "type"})
 }
 func (m *Model) submitProfileInfo(values map[string]string) *app.Action {
-	p := state.Profile{Type: strings.ToLower(values["type"]), Name: values["name"], Description: values["description"], URL: values["source"]}
-	for _, existing := range m.View.Settings.Profiles {
-		if existing.ID == m.Modal.ProfileID {
-			p.UserAgent = existing.UserAgent
-			break
-		}
-	}
+	p := state.Profile{Type: strings.ToLower(values["type"]), Name: values["name"], Description: values["description"], URL: values["source"], UserAgent: values["agent"]}
 	timeout, err := strconv.Atoi(values["timeout"])
 	if p.Type == "remote" && (err != nil || timeout < 1 || timeout > 300) {
 		m.Message = "HTTP Request Timeout must be between 1 and 300 seconds"

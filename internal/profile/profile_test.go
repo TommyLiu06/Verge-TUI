@@ -71,6 +71,28 @@ func TestImportSubscriptionAndSecurityOverlay(t *testing.T) {
 	}
 }
 
+func TestSubscriptionRequestUsesDefaultOrCustomUserAgent(t *testing.T) {
+	for _, tc := range []struct {
+		name, configured, want string
+	}{
+		{"default", "", "clash-verge/v2.5.8"},
+		{"custom", "CustomClient/1.0", "CustomClient/1.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if got := r.Header.Get("User-Agent"); got != tc.want {
+					t.Errorf("subscription User-Agent = %q, want %q", got, tc.want)
+				}
+				w.Write([]byte(DefaultConfig))
+			}))
+			defer server.Close()
+			if _, _, err := Download(context.Background(), state.Profile{URL: server.URL, UserAgent: tc.configured}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestInvalidImportsDoNotChangeState(t *testing.T) {
 	s, err := state.Open(t.TempDir())
 	if err != nil {
