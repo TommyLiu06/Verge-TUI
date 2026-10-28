@@ -36,7 +36,7 @@ func TestAutoLoginPreferencesDefaultAndExplicitDisable(t *testing.T) {
 	}
 }
 
-func TestLoginShellExportsAreQuietAndRespectSessionType(t *testing.T) {
+func TestLoginShellExportsConfirmAndRespectSessionType(t *testing.T) {
 	for _, shell := range []string{"bash", "zsh", "fish"} {
 		t.Run(shell, func(t *testing.T) {
 			program := shell
@@ -134,7 +134,11 @@ func TestLoginShellExportsAreQuietAndRespectSessionType(t *testing.T) {
 					cmd.Env = append(cmd.Env, "HOME="+prefix, "ZDOTDIR="+prefix, "XDG_CONFIG_HOME="+filepath.Join(prefix, "config"), "XDG_DATA_HOME="+filepath.Join(prefix, "user-data"), "XDG_CACHE_HOME="+filepath.Join(prefix, "cache"), "TERM=dumb")
 					var stdout, stderr bytes.Buffer
 					cmd.Stdout, cmd.Stderr = &stdout, &stderr
-					if err := cmd.Run(); err != nil || stdout.String() != "passed\n" {
+					expected := "passed\n"
+					if tc.interactive && tc.login && tc.enabled {
+						expected = "Proxy environment: enabled.\n" + expected
+					}
+					if err := cmd.Run(); err != nil || stdout.String() != expected {
 						t.Fatalf("login exports: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 					}
 				})
@@ -218,7 +222,7 @@ func TestLoginShellLastInstallationOwnsProxyEnvironment(t *testing.T) {
 			cmd.Env = append(cmd.Env, "HOME="+prefix, "ZDOTDIR="+prefix, "XDG_CONFIG_HOME="+filepath.Join(prefix, "config"), "XDG_DATA_HOME="+filepath.Join(prefix, "user-data"), "XDG_CACHE_HOME="+filepath.Join(prefix, "cache"), "TERM=dumb")
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &stdout, &stderr
-			if err := cmd.Run(); err != nil || stdout.String() != "passed\n" {
+			if err := cmd.Run(); err != nil || stdout.String() != "Proxy environment: enabled.\nProxy environment: enabled.\npassed\n" {
 				t.Fatalf("multiple installation login exports: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 			}
 		})

@@ -16,8 +16,8 @@ end
 
 if status is-interactive; and status is-login; and not contains -- $_verge_tui_data_dir $_verge_tui_login_loaded
     set -g _verge_tui_login_loaded $_verge_tui_data_dir
-    set -l proxy_commands (command $_verge_tui_executable --data-dir $_verge_tui_data_dir env --shell fish --auto-login 2>/dev/null)
-    if test $status -eq 0
-        printf '%s\n' $proxy_commands | source
+    set -l proxy_commands (command $_verge_tui_executable --data-dir $_verge_tui_data_dir env --shell fish --auto-login)
+    if test $status -eq 0; and test (count $proxy_commands) -gt 0
+        verge-on
     end
 end

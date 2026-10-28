@@ -39,7 +39,7 @@ verge-status() {
     command "$_verge_tui_executable" --data-dir "$_verge_tui_data_dir" proxy-status
 }
 
-# Automatic exports are quiet and apply once per interactive login shell.
+# Use the manual command so login exports have the same confirmation output.
 case $- in
     *i*)
         if [ "${_verge_tui_login_loaded-}" != "$_verge_tui_data_dir" ]; then
@@ -51,8 +51,10 @@ case $- in
             fi
             if [ "$_verge_tui_is_login" = 1 ]; then
                 _verge_tui_login_loaded=$_verge_tui_data_dir
-                if _verge_tui_login_exports=$(command "$_verge_tui_executable" --data-dir "$_verge_tui_data_dir" env --auto-login 2>/dev/null); then
-                    eval "$_verge_tui_login_exports"
+                if _verge_tui_login_exports=$(command "$_verge_tui_executable" --data-dir "$_verge_tui_data_dir" env --auto-login); then
+                    if [ -n "$_verge_tui_login_exports" ]; then
+                        verge-on
+                    fi
                 fi
                 unset _verge_tui_login_exports
             fi
