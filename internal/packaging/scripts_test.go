@@ -177,6 +177,15 @@ func TestAutomaticUserServiceAndDataPreservingUninstall(t *testing.T) {
 		t.Fatal("service detection or concise installation output failed")
 	}
 	settings := read(t, filepath.Join(f.prefix, "data", "settings.json"))
+	images, err := os.ReadDir(filepath.Join(f.bundle, "img"))
+	if err != nil || len(images) == 0 {
+		t.Fatal("release is missing README screenshots", err)
+	}
+	for _, image := range images {
+		if read(t, filepath.Join(f.prefix, "img", image.Name())) != read(t, filepath.Join(f.bundle, "img", image.Name())) {
+			t.Fatal("installation did not preserve a README screenshot", image.Name())
+		}
+	}
 	unit := read(t, f.unit)
 	write(t, f.unit, unit+"\n# Replaced externally\n", 0600)
 	out = f.run(t, "uninstall.sh", "", false)
@@ -189,6 +198,7 @@ func TestAutomaticUserServiceAndDataPreservingUninstall(t *testing.T) {
 		t.Fatal("uninstall did not preserve unrelated shell configuration")
 	}
 	absent(t, filepath.Join(f.prefix, "verge-tui"))
+	absent(t, filepath.Join(f.prefix, "img"))
 	absent(t, f.unit)
 	if read(t, filepath.Join(f.prefix, "data", "settings.json")) != settings {
 		t.Fatal("data-preserving uninstall changed subscription settings or credentials")

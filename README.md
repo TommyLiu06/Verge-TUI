@@ -1,14 +1,15 @@
+<h1 align="center">Verge-TUI</h1>
+<h3 align="center">在终端中1:1复刻Clash Verge Rev</h3>
+
 ![首页](<img/屏幕截图 2026-10-28 142840.png>)
 
 ## 安装
 
-在 Releases 下载 Linux amd64 安装包并解压，在解压后的目录运行：
-
 ```sh
+tar xvf verge-tui-*-linux-amd64.tar.gz
+cd verge-tui-*-linux-amd64
 ./install.sh
 ```
-
-选择用户模式或系统模式，确认安装。
 
 ![代理](<img/屏幕截图 2026-10-28 142852.png>)
 

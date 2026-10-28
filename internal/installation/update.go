@@ -224,7 +224,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 			os.RemoveAll(stage)
 		}
 	}()
-	files := []string{"verge-tui", "uninstall.sh", "README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "docs", "licenses", "shell", ".verge-tui-install"}
+	files := []string{"verge-tui", "uninstall.sh", "README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "docs", "licenses", "img", "shell", ".verge-tui-install"}
 	for _, name := range files[:len(files)-1] {
 		source := filepath.Join(bundle, name)
 		if name == "verge-tui" {
@@ -386,7 +386,7 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 		target := filepath.Join(x.Prefix, name)
 		change := replaced{target: target}
 		if _, err := os.Lstat(target); err == nil {
-			isDirectory := name == "docs" || name == "licenses" || name == "shell"
+			isDirectory := name == "docs" || name == "licenses" || name == "img" || name == "shell"
 			if err := realPath(target, isDirectory); err != nil {
 				return err
 			}

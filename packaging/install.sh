@@ -389,6 +389,7 @@ else
     chmod 700 "$prefix/verge-tui"
     if [ "$mode" = system ]; then chmod 755 "$prefix" "$prefix/verge-tui"; fi
     cp README.md LICENSE NOTICE.md "$prefix/"
+    cp -R img "$prefix/img"
     cp -R docs "$prefix/docs"
     cp DEPENDENCIES.txt "$prefix/"
     cp -R licenses "$prefix/licenses"

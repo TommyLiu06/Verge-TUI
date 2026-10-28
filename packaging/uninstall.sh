@@ -112,7 +112,7 @@ if [ "$purge" = yes ]; then
 else
     rm -f -- "$prefix/verge-tui" "$prefix/verge-tui.service" "$prefix/uninstall.sh" \
         "$prefix/README.md" "$prefix/LICENSE" "$prefix/NOTICE.md" "$prefix/DEPENDENCIES.txt" "$prefix/proxy.env"
-    rm -rf -- "$prefix/docs" "$prefix/licenses" "$prefix/shell"
+    rm -rf -- "$prefix/docs" "$prefix/licenses" "$prefix/shell" "$prefix/img"
     # Forget the removed service so a later purge cannot affect a new install.
     printf '%s\n' verge-tui-install-v1 "$mode" '' "$prefix" > "$marker"
     echo "Application removed. Profiles, credentials and managed cores retained in $prefix/data"

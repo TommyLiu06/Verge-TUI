@@ -36,6 +36,7 @@ cp packaging/install.sh "$bundle_dir/install.sh"
 cp packaging/uninstall.sh "$bundle_dir/uninstall.sh"
 chmod 755 "$bundle_dir/install.sh" "$bundle_dir/uninstall.sh"
 cp README.md LICENSE NOTICE.md "$bundle_dir/"
+cp -R img "$bundle_dir/img"
 cp -R docs "$bundle_dir/docs"
 mkdir "$bundle_dir/licenses"
 cp packaging/geodata/*LICENSE "$bundle_dir/licenses/"
@@ -54,7 +55,7 @@ cut -d ' ' -f 1,2 "$bundle_dir/DEPENDENCIES.txt" > "$bundle_dir/DEPENDENCIES.tmp
 mv "$bundle_dir/DEPENDENCIES.tmp" "$bundle_dir/DEPENDENCIES.txt"
 printf '%s\n' "$core_id" > "$bundle_dir/CORE_VERSION"
 cd "$bundle_dir"
-sha256sum bin/verge-tui cores/mihomo geodata/* install.sh uninstall.sh CORE_VERSION DEPENDENCIES.txt README.md LICENSE NOTICE.md docs/*.md licenses/* shell/proxy.sh shell/fish/init.fish shell/fish/functions/*.fish > SHA256SUMS
+sha256sum bin/verge-tui cores/mihomo geodata/* install.sh uninstall.sh CORE_VERSION DEPENDENCIES.txt README.md LICENSE NOTICE.md img/* docs/*.md licenses/* shell/proxy.sh shell/fish/init.fish shell/fish/functions/*.fish > SHA256SUMS
 cd "$staging_dir"
 tar -czf "$bundle_name.tar.gz" "$bundle_name"
 sha256sum "$bundle_name.tar.gz" > "$bundle_name.tar.gz.sha256"

@@ -67,7 +67,7 @@ func newUpdate(t *testing.T, mode, active string, unmarked bool) *updateFixture 
 	put(t, filepath.Join(f.store.Root, "cores/custom-core/mihomo"), "selected core bytes")
 	put(t, filepath.Join(f.store.Root, "profiles/subscription.yaml"), "proxies: []\n")
 	put(t, filepath.Join(f.store.Root, "gnome-proxy-backup.ini"), "desktop backup must remain untouched")
-	for _, name := range []string{"README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "uninstall.sh", "docs/offline.md", "licenses/core-LICENSE"} {
+	for _, name := range []string{"README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "uninstall.sh", "docs/offline.md", "licenses/core-LICENSE", "img/home.png"} {
 		put(t, filepath.Join(f.prefix, name), "old "+name)
 		put(t, filepath.Join(f.bundle, name), "new "+name)
 	}
@@ -143,6 +143,9 @@ func TestUpdatePreservesDataCoreAndServiceState(t *testing.T) {
 				}
 				if content(t, filepath.Join(f.prefix, "docs/offline.md")) != "new docs/offline.md" {
 					t.Fatal("documentation was not updated")
+				}
+				if content(t, filepath.Join(f.prefix, "img/home.png")) != "new img/home.png" {
+					t.Fatal("README screenshots were not updated")
 				}
 				if content(t, filepath.Join(f.prefix, "shell/proxy.sh")) != content(t, filepath.Join(f.bundle, "shell/proxy.sh")) {
 					t.Fatal("update did not install the bundled shell scripts")
