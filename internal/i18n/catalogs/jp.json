@@ -197,6 +197,7 @@
   "Profile Options": "プロファイルのオプション",
   "Delete Profile": "プロファイルを削除",
   "Proxy Environment": "プロキシ環境変数",
+  "Proxy on Login": "ログイン時にプロキシを有効化",
   "Keyboard Shortcuts": "キーボードショートカット",
   "Move Focus": "フォーカス移動",
   "Activate": "実行",

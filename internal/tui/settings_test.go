@@ -49,11 +49,17 @@ func TestSettingsMatchesUpstreamSectionsAndTerminalTheme(t *testing.T) {
 		}
 	}
 	var target Hit
+	loginToggle := false
 	for _, hit := range f.Hits {
+		if hit.Action.Kind == "preferences-save" && hit.Action.ID == "proxy-on-login" {
+			loginToggle = hit.Action.Fields["proxy-on-login"] == "false"
+		}
 		if hit.Action.Kind == "settings-save" && hit.Action.ID == "ipv6" {
 			target = hit
-			break
 		}
+	}
+	if !loginToggle {
+		t.Fatal("login proxy setting did not offer to disable its enabled default")
 	}
 	a := m.Handle(tcell.NewEventMouse(target.Rect.X, target.Rect.Y, tcell.Button1, tcell.ModNone))
 	if a == nil || a.Kind != "settings-save" || a.ID != "ipv6" || a.Fields["enabled"] != "true" {

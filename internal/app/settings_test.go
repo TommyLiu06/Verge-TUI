@@ -129,7 +129,7 @@ func TestSharedSettingsAndPrivatePreferences(t *testing.T) {
 	defer server.Close()
 	remote := NewRemote(b.Store, "test")
 	defer remote.Close(ctx)
-	if err := remote.Execute(ctx, Action{Kind: "preferences-save", Fields: map[string]string{"start-page": "settings", "theme": "dark", "language": "zh", "delay-timeout": "12000"}}); err != nil {
+	if err := remote.Execute(ctx, Action{Kind: "preferences-save", Fields: map[string]string{"start-page": "settings", "theme": "dark", "language": "zh", "delay-timeout": "12000", "proxy-on-login": "false"}}); err != nil {
 		t.Fatal(err)
 	}
 	rootPrefs, err := state.ReadPreferences(b.Store.Root)
@@ -137,7 +137,7 @@ func TestSharedSettingsAndPrivatePreferences(t *testing.T) {
 		t.Fatal("ordinary user's preferences changed the service preferences", err)
 	}
 	v, err := remote.Load(ctx)
-	if err != nil || v.Preferences.StartPage != "settings" || v.Preferences.Language != "zh" || v.Preferences.DelayTimeout != 12000 {
+	if err != nil || v.Preferences.StartPage != "settings" || v.Preferences.Language != "zh" || v.Preferences.DelayTimeout != 12000 || v.Preferences.ProxyOnLogin {
 		t.Fatal("per-user preferences not loaded", err)
 	}
 	if err := remote.Execute(ctx, Action{Kind: "settings-save", ID: "ipv6", Fields: map[string]string{"enabled": "false"}}); err != nil {

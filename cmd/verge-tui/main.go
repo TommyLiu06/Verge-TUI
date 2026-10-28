@@ -54,6 +54,7 @@ func run(args []string) error {
 	if len(args) > 0 && args[0] == "env" {
 		f := flag.NewFlagSet("env", flag.ContinueOnError)
 		shell := f.String("shell", "bash", "bash, zsh or fish export syntax")
+		autoLogin := f.Bool("auto-login", false, "output exports only if this user's Proxy on Login setting is enabled")
 		if err := f.Parse(args[1:]); err != nil {
 			return err
 		}
@@ -62,6 +63,15 @@ func run(args []string) error {
 			return err
 		}
 		s := &state.Store{Root: abs}
+		if *autoLogin {
+			enabled, err := shellenv.AutoLoginEnabled(s)
+			if err != nil {
+				return err
+			}
+			if !enabled {
+				return nil
+			}
+		}
 		c, err := shellenv.ReadFile(shellenv.FilePath(s))
 		if os.IsNotExist(err) {
 			c, err = s.Read()
@@ -271,7 +281,8 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Println("Shell functions: verge_on, verge_off, verge_status\nLoader registered for bundled shell scripts.")
+			fmt.Println("Shell functions: verge-on, verge-off, verge-status\nLoader registered for bundled shell scripts.")
+			fmt.Println("Interactive login shells follow Settings > Proxy on Login (default: On).")
 			if c, err := shellenv.ReadFile(shellenv.FilePath(s)); err == nil && c.InstallMode == "user" {
 				fmt.Println("Executable directory added to PATH in user mode.")
 			}

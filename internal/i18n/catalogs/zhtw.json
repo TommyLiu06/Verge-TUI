@@ -197,6 +197,7 @@
   "Profile Options": "設定檔選項",
   "Delete Profile": "刪除設定檔",
   "Proxy Environment": "代理環境變數",
+  "Proxy on Login": "登入時載入代理",
   "Keyboard Shortcuts": "鍵盤快捷鍵",
   "Move Focus": "移動焦點",
   "Activate": "啟用",

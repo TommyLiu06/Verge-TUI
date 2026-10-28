@@ -94,6 +94,7 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 			{"Language", i18n.Names[p.Language], edit("language")},
 			{"Theme", themeLabel(p.Theme), edit("theme")},
 			{"Proxy Environment", "View / Copy", app.Action{Kind: "environment"}},
+			{"Proxy on Login", toggle(p.ProxyOnLogin), app.Action{Kind: "preferences-save", ID: "proxy-on-login", Fields: map[string]string{"proxy-on-login": strconv.FormatBool(!p.ProxyOnLogin)}}},
 			{"Start Page", p.StartPage, edit("start-page")},
 			{"Proxy Layout Columns", columns, edit("misc")},
 			{"Miscellaneous", "Configure", edit("misc")},

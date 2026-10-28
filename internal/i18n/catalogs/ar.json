@@ -197,6 +197,7 @@
   "Profile Options": "خيارات الملف",
   "Delete Profile": "حذف الملف",
   "Proxy Environment": "متغيرات بيئة الوكيل",
+  "Proxy on Login": "تفعيل الوكيل عند تسجيل الدخول",
   "Keyboard Shortcuts": "اختصارات لوحة المفاتيح",
   "Move Focus": "نقل التركيز",
   "Activate": "تفعيل",

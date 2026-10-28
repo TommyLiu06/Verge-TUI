@@ -17,10 +17,12 @@ import (
 )
 
 type registration struct {
-	RC    string   `json:"rc"`
-	ID    string   `json:"id"`
-	Shell string   `json:"shell"`
-	Files []string `json:"files"`
+	RC       string   `json:"rc"`
+	ID       string   `json:"id"`
+	Shell    string   `json:"shell"`
+	Files    []string `json:"files"`
+	ExtraRCs []string `json:"extra_rcs,omitempty"`
+	LoginDir string   `json:"login_dir,omitempty"`
 }
 
 func registrationPath(s *state.Store) string {
@@ -124,6 +126,7 @@ func registerAt(s *state.Store, executable, rc, metaPath string) (string, error)
 }
 
 func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (string, error) {
+	originalRC := rc
 	shell = NormalizeShell(shell)
 	if !Supported(shell) {
 		return "", errors.New("shell integration supports Bash, Zsh and fish")
@@ -174,7 +177,7 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 	if shell == "fish" {
 		// Prepending the bundled autoload directory must not shadow unrelated
 		// user functions. Previously registered owned files may be replaced.
-		for _, name := range []string{"verge_on", "verge_off", "verge_status"} {
+		for _, name := range []string{"verge-on", "verge-off", "verge-status"} {
 			path := filepath.Join(filepath.Dir(rc), "functions", name+".fish")
 			if err := validateManagedFile(path, blockID(s)); err != nil {
 				return "", err
@@ -196,12 +199,16 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 	if err != nil {
 		return "", err
 	}
+	loginChanges, loginPaths, loginDir, err := prepareLoginRCs(s, executable, originalRC, rc, shell, old)
+	if err != nil {
+		return "", err
+	}
 	for _, file := range files {
 		if err := validateManagedFile(file.Path, blockID(s)); err != nil {
 			return "", err
 		}
 	}
-	reg := registration{RC: rc, ID: blockID(s), Shell: shell}
+	reg := registration{RC: rc, ID: blockID(s), Shell: shell, ExtraRCs: loginPaths, LoginDir: loginDir}
 	for _, file := range files {
 		reg.Files = append(reg.Files, file.Path)
 	}
@@ -211,6 +218,12 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 	for _, path := range old.Files {
 		if !containsPath(pending.Files, path) {
 			pending.Files = append(pending.Files, path)
+		}
+	}
+	pending.ExtraRCs = append([]string(nil), reg.ExtraRCs...)
+	for _, path := range old.ExtraRCs {
+		if !containsPath(pending.ExtraRCs, path) {
+			pending.ExtraRCs = append(pending.ExtraRCs, path)
 		}
 	}
 	meta, _ := json.Marshal(pending)
@@ -230,6 +243,11 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 			return "", err
 		}
 		if err := writeRC(rc, data+loader, info); err != nil {
+			return "", err
+		}
+	}
+	for _, change := range loginChanges {
+		if err := writeRCChange(change); err != nil {
 			return "", err
 		}
 	}
@@ -265,6 +283,10 @@ func removeAt(s *state.Store, metaPath string) error {
 	if reg.ID != blockID(s) || !filepath.IsAbs(reg.RC) {
 		return errors.New("invalid shell integration record")
 	}
+	extraChanges, err := prepareExtraRCRemoval(reg)
+	if err != nil {
+		return err
+	}
 	for _, path := range reg.Files {
 		if !filepath.IsAbs(path) || strings.ContainsAny(path, "\r\n\x00") {
 			return errors.New("invalid managed shell path")
@@ -283,6 +305,11 @@ func removeAt(s *state.Store, metaPath string) error {
 	}
 	if stripped != rc {
 		if err := writeRC(reg.RC, stripped, info); err != nil {
+			return err
+		}
+	}
+	for _, change := range extraChanges {
+		if err := writeRCChange(change); err != nil {
 			return err
 		}
 	}

@@ -197,6 +197,7 @@
   "Profile Options": "配置选项",
   "Delete Profile": "删除配置",
   "Proxy Environment": "代理环境变量",
+  "Proxy on Login": "登录时加载代理",
   "Keyboard Shortcuts": "键盘快捷键",
   "Move Focus": "移动焦点",
   "Activate": "激活",

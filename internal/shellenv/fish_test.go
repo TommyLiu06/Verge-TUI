@@ -63,13 +63,13 @@ for item in $PATH
     end
 end
 test $matches -eq 1; or exit 11
-verge_on; or exit 12
+verge-on; or exit 12
 test "$http_proxy" = "$https_proxy"; or exit 13
 test "$http_proxy" = "$ALL_PROXY"; or exit 14
-verge_status
-verge_off
+verge-status
+verge-off
 set -qgx http_proxy; and exit 15
-verge_status
+verge-status
 `
 	command := exec.Command(fish, "--no-config", "-c", script)
 	command.Env = append(os.Environ(), "HOME="+root, "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "XDG_DATA_HOME="+filepath.Join(root, "user-data"), "XDG_CACHE_HOME="+filepath.Join(root, "cache"))
@@ -84,7 +84,7 @@ verge_status
 	if string(data) != original {
 		t.Fatal("cleanup changed config.fish")
 	}
-	for _, path := range []string{filepath.Join(filepath.Dir(rc), "functions", "verge_on.fish"), filepath.Join(filepath.Dir(rc), "conf.d", "verge-tui.fish")} {
+	for _, path := range []string{filepath.Join(filepath.Dir(rc), "functions", "verge-on.fish"), filepath.Join(filepath.Dir(rc), "conf.d", "verge-tui.fish")} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatal("managed fish file was retained", path, err)
 		}
@@ -99,11 +99,11 @@ func TestFishRefusesToOverwriteExistingUserFunctions(t *testing.T) {
 	executable := filepath.Join(filepath.Dir(s.Root), "verge-tui")
 	testutil.ShellScripts(t, filepath.Dir(executable))
 	rc := filepath.Join(filepath.Dir(s.Root), "fish", "config.fish")
-	path := filepath.Join(filepath.Dir(rc), "functions", "verge_on.fish")
+	path := filepath.Join(filepath.Dir(rc), "functions", "verge-on.fish")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
 	}
-	original := "function verge_on; echo custom; end\n"
+	original := "function verge-on; echo custom; end\n"
 	if err := os.WriteFile(path, []byte(original), 0600); err != nil {
 		t.Fatal(err)
 	}

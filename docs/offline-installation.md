@@ -76,14 +76,14 @@ The package includes static Bash/Zsh and fish scripts, copied into `<prefix>/she
 Open a new shell, or source the rc printed after installation, then use:
 
 ```sh
-verge_on
-verge_status
-verge_off
+verge-on
+verge-status
+verge-off
 ```
 
-`verge_on` reads the prepared file and applies shell-appropriate exports in the current session. fish invokes `env --shell fish` only when the function is called; shell startup does not execute the application. It sets lower- and upper-case HTTP, HTTPS, ALL_PROXY and NO_PROXY variables. `verge_off` clears them. Terminal confirmations color only `enabled` green and `disabled` red; `verge_status` colors the individual state keywords independently for the core, listener and shell environment. Other text keeps terminal colors. Redirected output, `TERM=dumb` and `NO_COLOR` disable colors. The functions do not start or stop the core; clearing variables does not disable TUN. Proxy variables are not loaded automatically on shell startup.
+`verge-on` reads the prepared file and applies shell-appropriate exports in the current session. fish invokes `env --shell fish` only when the function is called; shell startup does not execute the application. It sets lower- and upper-case HTTP, HTTPS, ALL_PROXY and NO_PROXY variables. `verge-off` clears them. Terminal confirmations color only `enabled` green and `disabled` red; `verge-status` colors the individual state keywords independently for the core, listener and shell environment. Other text keeps terminal colors. Redirected output, `TERM=dumb` and `NO_COLOR` disable colors. The functions do not start or stop the core; clearing variables does not disable TUN. Proxy variables are not loaded automatically on shell startup.
 
-`verge_status` queries the core API, checks the loopback proxy listener and compares each exported environment variable with the current installation. It reports unset, matching, empty and different variables without printing passwords or foreign proxy values. It does not contact an external test site or collect traffic statistics. Unexported shell variables are not visible to child processes.
+`verge-status` queries the core API, checks the loopback proxy listener and compares each exported environment variable with the current installation. It reports unset, matching, empty and different variables without printing passwords or foreign proxy values. It does not contact an external test site or collect traffic statistics. Unexported shell variables are not visible to child processes.
 
 User-mode env files have mode `0600`; passwords never appear in the rc block. System mode permits all users to read the credential-free `proxy.env`, execute the TUI and query shared status. Internal sudo elevation preserves the ordinary initiating user and configuration path. An external sudo system invocation also registers its initiating account; a direct root invocation registers root. Registration runs with the target account's UID/GID and does not copy root's HOME or XDG configuration. Each ordinary user can register their own Bash/Zsh/fish configuration without sudo:
 
@@ -178,8 +178,8 @@ sh uninstall.sh --prefix "$HOME/.local/share/verge-tui" --purge
 The script refuses unmarked destinations, mode mismatches and service units that were modified or replaced. It does not alter administrator-managed lingering settings. Functions and proxy variables already loaded into existing shells remain there; clear them with:
 
 ```sh
-verge_off
-unset -f verge_on verge_off verge_status _verge_tui_message
+verge-off
+unset -f verge-on verge-off verge-status _verge_tui_message
 ```
 
 ## Building an offline package
@@ -197,3 +197,5 @@ The script builds a static Linux amd64 TUI using the project Go wrapper. It make
 User-mode shell integration adds the executable directory to PATH without duplicates. System mode leaves PATH unchanged and uses the system command link. Function implementations are bundled under `<prefix>/shell/`; registration writes only loading references. Shell removal deletes user loaders; full uninstallation also removes the bundled files. Source the printed Bash/Zsh rc or fish `conf.d` file for the current session. fish functions are autoloaded by name.
 
 In Settings, System Proxy and TUN each have separate `Configure | Disabled` / `Enabled` controls on one row. System Proxy configuration saves the proxy host and bypass choices privately for the calling user. On GNOME, saving updates an already-enabled managed proxy and keeps the original desktop backup for disabling or uninstalling. Changing only these settings does not change listening ports or TUN; the proxy address uses the managed mixed port. With no desktop session, settings are saved for later use in that user's supported desktop session. PAC and proxy guard are not provided.
+
+Login shells automatically load the proxy environment by default. Toggle **Settings → Proxy on Login** for the calling user; the next interactive login reads this preference. Bash registration also marks its active `.bash_profile`, `.bash_login` or `.profile` so login works without depending on `.bashrc` being sourced. Zsh uses `.zshrc`; fish uses the registered `conf.d` loader. Non-interactive commands do not auto-load exports, and startup emits no confirmation text. `verge-off` clears the current environment without changing the saved login preference. Shell removal strips the login block while preserving user content.

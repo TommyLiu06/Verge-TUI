@@ -21,7 +21,7 @@ _verge_tui_message() {
     printf '%s\n' "$4"
 }
 
-verge_on() {
+verge-on() {
     if [ ! -r "$_verge_tui_env_file" ]; then
         _verge_tui_message 31 'Proxy environment file is ' unavailable '.' >&2
         return 1
@@ -30,11 +30,33 @@ verge_on() {
     _verge_tui_message 32 'Proxy environment: ' enabled '.'
 }
 
-verge_off() {
+verge-off() {
     unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY || return
     _verge_tui_message 31 'Proxy environment: ' disabled '.'
 }
 
-verge_status() {
+verge-status() {
     command "$_verge_tui_executable" --data-dir "$_verge_tui_data_dir" proxy-status
 }
+
+# Automatic exports are quiet and apply once per interactive login shell.
+case $- in
+    *i*)
+        if [ "${_verge_tui_login_loaded-}" != "$_verge_tui_data_dir" ]; then
+            _verge_tui_is_login=
+            if [ -n "${BASH_VERSION-}" ]; then
+                shopt -q login_shell && _verge_tui_is_login=1
+            elif [ -n "${ZSH_VERSION-}" ]; then
+                [[ -o login ]] && _verge_tui_is_login=1
+            fi
+            if [ "$_verge_tui_is_login" = 1 ]; then
+                _verge_tui_login_loaded=$_verge_tui_data_dir
+                if _verge_tui_login_exports=$(command "$_verge_tui_executable" --data-dir "$_verge_tui_data_dir" env --auto-login 2>/dev/null); then
+                    eval "$_verge_tui_login_exports"
+                fi
+                unset _verge_tui_login_exports
+            fi
+            unset _verge_tui_is_login
+        fi
+        ;;
+esac

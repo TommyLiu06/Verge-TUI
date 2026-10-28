@@ -53,7 +53,7 @@ func TestRegistrationRefreshRemovesObsoleteOwnedFilesAndPreservesBundledAssets(t
 			before, _ := os.ReadFile(asset)
 			obsolete := filepath.Join(prefix, ".verge-tui", "obsolete.sh")
 			if shell == "fish" {
-				obsolete = filepath.Join(filepath.Dir(rc), "functions", "verge_on.fish")
+				obsolete = filepath.Join(filepath.Dir(rc), "functions", "verge-on.fish")
 			}
 			if err := os.MkdirAll(filepath.Dir(obsolete), 0700); err != nil {
 				t.Fatal(err)

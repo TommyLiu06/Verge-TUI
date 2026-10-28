@@ -71,10 +71,10 @@ func TestSystemModeLoadersLeavePathUnchanged(t *testing.T) {
 			if _, err := RegisterShell(s, filepath.Join(prefix, "verge-tui"), rc, shell); err != nil {
 				t.Fatal(err)
 			}
-			args := []string{"--noprofile", "--norc", "-c", `. "$1"; type verge_on >/dev/null; printf '%s' "$PATH"`, "test", rc}
+			args := []string{"--noprofile", "--norc", "-c", `. "$1"; type verge-on >/dev/null; printf '%s' "$PATH"`, "test", rc}
 			program := shell
 			if shell == "zsh" {
-				args = []string{"-f", "-c", `. "$1"; type verge_on >/dev/null; printf '%s' "$PATH"`, "test", rc}
+				args = []string{"-f", "-c", `. "$1"; type verge-on >/dev/null; printf '%s' "$PATH"`, "test", rc}
 			}
 			if shell == "fish" {
 				program = os.Getenv("VERGE_TUI_TEST_FISH")
@@ -82,7 +82,7 @@ func TestSystemModeLoadersLeavePathUnchanged(t *testing.T) {
 					t.Skip("set VERGE_TUI_TEST_FISH for fish tests")
 				}
 				loader := filepath.Join(filepath.Dir(rc), "conf.d", "verge-tui.fish")
-				args = []string{"--no-config", "-c", "source " + FishQuote(loader) + "; functions -q verge_on; or exit 11; string join : $PATH"}
+				args = []string{"--no-config", "-c", "source " + FishQuote(loader) + "; functions -q verge-on; or exit 11; string join : $PATH"}
 			}
 			cmd := exec.Command(program, args...)
 			cmd.Env = append(os.Environ(), "PATH=/usr/bin:/bin", "HOME="+prefix, "XDG_CONFIG_HOME="+filepath.Join(prefix, "config"))

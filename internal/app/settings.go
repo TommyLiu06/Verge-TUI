@@ -77,6 +77,8 @@ func (b *Backend) savePreferences(fields map[string]string) error {
 				p.DelayURL = value
 			case "delay-timeout":
 				p.DelayTimeout, err = strconv.Atoi(value)
+			case "proxy-on-login":
+				p.ProxyOnLogin, err = boolField(fields, key)
 			default:
 				return errors.New("unknown application setting")
 			}

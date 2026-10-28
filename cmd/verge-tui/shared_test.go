@@ -73,7 +73,7 @@ func TestShellCommandsDoNotOpenPrivateSystemSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ = os.ReadFile(rc)
-	if strings.Contains(string(data), "verge_on") {
+	if strings.Contains(string(data), "verge-on") {
 		t.Fatal("shell uninstall retained functions")
 	}
 	info, _ := os.Stat(settings)

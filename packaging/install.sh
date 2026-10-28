@@ -276,7 +276,7 @@ fi
 printf '  Proxy env:    %s/proxy.env\n' "$prefix"
 if [ "$shell_choice" != none ]; then
     printf '  Shell:        %s\n  Shell rc:     %s\n' "$shell_choice" "$rc_file"
-    echo '  Functions:    verge_on, verge_off, verge_status'
+    echo '  Functions:    verge-on, verge-off, verge-status'
 else
     echo '  Shell:        rc integration disabled'
 fi

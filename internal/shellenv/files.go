@@ -57,7 +57,7 @@ func ScriptPath(executable, shell string) string {
 func verifyScripts(executable, shell string) error {
 	paths := []string{ScriptPath(executable, shell)}
 	if shell == "fish" {
-		for _, name := range []string{"verge_on", "verge_off", "verge_status", "_verge_tui_message"} {
+		for _, name := range []string{"verge-on", "verge-off", "verge-status", "_verge_tui_message"} {
 			paths = append(paths, filepath.Join(filepath.Dir(executable), "shell", "fish", "functions", name+".fish"))
 		}
 	}
@@ -130,16 +130,16 @@ func ManagedPaths(s *state.Store, executable, rc, shell string) ([]string, error
 	for _, file := range files {
 		paths = append(paths, file.Path)
 	}
+	var reg registration
 	data, err := os.ReadFile(registrationPath(s))
 	if err == nil {
-		var reg registration
 		if err := json.Unmarshal(data, &reg); err != nil {
 			return nil, err
 		}
 		if reg.ID != blockID(s) {
 			return nil, errors.New("invalid shell registration")
 		}
-		for _, path := range reg.Files {
+		for _, path := range append(append([]string(nil), reg.Files...), reg.ExtraRCs...) {
 			if !filepath.IsAbs(path) || strings.ContainsAny(path, "\r\n\x00") {
 				return nil, errors.New("invalid managed shell path")
 			}
@@ -149,6 +149,17 @@ func ManagedPaths(s *state.Store, executable, rc, shell string) ([]string, error
 		}
 	} else if !os.IsNotExist(err) {
 		return nil, err
+	}
+	login, _, err := loginCandidate(rc, shell, reg)
+	if err != nil {
+		return nil, err
+	}
+	resolvedRC, err := resolveRCPath(rc)
+	if err != nil {
+		return nil, err
+	}
+	if login != "" && login != resolvedRC && !containsPath(paths, login) {
+		paths = append(paths, login)
 	}
 	return paths, nil
 }

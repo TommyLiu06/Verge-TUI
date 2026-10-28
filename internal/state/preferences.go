@@ -22,11 +22,12 @@ type Preferences struct {
 	ProxyColumns int                 `json:"proxy_columns"`
 	DelayURL     string              `json:"delay_url"`
 	DelayTimeout int                 `json:"delay_timeout_ms"`
+	ProxyOnLogin bool                `json:"proxy_on_login"`
 	SystemProxy  SystemProxySettings `json:"system_proxy"`
 }
 
 func DefaultPreferences() Preferences {
-	return Preferences{Language: "en", Theme: "terminal", StartPage: "home", DelayTimeout: 5000, SystemProxy: DefaultSystemProxy()}
+	return Preferences{Language: "en", Theme: "terminal", StartPage: "home", DelayTimeout: 5000, ProxyOnLogin: true, SystemProxy: DefaultSystemProxy()}
 }
 
 func (p Preferences) Validate() error {

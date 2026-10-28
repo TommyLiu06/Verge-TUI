@@ -197,6 +197,7 @@
   "Profile Options": "프로필 옵션",
   "Delete Profile": "프로필 삭제",
   "Proxy Environment": "프록시 환경 변수",
+  "Proxy on Login": "로그인 시 프록시 활성화",
   "Keyboard Shortcuts": "키보드 단축키",
   "Move Focus": "포커스 이동",
   "Activate": "실행",

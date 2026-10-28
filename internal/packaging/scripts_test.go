@@ -434,7 +434,7 @@ func TestUninstallRequiresForegroundCoreToStop(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	statusCmd := exec.Command("bash", "--noprofile", "--norc", "-c", `. "$1"; verge_on; verge_status`, "proxy-status-test", f.rc)
+	statusCmd := exec.Command("bash", "--noprofile", "--norc", "-c", `. "$1"; verge-on; verge-status`, "proxy-status-test", f.rc)
 	statusCmd.Env = f.env
 	statusOutput, err := statusCmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(statusOutput), "Core: running") || !strings.Contains(string(statusOutput), "loaded and matches") {
@@ -468,15 +468,15 @@ func TestProxyFunctionsInBashAndZsh(t *testing.T) {
 				args = []string{"-f", "-c"}
 			}
 			script := `. "$1"
-verge_off
-verge_status
-verge_on
+verge-off
+verge-status
+verge-on
 [ -n "${http_proxy:-}" ] && [ "$http_proxy" = "$https_proxy" ] && [ "$http_proxy" = "$ALL_PROXY" ] || exit 21
 [ "$no_proxy" = "$NO_PROXY" ] || exit 22
-verge_status
-verge_off
+verge-status
+verge-off
 [ -z "${http_proxy+x}${HTTPS_PROXY+x}${ALL_PROXY+x}${NO_PROXY+x}" ] || exit 23
-verge_status`
+verge-status`
 			cmd := exec.Command(shell, append(args, script, "proxy-functions-test", f.rc)...)
 			cmd.Env = f.env
 			out, err := cmd.CombinedOutput()
@@ -633,18 +633,18 @@ func TestFishInstallationUsesAutoloadedFilesAndUninstallRemovesThem(t *testing.T
 	}
 	write(t, f.rc, "# My fish configuration\n", 0600)
 	f.run(t, "install.sh", "", true, "--yes", "--shell", "fish", "--rc-file", f.rc, "--no-service")
-	absent(t, filepath.Join(filepath.Dir(f.rc), "functions", "verge_on.fish"))
+	absent(t, filepath.Join(filepath.Dir(f.rc), "functions", "verge-on.fish"))
 	if strings.Contains(read(t, filepath.Join(filepath.Dir(f.rc), "conf.d", "verge-tui.fish")), "function verge_") {
 		t.Fatal("fish registration generated function implementations")
 	}
 	script := "set -g fish_function_path " + shellenv.FishQuote(filepath.Join(filepath.Dir(f.rc), "functions")) + " $fish_function_path\nsource " + shellenv.FishQuote(filepath.Join(filepath.Dir(f.rc), "conf.d", "verge-tui.fish")) + "\n" + `
-verge_off
-verge_status
-verge_on; or exit 11
+verge-off
+verge-status
+verge-on; or exit 11
 test "$http_proxy" = "$ALL_PROXY"; or exit 12
-verge_status
-verge_off
-verge_status
+verge-status
+verge-off
+verge-status
 `
 	cmd := exec.Command(fish, "--no-config", "-c", script)
 	cmd.Env = append(f.env, "HOME="+f.root, "XDG_CONFIG_HOME="+filepath.Join(f.root, "fish-test-config"), "XDG_DATA_HOME="+filepath.Join(f.root, "fish-test-data"))
@@ -657,7 +657,7 @@ verge_status
 	if read(t, f.rc) != "# My fish configuration\n" {
 		t.Fatal("fish config.fish was modified")
 	}
-	absent(t, filepath.Join(filepath.Dir(f.rc), "functions", "verge_on.fish"))
+	absent(t, filepath.Join(filepath.Dir(f.rc), "functions", "verge-on.fish"))
 	absent(t, filepath.Join(filepath.Dir(f.rc), "conf.d", "verge-tui.fish"))
 }
 
@@ -755,11 +755,15 @@ func TestInstallerUpdatesForegroundInstallationAndAddsShellFunctions(t *testing.
 	}
 	s := &state.Store{Root: filepath.Join(f.prefix, "data")}
 	paths, err := shellenv.ManagedPaths(s, filepath.Join(f.prefix, "verge-tui"), f.rc, "bash")
-	if err != nil || len(paths) != 0 {
+	loginRC := filepath.Join(filepath.Dir(f.rc), ".profile")
+	if err != nil || len(paths) != 1 || paths[0] != loginRC {
 		t.Fatalf("managed shell paths: %v", err)
 	}
 	script := shellenv.ScriptPath(filepath.Join(f.prefix, "verge-tui"), "bash")
-	if !strings.Contains(read(t, f.rc), shellenv.Quote(script)) || !strings.Contains(read(t, script), "verge_on()") {
+	if !strings.Contains(read(t, loginRC), shellenv.Quote(script)) {
+		t.Fatal("foreground update did not register the Bash login entry")
+	}
+	if !strings.Contains(read(t, f.rc), shellenv.Quote(script)) || !strings.Contains(read(t, script), "verge-on()") {
 		t.Fatal("foreground update did not reference the bundled shell functions")
 	}
 	if read(t, script) != read(t, filepath.Join(f.bundle, "shell", "proxy.sh")) {
@@ -769,6 +773,9 @@ func TestInstallerUpdatesForegroundInstallationAndAddsShellFunctions(t *testing.
 		t.Fatal("foreground update installed a service")
 	}
 	f.run(t, "uninstall.sh", "", true, "--purge")
+	if read(t, loginRC) != "" {
+		t.Fatal("uninstall retained the Bash login reference")
+	}
 }
 
 func TestUpdateRejectsInstallationModeAndServiceChanges(t *testing.T) {
