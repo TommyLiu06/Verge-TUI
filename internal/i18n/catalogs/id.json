@@ -233,5 +233,10 @@
   "Waiting for idle connections": "Menunggu koneksi idle",
   "Application updates require an installed offline package.": "Pembaruan aplikasi memerlukan instalasi dari paket offline.",
   "System installation updates require administrator authorization.": "Pembaruan instalasi sistem memerlukan otorisasi administrator.",
-  "Update intervals must be whole minutes": "Interval harus berupa menit bilangan bulat"
+  "Update intervals must be whole minutes": "Interval harus berupa menit bilangan bulat",
+  "Auto Download Updates": "Unduh pembaruan otomatis",
+  "Downloaded Version": "Versi yang diunduh",
+  "New Version": "Versi baru",
+  "Enable Auto Check Updates before Auto Download Updates.": "Aktifkan pemeriksaan otomatis sebelum mengaktifkan unduhan otomatis.",
+  "Enable Auto Download Updates before Auto Update.": "Aktifkan unduhan otomatis sebelum mengaktifkan pembaruan otomatis."
 }

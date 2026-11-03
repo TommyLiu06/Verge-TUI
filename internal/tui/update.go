@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/clipperhouse/displaywidth"
 	"verge-tui/internal/app"
@@ -26,6 +27,7 @@ func (m *Model) updateModal() {
 	modal.Footer = []Choice{{"Check", app.Action{Kind: "app-update", ID: "check"}}}
 	modal.Header = []Choice{
 		{m.tr("Auto Check Updates") + ": " + m.updateInterval(s.Options.CheckMinutes, false), app.Action{Kind: "update-policy-list", ID: "check"}},
+		{m.tr("Auto Download Updates") + ": " + m.tr(toggle(s.Options.AutoDownload)), app.Action{Kind: "update-policy-list", ID: "download"}},
 		{m.tr("Auto Update") + ": " + m.updateInterval(s.Options.IdleMinutes, true), app.Action{Kind: "update-policy-list", ID: "idle"}},
 	}
 	current := s.CurrentVersion
@@ -42,6 +44,9 @@ func (m *Model) updateModal() {
 	}
 	if s.Release != nil {
 		modal.Body = append(modal.Body, m.tr("Latest Version")+": v"+s.Release.Version)
+		if s.Ready {
+			modal.Body = append(modal.Body, m.tr("Downloaded Version")+": v"+s.Release.Version)
+		}
 	}
 	phase := map[string]string{"checking": "Checking for Updates...", "available": "A new version is available", "downloading": "Downloading...", "verifying": "Verifying update...", "ready": "Ready to Update", "applying": "Installing update...", "latest": "Currently on the Latest Version"}[s.Phase]
 	if phase != "" {
@@ -95,7 +100,16 @@ func (m *Model) updatePolicyList(section string) {
 		m.Message = "Application updates require an installed offline package."
 		return
 	}
+	if reason := m.updatePolicyBlocked(section); reason != "" {
+		m.Message = reason
+		return
+	}
 	parent, focus := m.Modal, m.Focus
+	if section == "download" {
+		m.selectionList("Auto Download Updates", "update-options", section, "auto-download", strconv.FormatBool(m.AppUpdate.Options.AutoDownload), []string{"false", "true"})
+		m.Modal.Parent, m.Modal.ParentFocus = parent, focus
+		return
+	}
 	title, key, current := "Auto Check Updates", "check-minutes", m.AppUpdate.Options.CheckMinutes
 	options := []string{"0", "15", "30", "60", "360", "720", "1440"}
 	if section == "idle" {
@@ -121,22 +135,8 @@ func (m *Model) updatePolicyList(section string) {
 }
 
 func (m *Model) applyUpdateOptions(fields map[string]string) *app.Action {
-	options := m.AppUpdate.Options
-	for key, value := range fields {
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			m.Message = "Update intervals must be whole minutes"
-			return nil
-		}
-		if key == "check-minutes" {
-			options.CheckMinutes = n
-		} else if key == "idle-minutes" {
-			options.IdleMinutes = n
-		} else {
-			return nil
-		}
-	}
-	if err := options.Validate(); err != nil {
+	options, err := m.AppUpdate.Options.WithChanges(fields)
+	if err != nil {
 		m.Message = err.Error()
 		return nil
 	}
@@ -161,6 +161,10 @@ func (m *Model) updateAction(a app.Action) (bool, *app.Action) {
 	case "update-policy-list":
 		m.updatePolicyList(a.ID)
 	case "update-custom":
+		if reason := m.updatePolicyBlocked(a.ID); reason != "" {
+			m.Message = reason
+			return true, nil
+		}
 		key, value, title := "check-minutes", m.AppUpdate.Options.CheckMinutes, "Check Interval (minutes, 0 = Manual)"
 		if a.ID == "idle" {
 			key, value, title = "idle-minutes", m.AppUpdate.Options.IdleMinutes, "Idle Time (minutes, 0 = Manual)"
@@ -179,10 +183,6 @@ func (m *Model) updateAction(a app.Action) (bool, *app.Action) {
 		return true, m.applyUpdateOptions(fields)
 	case "update-install":
 		if !m.AppUpdate.Supported || !m.AppUpdate.Available() {
-			return true, nil
-		}
-		if m.AppUpdate.Ready {
-			m.UpdateRequest, m.Quit = &updater.Request{Version: m.AppUpdate.Release.Version}, true
 			return true, nil
 		}
 		a = app.Action{Kind: "app-update", ID: "download"}
@@ -209,6 +209,30 @@ func (m *Model) updateAction(a app.Action) (bool, *app.Action) {
 	return true, nil
 }
 
+func (m *Model) updatePolicyBlocked(section string) string {
+	if section == "download" && m.AppUpdate.Options.CheckMinutes == 0 {
+		return "Enable Auto Check Updates before Auto Download Updates."
+	}
+	if section == "idle" && !m.AppUpdate.Options.DownloadsEnabled() {
+		return "Enable Auto Download Updates before Auto Update."
+	}
+	return ""
+}
+
+func (m *Model) updateChoiceDisabled(a app.Action) bool {
+	return a.Kind == "update-policy-list" && m.updatePolicyBlocked(a.ID) != ""
+}
+
+func (m *Model) updatePollingInterval() time.Duration {
+	if m.Modal != nil && m.Modal.Kind == "app-update" {
+		return time.Second
+	}
+	if m.Tab == 3 {
+		return 5 * time.Second
+	}
+	return 0
+}
+
 func (m *Model) completeUpdate(done result) {
 	m.finishTask(done.Action)
 	if done.Page != nil && done.Page.Update != nil && done.Page.Update.CurrentVersion != "" {
@@ -218,7 +242,10 @@ func (m *Model) completeUpdate(done result) {
 		m.AppUpdate.Error = done.Err.Error()
 		m.UpdateInstalling = false
 	}
-	if m.Modal == nil || m.Modal.Kind != "app-update" && !(done.Action.Kind == "update-options" && (m.Modal.Kind == "update-options" || m.Modal.Kind == "selection-list" && (m.Modal.Section == "check" || m.Modal.Section == "idle"))) {
+	if done.Action.Kind == "app-update" && done.Action.ID == "download" && !m.AppUpdate.Available() {
+		m.UpdateInstalling = false
+	}
+	if m.Modal == nil || m.Modal.Kind != "app-update" && !(done.Action.Kind == "update-options" && (m.Modal.Kind == "update-options" || m.Modal.Kind == "selection-list" && (m.Modal.Section == "check" || m.Modal.Section == "download" || m.Modal.Section == "idle"))) {
 		return
 	}
 	if done.Action.Kind == "update-options" {

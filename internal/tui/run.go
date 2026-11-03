@@ -148,7 +148,7 @@ func Run(ctx context.Context, b *app.Backend, options ...RunOptions) (runErr err
 	updatePoll.Stop()
 	defer updatePoll.Stop()
 	var updatePollChannel <-chan time.Time
-	watchingUpdates := false
+	var updatePollInterval time.Duration
 	redraw()
 	for !m.Quit {
 		select {
@@ -173,7 +173,7 @@ func Run(ctx context.Context, b *app.Backend, options ...RunOptions) (runErr err
 			m.UpdateRequest, m.Quit = notice.Request, true
 			notice.Reply <- nil
 		case <-updatePollChannel:
-			if m.Modal == nil || m.Modal.Kind != "app-update" {
+			if m.updatePollingInterval() == 0 {
 				continue
 			}
 			a := app.Action{Kind: "app-update", ID: "status"}
@@ -296,10 +296,10 @@ func Run(ctx context.Context, b *app.Backend, options ...RunOptions) (runErr err
 			}
 		}
 		syncPage()
-		if watch := m.Modal != nil && m.Modal.Kind == "app-update"; watch != watchingUpdates {
-			watchingUpdates = watch
-			if watch {
-				updatePoll.Reset(time.Second)
+		if interval := m.updatePollingInterval(); interval != updatePollInterval {
+			updatePollInterval = interval
+			if interval > 0 {
+				updatePoll.Reset(interval)
 				updatePollChannel = updatePoll.C
 			} else {
 				updatePoll.Stop()

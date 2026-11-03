@@ -30,6 +30,7 @@ func runUpdateCommand(root string, args []string) error {
 	expected := flags.String("version", "", "verified update version to apply")
 	automatic := flags.Bool("automatic", false, "recheck the saved idle update policy before applying")
 	check := flags.Int("check-minutes", -1, "automatic check interval in minutes (0 = Manual)")
+	autoDownload := flags.Bool("auto-download", false, "download detected releases automatically; requires automatic checking")
 	idle := flags.Int("idle-minutes", -1, "continuous idle minutes before automatic update (0 = Manual)")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -67,8 +68,13 @@ func runUpdateCommand(root string, args []string) error {
 		if *idle != -1 {
 			fields["idle-minutes"] = strconv.Itoa(*idle)
 		}
+		flags.Visit(func(f *flag.Flag) {
+			if f.Name == "auto-download" {
+				fields["auto-download"] = strconv.FormatBool(*autoDownload)
+			}
+		})
 		if len(fields) == 0 {
-			return errors.New("specify --check-minutes or --idle-minutes (0 = Manual)")
+			return errors.New("specify --check-minutes, --auto-download or --idle-minutes")
 		}
 		return b.Execute(ctx, app.Action{Kind: "update-options", Fields: fields})
 	case "apply":
@@ -122,9 +128,9 @@ func finishUpdateRequest(ctx context.Context, root string, request *updater.Requ
 	args := []string{"--data-dir", root, "update"}
 	if request.Configure != nil {
 		args = append(args, "configure")
-		for _, key := range []string{"check-minutes", "idle-minutes"} {
+		for _, key := range []string{"check-minutes", "auto-download", "idle-minutes"} {
 			if value, ok := request.ConfigureFields[key]; ok {
-				args = append(args, "--"+key, value)
+				args = append(args, "--"+key+"="+value)
 			}
 		}
 	} else {

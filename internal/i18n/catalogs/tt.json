@@ -233,5 +233,10 @@
   "Waiting for idle connections": "Тоташуларның буш торуы көтелә",
   "Application updates require an installed offline package.": "Кушымта эчендә яңарту өчен офлайн пакеттан урнаштыру кирәк.",
   "System installation updates require administrator authorization.": "Система урнаштыруын яңарту өчен администратор рөхсәте кирәк.",
-  "Update intervals must be whole minutes": "Аралык тулы минутларда булырга тиеш"
+  "Update intervals must be whole minutes": "Аралык тулы минутларда булырга тиеш",
+  "Auto Download Updates": "Яңартуларны автоматик йөкләү",
+  "Downloaded Version": "Йөкләнгән версия",
+  "New Version": "Яңа версия",
+  "Enable Auto Check Updates before Auto Download Updates.": "Автоматик йөкләү алдыннан яңартуларны автоматик тикшерүне кабызыгыз.",
+  "Enable Auto Download Updates before Auto Update.": "Автоматик яңарту алдыннан автоматик йөкләүне кабызыгыз."
 }

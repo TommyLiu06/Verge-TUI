@@ -135,6 +135,9 @@ func (m *Model) focusTargets() []Hit {
 		hits = append(hits, Hit{Action: a, Key: Key(a)})
 	}
 	for _, c := range append(append([]Choice(nil), m.Modal.Header...), m.Modal.Choices...) {
+		if m.updateChoiceDisabled(c.Action) {
+			continue
+		}
 		if c.Action.Kind == "copy-field" && m.fieldDisabled(c.Action.ID) {
 			continue
 		}

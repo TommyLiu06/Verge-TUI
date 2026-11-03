@@ -48,7 +48,7 @@ func installedFixture(t *testing.T, suffix ...string) Updater {
 
 func TestAutomaticApplyRechecksActivityAndPolicy(t *testing.T) {
 	u := installedFixture(t)
-	options := Options{CheckMinutes: 60, IdleMinutes: 5}
+	options := Options{CheckMinutes: 60, AutoDownload: true, IdleMinutes: 5}
 	if err := u.Configure(options); err != nil {
 		t.Fatal(err)
 	}
@@ -245,11 +245,11 @@ func TestApplyRealOfflinePackagePreservesPrivateData(t *testing.T) {
 	}
 }
 
-func TestPendingAutomaticUpdateDoesNotResetItsIdleWindowWithChecks(t *testing.T) {
+func TestPendingAutomaticUpdateKeepsCheckingForNewerReleases(t *testing.T) {
 	r := testRelease()
-	s := Status{CurrentVersion: "0.1.18", Release: &r, Options: Options{CheckMinutes: 1, IdleMinutes: 30}, Ready: true, Phase: "ready"}
-	if checkDue(s, time.Now()) {
-		t.Fatal("metadata traffic would prevent a longer automatic idle window from ever completing")
+	s := Status{CurrentVersion: "0.1.18", Release: &r, Options: Options{CheckMinutes: 1, AutoDownload: true, IdleMinutes: 30}, Ready: true, Phase: "ready"}
+	if !checkDue(s, time.Now()) {
+		t.Fatal("a downloaded archive prevented checking whether it was superseded")
 	}
 	s.Options.IdleMinutes = 0
 	if !checkDue(s, time.Now()) {

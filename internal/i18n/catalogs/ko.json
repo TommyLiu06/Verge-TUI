@@ -233,5 +233,10 @@
   "Waiting for idle connections": "연결 유휴 상태 대기 중",
   "Application updates require an installed offline package.": "앱 내 업데이트에는 오프라인 패키지 설치가 필요합니다.",
   "System installation updates require administrator authorization.": "시스템 설치 업데이트에는 관리자 인증이 필요합니다.",
-  "Update intervals must be whole minutes": "업데이트 간격은 정수 분이어야 합니다"
+  "Update intervals must be whole minutes": "업데이트 간격은 정수 분이어야 합니다",
+  "Auto Download Updates": "업데이트 자동 다운로드",
+  "Downloaded Version": "다운로드한 버전",
+  "New Version": "새 버전",
+  "Enable Auto Check Updates before Auto Download Updates.": "먼저 자동 업데이트 확인을 켠 후 자동 다운로드를 켜세요.",
+  "Enable Auto Download Updates before Auto Update.": "먼저 자동 다운로드를 켠 후 자동 업데이트를 켜세요."
 }

@@ -233,5 +233,10 @@
   "Waiting for idle connections": "Esperando conexiones inactivas",
   "Application updates require an installed offline package.": "Las actualizaciones requieren la instalación del paquete sin conexión.",
   "System installation updates require administrator authorization.": "Actualizar la instalación del sistema requiere autorización del administrador.",
-  "Update intervals must be whole minutes": "El intervalo debe ser un número entero de minutos"
+  "Update intervals must be whole minutes": "El intervalo debe ser un número entero de minutos",
+  "Auto Download Updates": "Descargar actualizaciones automáticamente",
+  "Downloaded Version": "Versión descargada",
+  "New Version": "Nueva versión",
+  "Enable Auto Check Updates before Auto Download Updates.": "Active primero la búsqueda automática para habilitar la descarga automática.",
+  "Enable Auto Download Updates before Auto Update.": "Active primero la descarga automática para habilitar la actualización automática."
 }

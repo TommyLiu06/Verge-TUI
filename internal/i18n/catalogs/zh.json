@@ -258,5 +258,10 @@
   "Waiting for idle connections": "等待连接空闲",
   "Application updates require an installed offline package.": "应用内更新需要通过离线安装包安装。",
   "System installation updates require administrator authorization.": "系统安装的更新需要管理员授权。",
-  "Update intervals must be whole minutes": "更新间隔必须为整数分钟"
+  "Update intervals must be whole minutes": "更新间隔必须为整数分钟",
+  "Auto Download Updates": "自动下载更新",
+  "Downloaded Version": "已下载版本",
+  "New Version": "有新版本",
+  "Enable Auto Check Updates before Auto Download Updates.": "请先开启自动检查更新，再开启自动下载更新。",
+  "Enable Auto Download Updates before Auto Update.": "请先开启自动下载更新，再开启自动更新。"
 }

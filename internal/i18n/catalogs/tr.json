@@ -233,5 +233,10 @@
   "Waiting for idle connections": "Bağlantıların boşta kalması bekleniyor",
   "Application updates require an installed offline package.": "Uygulama içi güncellemeler çevrimdışı paket kurulumunu gerektirir.",
   "System installation updates require administrator authorization.": "Sistem kurulumunu güncellemek yönetici yetkisi gerektirir.",
-  "Update intervals must be whole minutes": "Aralık tam dakika olmalıdır"
+  "Update intervals must be whole minutes": "Aralık tam dakika olmalıdır",
+  "Auto Download Updates": "Güncellemeleri otomatik indir",
+  "Downloaded Version": "İndirilen sürüm",
+  "New Version": "Yeni sürüm",
+  "Enable Auto Check Updates before Auto Download Updates.": "Otomatik indirmeden önce otomatik güncelleme denetimini etkinleştirin.",
+  "Enable Auto Download Updates before Auto Update.": "Otomatik güncellemeden önce otomatik indirmeyi etkinleştirin."
 }

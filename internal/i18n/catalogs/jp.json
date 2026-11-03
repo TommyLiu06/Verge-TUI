@@ -233,5 +233,10 @@
   "Waiting for idle connections": "接続のアイドル状態を待機中",
   "Application updates require an installed offline package.": "アプリ内更新にはオフラインパッケージからのインストールが必要です。",
   "System installation updates require administrator authorization.": "システムインストールの更新には管理者の認証が必要です。",
-  "Update intervals must be whole minutes": "更新間隔は整数の分で指定してください"
+  "Update intervals must be whole minutes": "更新間隔は整数の分で指定してください",
+  "Auto Download Updates": "更新を自動ダウンロード",
+  "Downloaded Version": "ダウンロード済みバージョン",
+  "New Version": "新しいバージョン",
+  "Enable Auto Check Updates before Auto Download Updates.": "先に更新の自動確認を有効にしてください。",
+  "Enable Auto Download Updates before Auto Update.": "先に更新の自動ダウンロードを有効にしてください。"
 }

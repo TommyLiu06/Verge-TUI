@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -168,7 +170,11 @@ func readRelease(ctx context.Context, client *http.Client, endpoint string) (Rel
 }
 
 func (u Updater) client(ctx context.Context) (*http.Client, error) {
-	client, err := core.DownloadClient(ctx, u.Store)
+	factory := u.clientFactory
+	if factory == nil {
+		factory = func(ctx context.Context) (*http.Client, error) { return core.DownloadClient(ctx, u.Store) }
+	}
+	client, err := factory(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -214,6 +220,9 @@ func (u Updater) Check(ctx context.Context) (out Status, err error) {
 		return out, err
 	}
 	if out.Release == nil || out.Release.SHA256 != release.SHA256 || out.Release.Version != release.Version {
+		if err := os.Remove(filepath.Join(u.directory(), "prepared.tar.gz")); err != nil && !os.IsNotExist(err) {
+			return out, err
+		}
 		out.Ready, out.Downloaded, out.IdleSince = false, 0, time.Time{}
 	}
 	out.Release, out.LastChecked, out.RetryAfter = &release, time.Now(), time.Time{}

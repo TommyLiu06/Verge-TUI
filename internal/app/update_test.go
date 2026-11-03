@@ -23,16 +23,23 @@ func TestUpdateOptionsBelongToInstallationAndAreNotSharedActions(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := New(s, "0.1.19")
-	a := Action{Kind: "update-options", Fields: map[string]string{"check-minutes": "60", "idle-minutes": "10"}}
+	a := Action{Kind: "update-options", Fields: map[string]string{"check-minutes": "60", "auto-download": "true", "idle-minutes": "10"}}
 	if err := b.Execute(context.Background(), a); err != nil {
 		t.Fatal(err)
 	}
 	page, err := b.ReadPage(context.Background(), "app-update", "status")
-	if err != nil || page.Update == nil || page.Update.Options.CheckMinutes != 60 || page.Update.Options.IdleMinutes != 10 {
+	if err != nil || page.Update == nil || page.Update.Options.CheckMinutes != 60 || !page.Update.Options.AutoDownload || page.Update.Options.IdleMinutes != 10 {
 		t.Fatalf("policy did not persist: %#v %v", page.Update, err)
 	}
 	if err := b.Execute(context.Background(), Action{Kind: "update-options", Fields: map[string]string{"idle-minutes": "-1"}}); err == nil {
 		t.Fatal("invalid idle time accepted")
+	}
+	if err := b.Execute(context.Background(), Action{Kind: "update-options", Fields: map[string]string{"check-minutes": "0"}}); err != nil {
+		t.Fatal(err)
+	}
+	page, err = b.ReadPage(context.Background(), "app-update", "status")
+	if err != nil || page.Update.Options.AutoDownload || page.Update.Options.IdleMinutes != 0 {
+		t.Fatal("disabling the first policy did not persistently disable its children", err)
 	}
 	if sharedAction(a) == nil || sharedAction(Action{Kind: "app-update-apply"}) == nil {
 		t.Fatal("shared service allowed privilege-sensitive update operations")

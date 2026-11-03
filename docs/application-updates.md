@@ -1,16 +1,19 @@
 # Application updates
 
 Open **Settings → Check for Updates**. The entry follows Verge's advanced
-settings and its version/release-notes/Update dialog. The two policy selectors
+settings and its version/release-notes/Update dialog. The three policy selectors
 above the version information are specific to Verge-TUI:
 
 - **Auto Check Updates**: Manual, a preset interval, or a custom interval of
   1–10080 minutes. Manual makes no scheduled GitHub requests.
+- **Auto Download Updates**: Off or On. Requires automatic checking; downloads
+  a detected newer release immediately, independently of automatic installation.
 - **Auto Update**: Manual, or 1–1440 continuous minutes without active proxy
-  connections. This is independent of the check interval; a manually discovered
-  release can still be installed automatically if an idle policy is enabled.
+  connections. Requires automatic downloading.
 
-Both policies default to Manual. They are stored per installation in
+Checking and installation default to Manual; automatic downloading defaults to
+Off. A disabled parent disables its children, and the UI makes dependent controls
+unavailable until their prerequisite is enabled. They are stored per installation in
 `data/updater/options.json`, shared by all clients of a system installation.
 Changing a system installation's policies requires administrator authorization.
 The policies are not ordinary users' theme/language preferences.
@@ -18,15 +21,27 @@ The policies are not ordinary users' theme/language preferences.
 The supervisor runs the scheduler while the service is running, even without
 an open TUI. Without a service, the scheduler runs while the TUI or foreground
 supervisor is open. A private lock elects one scheduler per installation.
-Manual policies perform no network or connection polling. Once a newer release
-is available and automatic installation is enabled, it is downloaded and verified
-before idle connection polling begins, at five-second intervals.
-While a verified automatic update waits for idle connections, scheduled metadata
-checks pause so the updater's own proxy traffic cannot continually reset that
-window. Manual checks remain available.
+Manual policies perform no network or connection polling. Automatic downloads
+start after discovery even when automatic installation is Manual. Disabling the
+download policy or its parent cancels an automatic transfer. Connection polling
+starts at five-second intervals only when a verified package is ready and the
+automatic installation policy is enabled.
+
+Checking continues while a package is ready. If a newer version or changed
+official digest supersedes it, the old archive is deleted and its ready state is
+cleared. An enabled automatic download policy then downloads the current version.
+Manual **Update** also rechecks GitHub before reusing a prepared archive.
+
+Available-version indicators appear only in Settings → Check for Updates. The
+settings page refreshes cached state without making additional GitHub requests;
+Home displays no available-version badge and automatic discovery opens no dialog.
 
 Active connections, changed traffic counters between samples, unavailable
-controller responses, and gaps in polling restart the idle window. Saved policy
+controller responses, and gaps in polling restart the idle window. Completed
+metadata requests establish fresh traffic baselines so their own proxy traffic
+does not keep restarting the window; other active connections still do. The
+latest release is revalidated near installation, without querying more than once
+per minute when installation is postponed by pending edits. Saved policy
 and connections are checked again before replacement. Pending TUI tasks and
 unsaved editor/form input postpone a TUI-owned automatic installation. Network
 and installation failures remain visible in the update dialog and impose a
@@ -75,8 +90,9 @@ Useful commands:
 ```sh
 verge-tui update status
 verge-tui update check
-verge-tui update configure --check-minutes 60 --idle-minutes 10
-verge-tui update configure --check-minutes 0 --idle-minutes 0
+verge-tui update configure --check-minutes 60 --auto-download --idle-minutes 10
+verge-tui update configure --auto-download=false
+verge-tui update configure --check-minutes 0
 ```
 
 `update download` stages without installing. `update apply --version VERSION`

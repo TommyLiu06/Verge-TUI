@@ -233,5 +233,10 @@
   "Waiting for idle connections": "في انتظار خمول الاتصالات",
   "Application updates require an installed offline package.": "يتطلب التحديث داخل التطبيق التثبيت من الحزمة غير المتصلة.",
   "System installation updates require administrator authorization.": "يتطلب تحديث تثبيت النظام تفويض المسؤول.",
-  "Update intervals must be whole minutes": "يجب أن يكون الفاصل عددًا صحيحًا من الدقائق"
+  "Update intervals must be whole minutes": "يجب أن يكون الفاصل عددًا صحيحًا من الدقائق",
+  "Auto Download Updates": "تنزيل التحديثات تلقائيًا",
+  "Downloaded Version": "الإصدار الذي تم تنزيله",
+  "New Version": "إصدار جديد",
+  "Enable Auto Check Updates before Auto Download Updates.": "فعّل التحقق التلقائي من التحديثات قبل التنزيل التلقائي.",
+  "Enable Auto Download Updates before Auto Update.": "فعّل التنزيل التلقائي قبل التحديث التلقائي."
 }

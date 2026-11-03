@@ -517,7 +517,11 @@ func (m *Model) modal(f *Frame) {
 		y++
 	}
 	for _, choice := range modal.Header {
-		f.Button(Rect{r.X + 2, y, r.W - 4, 1}, choice.Label, choice.Action, false)
+		if m.updateChoiceDisabled(choice.Action) {
+			f.Line(r.X+2, y, r.W-4, choice.Label, f.Theme.Card.Foreground(f.Theme.Muted))
+		} else {
+			f.Button(Rect{r.X + 2, y, r.W - 4, 1}, choice.Label, choice.Action, false)
+		}
 		y += 2
 	}
 	for i, line := range modal.Body {

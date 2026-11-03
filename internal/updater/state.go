@@ -2,11 +2,14 @@
 package updater
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -16,6 +19,7 @@ import (
 
 type Options struct {
 	CheckMinutes int       `json:"check_minutes"`
+	AutoDownload bool      `json:"auto_download"`
 	IdleMinutes  int       `json:"idle_minutes"`
 	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 }
@@ -27,7 +31,60 @@ func (o Options) Validate() error {
 	if o.IdleMinutes < 0 || o.IdleMinutes > 1440 {
 		return errors.New("automatic update must be Manual or between 1 and 1440 idle minutes")
 	}
+	if o.AutoDownload && o.CheckMinutes == 0 {
+		return errors.New("Enable Auto Check Updates before Auto Download Updates.")
+	}
+	if o.IdleMinutes > 0 && !o.DownloadsEnabled() {
+		return errors.New("Enable Auto Download Updates before Auto Update.")
+	}
 	return nil
+}
+
+func (o Options) DownloadsEnabled() bool { return o.CheckMinutes > 0 && o.AutoDownload }
+func (o Options) UpdatesEnabled() bool   { return o.DownloadsEnabled() && o.IdleMinutes > 0 }
+
+func (o Options) WithChanges(fields map[string]string) (Options, error) {
+	next := o
+	for key, value := range fields {
+		if key == "auto-download" {
+			if value != "true" && value != "false" {
+				return o, errors.New("auto-download must be true or false")
+			}
+			next.AutoDownload = value == "true"
+			continue
+		}
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return o, errors.New("Update intervals must be whole minutes")
+		}
+		switch key {
+		case "check-minutes":
+			if n < 0 || n > 10080 {
+				return o, errors.New("check interval must be Manual or between 1 and 10080 minutes")
+			}
+			next.CheckMinutes = n
+		case "idle-minutes":
+			if n < 0 || n > 1440 {
+				return o, errors.New("automatic update must be Manual or between 1 and 1440 idle minutes")
+			}
+			next.IdleMinutes = n
+		default:
+			return o, errors.New("unknown update setting")
+		}
+	}
+	if fields["auto-download"] == "true" && next.CheckMinutes == 0 {
+		return o, errors.New("Enable Auto Check Updates before Auto Download Updates.")
+	}
+	if fields["idle-minutes"] != "" && next.IdleMinutes > 0 && !next.DownloadsEnabled() {
+		return o, errors.New("Enable Auto Download Updates before Auto Update.")
+	}
+	if next.CheckMinutes == 0 {
+		next.AutoDownload = false
+	}
+	if !next.DownloadsEnabled() {
+		next.IdleMinutes = 0
+	}
+	return next, next.Validate()
 }
 
 type Status struct {
@@ -63,8 +120,9 @@ type Request struct {
 func (r *Request) Error() string { return "application update requested" }
 
 type Updater struct {
-	Store   *state.Store
-	Version string
+	Store         *state.Store
+	Version       string
+	clientFactory func(context.Context) (*http.Client, error)
 }
 
 var ErrBusy = errors.New("another update operation is in progress")

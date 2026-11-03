@@ -72,6 +72,10 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 	if p.ProxyColumns > 0 {
 		columns = strconv.Itoa(p.ProxyColumns)
 	}
+	updateState := "Check"
+	if m.AppUpdate.Available() {
+		updateState = "New Version"
+	}
 	sections := []settingSection{
 		{"System Setting", []settingRow{
 			{"TUN Mode", tunState, tunAction},
@@ -101,7 +105,7 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 			{"Keyboard Shortcuts", "View", app.Action{Kind: "settings-help"}},
 		}},
 		{"Verge Advanced Setting", []settingRow{
-			{"Check for Updates", "Check", app.Action{Kind: "update-open"}},
+			{"Check for Updates", updateState, app.Action{Kind: "update-open"}},
 			{"Runtime Config", "View", app.Action{Kind: "settings-view", ID: "runtime"}},
 			{"Configuration Directory", "View", app.Action{Kind: "settings-info", ID: "config-dir"}},
 			{"Core Directory", "View", app.Action{Kind: "settings-info", ID: "core-dir"}},
@@ -414,6 +418,9 @@ func (m *Model) choiceSelected(action app.Action) bool {
 	switch action.Kind {
 	case "update-options":
 		current = strconv.Itoa(m.AppUpdate.Options.CheckMinutes)
+		if action.ID == "download" {
+			current = strconv.FormatBool(m.AppUpdate.Options.AutoDownload)
+		}
 		if action.ID == "idle" {
 			current = strconv.Itoa(m.AppUpdate.Options.IdleMinutes)
 		}

@@ -314,3 +314,59 @@ func (u Updater) Prepare(ctx context.Context) (out Status, err error) {
 	out.Phase, out.Ready, out.RetryAfter = "ready", true, time.Time{}
 	return out, nil
 }
+
+func (u Updater) PrepareLatest(ctx context.Context) (Status, error) {
+	status, err := u.Check(ctx)
+	if err != nil || !status.Available() {
+		return status, err
+	}
+	return u.Prepare(ctx)
+}
+
+func (u Updater) prepareAutomatic(ctx context.Context) (Status, error) {
+	parent := ctx
+	options, err := u.Options()
+	if err != nil {
+		return Status{}, err
+	}
+	if !options.DownloadsEnabled() {
+		return u.Status()
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stopped := make(chan struct{})
+	defer func() { cancel(); <-stopped }()
+	go func() {
+		defer close(stopped)
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				current, err := u.Options()
+				if err != nil || !current.DownloadsEnabled() {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	status, err := u.Prepare(ctx)
+	if errors.Is(err, context.Canceled) && parent.Err() == nil {
+		current, readErr := u.Options()
+		if readErr == nil && !current.DownloadsEnabled() {
+			lock, lockErr := u.lock("operation")
+			if lockErr == nil {
+				defer lock.Close()
+				status, readErr = u.Status()
+				if readErr == nil {
+					status.Phase, status.Error, status.RetryAfter = "available", "", time.Time{}
+					return status, u.save(status)
+				}
+			}
+		}
+	}
+	return status, err
+}

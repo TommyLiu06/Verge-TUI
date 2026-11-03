@@ -28,11 +28,6 @@ func (w *idleWindow) observe(now time.Time, connections controller.Connections, 
 }
 
 func checkDue(s Status, now time.Time) bool {
-	// A pending verified automatic update must not keep generating proxy
-	// traffic from its own metadata checks and resetting its idle window.
-	if s.Ready && s.Available() && s.Options.IdleMinutes > 0 && s.Phase != "error" {
-		return false
-	}
 	if s.Options.CheckMinutes == 0 || now.Before(s.RetryAfter) {
 		return false
 	}
@@ -56,7 +51,7 @@ func (u Updater) AllowAutomatic(ctx context.Context, s Status) error {
 	if err != nil {
 		return err
 	}
-	if options.IdleMinutes == 0 || options != s.Options || s.IdleSince.IsZero() || time.Since(s.IdleSince) < time.Duration(options.IdleMinutes)*time.Minute {
+	if !options.UpdatesEnabled() || options != s.Options || s.IdleSince.IsZero() || time.Since(s.IdleSince) < time.Duration(options.IdleMinutes)*time.Minute {
 		return errors.New("automatic update was cancelled or its idle period has not elapsed")
 	}
 	connections, err := u.connections(ctx)
@@ -129,43 +124,37 @@ func (u Updater) Run(ctx context.Context, apply func(context.Context, *Request) 
 			previous = s.Options
 		}
 		if checkDue(s, time.Now()) {
-			s, err = u.Check(ctx)
+			s, err = u.checkWhileIdle(ctx, s, &window)
+		}
+		if err == nil && s.Available() && s.Options.DownloadsEnabled() && !s.Ready && !time.Now().Before(s.RetryAfter) {
+			s, err = u.prepareAutomatic(ctx)
 			window = idleWindow{}
 		}
-		if err == nil && s.Available() && s.Options.IdleMinutes > 0 && !time.Now().Before(s.RetryAfter) {
-			if !s.Ready {
-				s, err = u.Prepare(ctx)
-				window = idleWindow{}
+		if err == nil && s.Ready && s.Available() && s.Options.UpdatesEnabled() && !time.Now().Before(s.RetryAfter) {
+			var due bool
+			s, due, err = u.observeIdle(ctx, s, &window)
+			if err != nil {
+				return err
 			}
-			if err == nil && s.Ready {
-				connections, probeErr := u.connections(ctx)
-				since := window.observe(time.Now(), connections, probeErr)
-				// Operation owners also write status; never overwrite progress or
-				// a newly checked release with an older idle observation.
-				lock, lockErr := u.lock("operation")
-				if lockErr == nil {
-					latest, readErr := u.Status()
-					eligible := false
-					if readErr == nil && latest.Ready && latest.Release != nil && latest.Release.SHA256 == s.Release.SHA256 && latest.Options == s.Options {
-						if !latest.IdleSince.Equal(since) {
-							latest.IdleSince = since
-							latest.IdleUpload, latest.IdleDownload = connections.UploadTotal, connections.DownloadTotal
-							readErr = u.save(latest)
-						}
-						s = latest
-						eligible = true
-					} else {
+			if due {
+				// The cached archive may have been superseded while waiting for
+				// idle connections. Recheck before authorizing installation.
+				if time.Since(s.LastChecked) >= time.Minute {
+					s, err = u.checkWhileIdle(ctx, s, &window)
+					if err == nil && !s.Ready && s.Available() && s.Options.DownloadsEnabled() {
+						s, err = u.prepareAutomatic(ctx)
 						window = idleWindow{}
 					}
-					lock.Close()
-					if readErr != nil {
-						return readErr
+				}
+				if err == nil && s.Ready {
+					s, due, err = u.observeIdle(ctx, s, &window)
+					if err != nil {
+						return err
 					}
-					if eligible && !since.IsZero() && time.Since(since) >= time.Duration(s.Options.IdleMinutes)*time.Minute && s.Options.IdleMinutes > 0 {
+					if due {
 						if err := apply(ctx, &Request{Version: s.Release.Version, Automatic: true}); err != nil {
 							if !errors.Is(err, ErrDeferred) {
-								s.Phase, s.Error, s.RetryAfter = "error", err.Error(), time.Now().Add(15*time.Minute)
-								if err := u.save(s); err != nil {
+								if err := u.automaticFailure(err); err != nil {
 									return err
 								}
 								window = idleWindow{}
@@ -189,6 +178,78 @@ func (u Updater) Run(ctx context.Context, apply func(context.Context, *Request) 
 		}
 	}
 	return nil
+}
+
+// Only the updater's metadata request is excluded from byte-counter changes.
+// Other active connections, failed probes and long gaps still reset the window.
+func (w *idleWindow) afterCheck(now time.Time, connections controller.Connections, err error) {
+	if err != nil || len(connections.Connections) > 0 || w.sample.IsZero() || now.Sub(w.sample) > 15*time.Second || now.Before(w.sample) {
+		w.since = time.Time{}
+	}
+	w.upload, w.down, w.sample = connections.UploadTotal, connections.DownloadTotal, now
+}
+
+func (u Updater) checkWhileIdle(ctx context.Context, s Status, window *idleWindow) (Status, error) {
+	watch := s.Ready && s.Options.UpdatesEnabled()
+	if watch {
+		connections, err := u.connections(ctx)
+		window.observe(time.Now(), connections, err)
+	}
+	checked, err := u.Check(ctx)
+	if err != nil || !watch || !checked.Ready || checked.Release == nil || s.Release == nil || checked.Release.SHA256 != s.Release.SHA256 {
+		*window = idleWindow{}
+		return checked, err
+	}
+	connections, probeErr := u.connections(ctx)
+	window.afterCheck(time.Now(), connections, probeErr)
+	return checked, nil
+}
+
+func (u Updater) observeIdle(ctx context.Context, s Status, window *idleWindow) (Status, bool, error) {
+	connections, probeErr := u.connections(ctx)
+	since := window.observe(time.Now(), connections, probeErr)
+	lock, err := u.lock("operation")
+	if errors.Is(err, ErrBusy) {
+		return s, false, nil
+	}
+	if err != nil {
+		return s, false, err
+	}
+	defer lock.Close()
+	latest, err := u.Status()
+	if err != nil {
+		return s, false, err
+	}
+	if !latest.Ready || !latest.Options.UpdatesEnabled() || latest.Release == nil || s.Release == nil || latest.Release.SHA256 != s.Release.SHA256 || latest.Options != s.Options {
+		*window = idleWindow{}
+		return latest, false, nil
+	}
+	if !latest.IdleSince.Equal(since) || latest.IdleUpload != connections.UploadTotal || latest.IdleDownload != connections.DownloadTotal {
+		latest.IdleSince = since
+		latest.IdleUpload, latest.IdleDownload = connections.UploadTotal, connections.DownloadTotal
+		if err := u.save(latest); err != nil {
+			return latest, false, err
+		}
+	}
+	due := !since.IsZero() && time.Since(since) >= time.Duration(latest.Options.IdleMinutes)*time.Minute
+	return latest, due, nil
+}
+
+func (u Updater) automaticFailure(cause error) error {
+	lock, err := u.lock("operation")
+	if errors.Is(err, ErrBusy) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	s, err := u.Status()
+	if err != nil {
+		return err
+	}
+	s.Phase, s.Error, s.RetryAfter = "error", cause.Error(), time.Now().Add(15*time.Minute)
+	return u.save(s)
 }
 
 func (u Updater) awaitApply(ctx context.Context) error {

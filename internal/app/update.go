@@ -2,7 +2,6 @@ package app
 
 import (
 	"errors"
-	"strconv"
 
 	"verge-tui/internal/updater"
 )
@@ -20,20 +19,10 @@ func (b *Backend) saveUpdateOptions(fields map[string]string) error {
 		return errors.New("application updates require an installed offline package")
 	}
 	return u.ModifyOptions(func(options *updater.Options) error {
-		for key, value := range fields {
-			n, err := strconv.Atoi(value)
-			if err != nil {
-				return errors.New("update intervals must be whole minutes")
-			}
-			switch key {
-			case "check-minutes":
-				options.CheckMinutes = n
-			case "idle-minutes":
-				options.IdleMinutes = n
-			default:
-				return errors.New("unknown update setting")
-			}
+		next, err := options.WithChanges(fields)
+		if err == nil {
+			*options = next
 		}
-		return nil
+		return err
 	})
 }

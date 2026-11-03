@@ -52,7 +52,12 @@
     "Application updates require an installed offline package.": "Application updates require an installed offline package.",
     "System installation updates require administrator authorization.": "System installation updates require administrator authorization.",
     "Update intervals must be whole minutes": "Update intervals must be whole minutes",
-    "Check": "Check"
+    "Check": "Check",
+    "Auto Download Updates": "Auto Download Updates",
+    "Downloaded Version": "Downloaded Version",
+    "New Version": "New Version",
+    "Enable Auto Check Updates before Auto Download Updates.": "Enable Auto Check Updates before Auto Download Updates.",
+    "Enable Auto Download Updates before Auto Update.": "Enable Auto Download Updates before Auto Update."
   },
   "ru": {
     "Theme": "Тема",
@@ -106,7 +111,12 @@
     "Application updates require an installed offline package.": "Обновление доступно после установки из автономного пакета.",
     "System installation updates require administrator authorization.": "Обновление системной установки требует прав администратора.",
     "Update intervals must be whole minutes": "Интервал должен быть целым числом минут",
-    "Check": "Проверить"
+    "Check": "Проверить",
+    "Auto Download Updates": "Автозагрузка обновлений",
+    "Downloaded Version": "Загруженная версия",
+    "New Version": "Новая версия",
+    "Enable Auto Check Updates before Auto Download Updates.": "Сначала включите автопроверку обновлений, затем автозагрузку.",
+    "Enable Auto Download Updates before Auto Update.": "Сначала включите автозагрузку обновлений, затем автообновление."
   },
   "zh": {
     "Theme": "主题",
@@ -189,7 +199,12 @@
     "Application updates require an installed offline package.": "应用内更新需要通过离线安装包安装。",
     "System installation updates require administrator authorization.": "系统安装的更新需要管理员授权。",
     "Update intervals must be whole minutes": "更新间隔必须为整数分钟",
-    "Check": "检查"
+    "Check": "检查",
+    "Auto Download Updates": "自动下载更新",
+    "Downloaded Version": "已下载版本",
+    "New Version": "有新版本",
+    "Enable Auto Check Updates before Auto Download Updates.": "请先开启自动检查更新，再开启自动下载更新。",
+    "Enable Auto Download Updates before Auto Update.": "请先开启自动下载更新，再开启自动更新。"
   },
   "fa": {
     "Theme": "پوسته",
@@ -243,7 +258,12 @@
     "Application updates require an installed offline package.": "به‌روزرسانی درون برنامه به نصب بسته آفلاین نیاز دارد.",
     "System installation updates require administrator authorization.": "به‌روزرسانی نصب سیستمی به مجوز مدیر نیاز دارد.",
     "Update intervals must be whole minutes": "فاصله باید تعداد صحیح دقیقه باشد",
-    "Check": "بررسی"
+    "Check": "بررسی",
+    "Auto Download Updates": "دریافت خودکار به‌روزرسانی",
+    "Downloaded Version": "نسخه دریافت‌شده",
+    "New Version": "نسخه جدید",
+    "Enable Auto Check Updates before Auto Download Updates.": "پیش از دریافت خودکار، بررسی خودکار به‌روزرسانی را فعال کنید.",
+    "Enable Auto Download Updates before Auto Update.": "پیش از به‌روزرسانی خودکار، دریافت خودکار را فعال کنید."
   },
   "tt": {
     "Theme": "Тема",
@@ -297,7 +317,12 @@
     "Application updates require an installed offline package.": "Кушымта эчендә яңарту өчен офлайн пакеттан урнаштыру кирәк.",
     "System installation updates require administrator authorization.": "Система урнаштыруын яңарту өчен администратор рөхсәте кирәк.",
     "Update intervals must be whole minutes": "Аралык тулы минутларда булырга тиеш",
-    "Check": "Тикшерү"
+    "Check": "Тикшерү",
+    "Auto Download Updates": "Яңартуларны автоматик йөкләү",
+    "Downloaded Version": "Йөкләнгән версия",
+    "New Version": "Яңа версия",
+    "Enable Auto Check Updates before Auto Download Updates.": "Автоматик йөкләү алдыннан яңартуларны автоматик тикшерүне кабызыгыз.",
+    "Enable Auto Download Updates before Auto Update.": "Автоматик яңарту алдыннан автоматик йөкләүне кабызыгыз."
   },
   "id": {
     "Theme": "Tema",
@@ -351,7 +376,12 @@
     "Application updates require an installed offline package.": "Pembaruan aplikasi memerlukan instalasi dari paket offline.",
     "System installation updates require administrator authorization.": "Pembaruan instalasi sistem memerlukan otorisasi administrator.",
     "Update intervals must be whole minutes": "Interval harus berupa menit bilangan bulat",
-    "Check": "Periksa"
+    "Check": "Periksa",
+    "Auto Download Updates": "Unduh pembaruan otomatis",
+    "Downloaded Version": "Versi yang diunduh",
+    "New Version": "Versi baru",
+    "Enable Auto Check Updates before Auto Download Updates.": "Aktifkan pemeriksaan otomatis sebelum mengaktifkan unduhan otomatis.",
+    "Enable Auto Download Updates before Auto Update.": "Aktifkan unduhan otomatis sebelum mengaktifkan pembaruan otomatis."
   },
   "ar": {
     "Theme": "السمة",
@@ -405,7 +435,12 @@
     "Application updates require an installed offline package.": "يتطلب التحديث داخل التطبيق التثبيت من الحزمة غير المتصلة.",
     "System installation updates require administrator authorization.": "يتطلب تحديث تثبيت النظام تفويض المسؤول.",
     "Update intervals must be whole minutes": "يجب أن يكون الفاصل عددًا صحيحًا من الدقائق",
-    "Check": "تحقق"
+    "Check": "تحقق",
+    "Auto Download Updates": "تنزيل التحديثات تلقائيًا",
+    "Downloaded Version": "الإصدار الذي تم تنزيله",
+    "New Version": "إصدار جديد",
+    "Enable Auto Check Updates before Auto Download Updates.": "فعّل التحقق التلقائي من التحديثات قبل التنزيل التلقائي.",
+    "Enable Auto Download Updates before Auto Update.": "فعّل التنزيل التلقائي قبل التحديث التلقائي."
   },
   "ko": {
     "Theme": "테마",
@@ -459,7 +494,12 @@
     "Application updates require an installed offline package.": "앱 내 업데이트에는 오프라인 패키지 설치가 필요합니다.",
     "System installation updates require administrator authorization.": "시스템 설치 업데이트에는 관리자 인증이 필요합니다.",
     "Update intervals must be whole minutes": "업데이트 간격은 정수 분이어야 합니다",
-    "Check": "확인"
+    "Check": "확인",
+    "Auto Download Updates": "업데이트 자동 다운로드",
+    "Downloaded Version": "다운로드한 버전",
+    "New Version": "새 버전",
+    "Enable Auto Check Updates before Auto Download Updates.": "먼저 자동 업데이트 확인을 켠 후 자동 다운로드를 켜세요.",
+    "Enable Auto Download Updates before Auto Update.": "먼저 자동 다운로드를 켠 후 자동 업데이트를 켜세요."
   },
   "tr": {
     "Theme": "Tema",
@@ -513,7 +553,12 @@
     "Application updates require an installed offline package.": "Uygulama içi güncellemeler çevrimdışı paket kurulumunu gerektirir.",
     "System installation updates require administrator authorization.": "Sistem kurulumunu güncellemek yönetici yetkisi gerektirir.",
     "Update intervals must be whole minutes": "Aralık tam dakika olmalıdır",
-    "Check": "Denetle"
+    "Check": "Denetle",
+    "Auto Download Updates": "Güncellemeleri otomatik indir",
+    "Downloaded Version": "İndirilen sürüm",
+    "New Version": "Yeni sürüm",
+    "Enable Auto Check Updates before Auto Download Updates.": "Otomatik indirmeden önce otomatik güncelleme denetimini etkinleştirin.",
+    "Enable Auto Download Updates before Auto Update.": "Otomatik güncellemeden önce otomatik indirmeyi etkinleştirin."
   },
   "de": {
     "Theme": "Design",
@@ -567,7 +612,12 @@
     "Application updates require an installed offline package.": "Updates erfordern eine Installation aus dem Offline-Paket.",
     "System installation updates require administrator authorization.": "Systemupdates erfordern eine Administratorautorisierung.",
     "Update intervals must be whole minutes": "Das Intervall muss in ganzen Minuten angegeben werden",
-    "Check": "Prüfen"
+    "Check": "Prüfen",
+    "Auto Download Updates": "Updates automatisch herunterladen",
+    "Downloaded Version": "Heruntergeladene Version",
+    "New Version": "Neue Version",
+    "Enable Auto Check Updates before Auto Download Updates.": "Aktivieren Sie zuerst die automatische Updateprüfung und dann automatische Downloads.",
+    "Enable Auto Download Updates before Auto Update.": "Aktivieren Sie zuerst automatische Downloads und dann automatische Updates."
   },
   "es": {
     "Theme": "Tema",
@@ -621,7 +671,12 @@
     "Application updates require an installed offline package.": "Las actualizaciones requieren la instalación del paquete sin conexión.",
     "System installation updates require administrator authorization.": "Actualizar la instalación del sistema requiere autorización del administrador.",
     "Update intervals must be whole minutes": "El intervalo debe ser un número entero de minutos",
-    "Check": "Buscar"
+    "Check": "Buscar",
+    "Auto Download Updates": "Descargar actualizaciones automáticamente",
+    "Downloaded Version": "Versión descargada",
+    "New Version": "Nueva versión",
+    "Enable Auto Check Updates before Auto Download Updates.": "Active primero la búsqueda automática para habilitar la descarga automática.",
+    "Enable Auto Download Updates before Auto Update.": "Active primero la descarga automática para habilitar la actualización automática."
   },
   "jp": {
     "Theme": "テーマ",
@@ -675,7 +730,12 @@
     "Application updates require an installed offline package.": "アプリ内更新にはオフラインパッケージからのインストールが必要です。",
     "System installation updates require administrator authorization.": "システムインストールの更新には管理者の認証が必要です。",
     "Update intervals must be whole minutes": "更新間隔は整数の分で指定してください",
-    "Check": "確認"
+    "Check": "確認",
+    "Auto Download Updates": "更新を自動ダウンロード",
+    "Downloaded Version": "ダウンロード済みバージョン",
+    "New Version": "新しいバージョン",
+    "Enable Auto Check Updates before Auto Download Updates.": "先に更新の自動確認を有効にしてください。",
+    "Enable Auto Download Updates before Auto Update.": "先に更新の自動ダウンロードを有効にしてください。"
   },
   "zhtw": {
     "Theme": "主題",
@@ -747,6 +807,11 @@
     "Application updates require an installed offline package.": "應用程式內更新需要透過離線安裝套件安裝。",
     "System installation updates require administrator authorization.": "系統安裝的更新需要管理員授權。",
     "Update intervals must be whole minutes": "更新間隔必須為整數分鐘",
-    "Check": "檢查"
+    "Check": "檢查",
+    "Auto Download Updates": "自動下載更新",
+    "Downloaded Version": "已下載版本",
+    "New Version": "有新版本",
+    "Enable Auto Check Updates before Auto Download Updates.": "請先啟用自動檢查更新，再啟用自動下載更新。",
+    "Enable Auto Download Updates before Auto Update.": "請先啟用自動下載更新，再啟用自動更新。"
   }
 }

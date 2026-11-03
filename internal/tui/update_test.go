@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v3"
 	"verge-tui/internal/app"
@@ -26,7 +27,7 @@ func TestUpdateDialogPoliciesPrecedeVersionAndUseKeyboardLists(t *testing.T) {
 	m.updateModal()
 	frame := m.Render(110, 38)
 	plain := frame.Plain()
-	if strings.Index(plain, "Auto Check Updates") < 0 || strings.Index(plain, "Auto Update") > strings.Index(plain, "Current Version") || !strings.Contains(plain, "Update notes") {
+	if strings.Index(plain, "Auto Check Updates") < 0 || strings.Index(plain, "Auto Check Updates") > strings.Index(plain, "Auto Download Updates") || strings.Index(plain, "Auto Download Updates") > strings.Index(plain, "Auto Update") || strings.Index(plain, "Auto Update") > strings.Index(plain, "Current Version") || !strings.Contains(plain, "Update notes") {
 		t.Fatalf("update dialog layout differs: %s", plain)
 	}
 	if !strings.Contains(strings.Join(m.Modal.Body, "\n"), "* First\n* Second") {
@@ -48,6 +49,16 @@ func TestUpdateDialogPoliciesPrecedeVersionAndUseKeyboardLists(t *testing.T) {
 	if m.Modal.Kind != "app-update" || !strings.Contains(m.Modal.Header[0].Label, "15") {
 		t.Fatal("saved interval was not displayed")
 	}
+	m.Activate(app.Action{Kind: "update-policy-list", ID: "download"})
+	if m.Modal.Kind != "selection-list" || len(m.Modal.Choices) != 2 || m.Modal.Choices[1].Action.Fields["auto-download"] != "true" {
+		t.Fatal("automatic download did not offer an On/Off list")
+	}
+	saved := m.Activate(m.Modal.Choices[1].Action)
+	if saved == nil || saved.Fields["auto-download"] != "true" {
+		t.Fatal("automatic download cannot be enabled after automatic checks")
+	}
+	m.AppUpdate.Options.AutoDownload = true
+	m.updateModal()
 	m.Activate(app.Action{Kind: "update-policy-list", ID: "idle"})
 	if !strings.Contains(m.Modal.Choices[1].Label, "without active connections") {
 		t.Fatal("automatic update choices did not describe continuous idle time")
@@ -88,11 +99,13 @@ func TestDownloadAppliesOnlyWhileTheUpdateDialogRemainsOpen(t *testing.T) {
 func TestSystemPolicyChangesRequireAdministratorFlow(t *testing.T) {
 	m := updateModel()
 	m.UpdateNeedsAdmin = true
+	m.AppUpdate.Options = updater.Options{CheckMinutes: 60, AutoDownload: true}
 	if a := m.Activate(app.Action{Kind: "update-options", Fields: map[string]string{"idle-minutes": "20"}}); a != nil || m.UpdateRequest == nil || m.UpdateRequest.Configure == nil || m.UpdateRequest.Configure.IdleMinutes != 20 {
 		t.Fatal("system policy was sent to the unprivileged shared action endpoint")
 	}
 	m = updateModel()
 	m.UpdateNeedsAdmin = true
+	m.AppUpdate.Options = updater.Options{CheckMinutes: 60, AutoDownload: true}
 	m.Activate(app.Action{Kind: "update-custom", ID: "idle"})
 	m.Modal.Fields[0].Text = "17"
 	if a := m.Handle(tcell.NewEventKey(tcell.KeyCtrlS, "", tcell.ModNone)); a != nil || m.UpdateRequest == nil || m.UpdateRequest.Configure.IdleMinutes != 17 {
@@ -125,6 +138,60 @@ func TestUpdateButtonRemainsVisibleWhenReleaseNotesScroll(t *testing.T) {
 		}
 	}
 	t.Fatal("Update scrolled off screen with the release notes")
+}
+
+func TestDependentUpdatePoliciesAreDisabledForMouseAndKeyboard(t *testing.T) {
+	m := updateModel()
+	frame := m.Render(110, 38)
+	for _, hit := range append(frame.Hits, m.focusTargets()...) {
+		if hit.Action.Kind == "update-policy-list" && hit.Action.ID != "check" {
+			t.Fatal("a disabled child policy was clickable or focusable")
+		}
+	}
+	m.Activate(app.Action{Kind: "update-policy-list", ID: "download"})
+	if m.Modal.Kind != "app-update" || !strings.Contains(m.Message, "Enable Auto Check Updates") {
+		t.Fatal("disabled automatic download could open its selector")
+	}
+	m.AppUpdate.Options.CheckMinutes = 60
+	m.updateModal()
+	m.Activate(app.Action{Kind: "update-policy-list", ID: "idle"})
+	if m.Modal.Kind != "app-update" || !strings.Contains(m.Message, "Enable Auto Download Updates") {
+		t.Fatal("automatic checks alone enabled automatic installation")
+	}
+}
+
+func TestAvailableUpdateIsOnlyIndicatedInSettings(t *testing.T) {
+	m := updateModel()
+	m.Modal = nil
+	m.AppUpdate.Release.Version = "99.88.77"
+	s := m.AppUpdate
+	m.completeUpdate(result{Action: app.Action{Kind: "app-update", ID: "status"}, Page: &app.PageData{Update: &s}})
+	if m.Modal != nil {
+		t.Fatal("background metadata opened a modal")
+	}
+	m.Tab = 0
+	if plain := m.Render(120, 60).Plain(); strings.Contains(plain, "99.88.77") || strings.Contains(plain, "New Version") {
+		t.Fatal("Home advertised the available update")
+	}
+	if m.updatePollingInterval() != 0 {
+		t.Fatal("Home started update-interface polling")
+	}
+	m.Tab = 3
+	if plain := m.Render(120, 60).Plain(); !strings.Contains(plain, "Check for Updates") || !strings.Contains(plain, "New Version") {
+		t.Fatal("Settings did not indicate the available update")
+	}
+	if m.updatePollingInterval() != 5*time.Second {
+		t.Fatal("Settings does not refresh cached update state")
+	}
+}
+
+func TestManualUpdateAlwaysRechecksAPreparedArchive(t *testing.T) {
+	m := updateModel()
+	m.AppUpdate.Ready = true
+	a := m.Activate(app.Action{Kind: "update-install"})
+	if a == nil || a.Kind != "app-update" || a.ID != "download" || m.UpdateRequest != nil || m.Quit {
+		t.Fatal("a prepared archive bypassed the latest-release check")
+	}
 }
 
 type downloadTaskFixture struct {

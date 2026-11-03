@@ -233,5 +233,10 @@
   "Waiting for idle connections": "Ожидание простоя соединений",
   "Application updates require an installed offline package.": "Обновление доступно после установки из автономного пакета.",
   "System installation updates require administrator authorization.": "Обновление системной установки требует прав администратора.",
-  "Update intervals must be whole minutes": "Интервал должен быть целым числом минут"
+  "Update intervals must be whole minutes": "Интервал должен быть целым числом минут",
+  "Auto Download Updates": "Автозагрузка обновлений",
+  "Downloaded Version": "Загруженная версия",
+  "New Version": "Новая версия",
+  "Enable Auto Check Updates before Auto Download Updates.": "Сначала включите автопроверку обновлений, затем автозагрузку.",
+  "Enable Auto Download Updates before Auto Update.": "Сначала включите автозагрузку обновлений, затем автообновление."
 }

@@ -60,11 +60,11 @@ func (b *Backend) ReadPage(ctx context.Context, kind, id string) (PageData, erro
 		case "check":
 			status, err = u.Check(ctx)
 		case "download":
-			status, err = u.Prepare(ctx)
+			status, err = u.PrepareLatest(ctx)
 		default:
 			return out, errors.New("unknown update operation")
 		}
-		if errors.Is(err, updater.ErrBusy) {
+		if errors.Is(err, updater.ErrBusy) && id != "download" {
 			status, err = u.Status()
 		}
 		out.Update = &status

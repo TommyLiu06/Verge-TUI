@@ -24,14 +24,22 @@ import (
 )
 
 func testRelease() Release {
-	r := Release{Version: "1.2.3", Size: 1, SHA256: strings.Repeat("a", 64), URL: "https://github.com/" + repository + "/releases/tag/v1.2.3"}
-	r.Asset = "verge-tui-1.2.3-" + runtime.GOOS + "-" + runtime.GOARCH + ".tar.gz"
-	r.Download = "https://github.com/" + repository + "/releases/download/v1.2.3/" + r.Asset
+	return testVersion("1.2.3")
+}
+
+func testVersion(version string) Release {
+	r := Release{Version: version, Size: 1, SHA256: strings.Repeat("a", 64), URL: "https://github.com/" + repository + "/releases/tag/v" + version}
+	r.Asset = "verge-tui-" + version + "-" + runtime.GOOS + "-" + runtime.GOARCH + ".tar.gz"
+	r.Download = "https://github.com/" + repository + "/releases/download/v" + version + "/" + r.Asset
 	r.Checksum = r.Download + ".sha256"
 	return r
 }
 
 func testBundle(t *testing.T, extra *tar.Header, corrupt string, unlisted bool, binary ...string) ([]byte, Release) {
+	return testBundleVersion(t, testRelease(), extra, corrupt, unlisted, binary...)
+}
+
+func testBundleVersion(t *testing.T, r Release, extra *tar.Header, corrupt string, unlisted bool, binary ...string) ([]byte, Release) {
 	t.Helper()
 	files := map[string]string{}
 	for _, name := range []string{"bin/verge-tui", "cores/mihomo", "install.sh", "uninstall.sh", "CORE_VERSION", "README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "geodata/manifest.json", "geodata/Country.mmdb", "geodata/GeoIP.dat", "geodata/GeoSite.dat", "shell/proxy.sh", "shell/fish/init.fish", "docs/install.md", "licenses/core-LICENSE", "img/home.png"} {
@@ -59,7 +67,6 @@ func testBundle(t *testing.T, extra *tar.Header, corrupt string, unlisted bool, 
 		files["extra"] = "unverified"
 		names = append(names, "extra")
 	}
-	r := testRelease()
 	var buffer bytes.Buffer
 	gz := gzip.NewWriter(&buffer)
 	tw := tar.NewWriter(gz)
@@ -233,7 +240,7 @@ func TestSettingsPersistAndOperationLockExcludesOtherProcesses(t *testing.T) {
 	if err != nil || options != (Options{}) {
 		t.Fatalf("defaults should be manual: %#v %v", options, err)
 	}
-	if err := u.Configure(Options{CheckMinutes: 60, IdleMinutes: 10}); err != nil {
+	if err := u.Configure(Options{CheckMinutes: 60, AutoDownload: true, IdleMinutes: 10}); err != nil {
 		t.Fatal(err)
 	}
 	if err := u.Configure(Options{IdleMinutes: -1}); err == nil {

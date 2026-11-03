@@ -233,5 +233,10 @@
   "Waiting for idle connections": "در انتظار بیکار شدن اتصال‌ها",
   "Application updates require an installed offline package.": "به‌روزرسانی درون برنامه به نصب بسته آفلاین نیاز دارد.",
   "System installation updates require administrator authorization.": "به‌روزرسانی نصب سیستمی به مجوز مدیر نیاز دارد.",
-  "Update intervals must be whole minutes": "فاصله باید تعداد صحیح دقیقه باشد"
+  "Update intervals must be whole minutes": "فاصله باید تعداد صحیح دقیقه باشد",
+  "Auto Download Updates": "دریافت خودکار به‌روزرسانی",
+  "Downloaded Version": "نسخه دریافت‌شده",
+  "New Version": "نسخه جدید",
+  "Enable Auto Check Updates before Auto Download Updates.": "پیش از دریافت خودکار، بررسی خودکار به‌روزرسانی را فعال کنید.",
+  "Enable Auto Download Updates before Auto Update.": "پیش از به‌روزرسانی خودکار، دریافت خودکار را فعال کنید."
 }
