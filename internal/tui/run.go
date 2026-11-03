@@ -7,6 +7,7 @@ import (
 	"time"
 	"verge-tui/internal/controller"
 	"verge-tui/internal/state"
+	"verge-tui/internal/updater"
 
 	"github.com/gdamore/tcell/v3"
 	"verge-tui/internal/app"
@@ -24,7 +25,13 @@ type result struct {
 	Page             *app.PageData
 }
 
-func Run(ctx context.Context, b *app.Backend) (runErr error) {
+type RunOptions struct{ OpenUpdates bool }
+type updateNotice struct {
+	Request *updater.Request
+	Reply   chan error
+}
+
+func Run(ctx context.Context, b *app.Backend, options ...RunOptions) (runErr error) {
 	screen, err := tcell.NewScreen()
 	if err != nil {
 		return err
@@ -52,12 +59,45 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 		runErr = errors.Join(runErr, b.Close(context.Background()))
 	}()
 	m := New(app.View{Version: b.Version})
+	m.UpdateNeedsAdmin = b.Remote != nil
+	showUpdates := len(options) > 0 && options[0].OpenUpdates
 	initial := app.Action{Kind: "refresh"}
 	m.beginTask(initial)
 	m.Message = "Loading"
 	runner.submit(initial)
 	updates := make(chan pageUpdate, 128)
 	var watchers sync.WaitGroup
+	updateRequests := make(chan updateNotice)
+	updateErrors := make(chan error, 1)
+	if b.Remote == nil {
+		watchers.Go(func() {
+			u := updater.Updater{Store: b.Store, Version: b.Version}
+			err := u.Run(ctx, func(ctx context.Context, request *updater.Request) error {
+				status, err := u.Status()
+				if err != nil {
+					return err
+				}
+				if err := u.AllowAutomatic(ctx, status); err != nil {
+					return err
+				}
+				notice := updateNotice{Request: request, Reply: make(chan error, 1)}
+				select {
+				case updateRequests <- notice:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				select {
+				case err := <-notice.Reply:
+					return err
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
+			if err != nil && ctx.Err() == nil {
+				updateErrors <- err
+			}
+		})
+	}
 	var stopPage context.CancelFunc
 	generation, watchedTab, watchedRevision := 0, -1, -1
 	watchedLevel := ""
@@ -67,6 +107,7 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 	var flushChannel <-chan time.Time
 	defer flush.Stop()
 	defer func() {
+		cancel()
 		if stopPage != nil {
 			stopPage()
 		}
@@ -103,11 +144,43 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 		watchers.Go(func() { watchPage(pageCtx, b, desired, currentGeneration, updates) })
 	}
 	redraw := func() { w, h := screen.Size(); m.Render(w, h).Show(screen) }
+	updatePoll := time.NewTicker(time.Second)
+	updatePoll.Stop()
+	defer updatePoll.Stop()
+	var updatePollChannel <-chan time.Time
+	watchingUpdates := false
 	redraw()
 	for !m.Quit {
 		select {
 		case <-ctx.Done():
 			return nil
+		case err := <-updateErrors:
+			m.AppUpdate.Error = err.Error()
+			m.Message = "Automatic updates: " + err.Error()
+			if m.Modal != nil && m.Modal.Kind == "app-update" {
+				m.updateModal()
+			}
+		case notice := <-updateRequests:
+			if m.Editor != nil || len(m.Tasks) > 0 || m.Modal != nil && len(m.Modal.Fields) > 0 {
+				notice.Reply <- updater.ErrDeferred
+				continue
+			}
+			// The foreground core is closed with the TUI. Its idle policy has
+			// already been checked while the controller was still reachable.
+			if b.Manager.Owned() {
+				notice.Request.Automatic = false
+			}
+			m.UpdateRequest, m.Quit = notice.Request, true
+			notice.Reply <- nil
+		case <-updatePollChannel:
+			if m.Modal == nil || m.Modal.Kind != "app-update" {
+				continue
+			}
+			a := app.Action{Kind: "app-update", ID: "status"}
+			if _, pending := m.Tasks[taskKey(a)]; !pending && len(m.Tasks) < maxPendingTasks {
+				m.beginTask(a)
+				runner.submit(a)
+			}
 		case update := <-updates:
 			if update.Generation != generation {
 				continue
@@ -134,7 +207,9 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 			if done.Delay != nil {
 				m.ApplyDelay(*done.Delay)
 			} else {
-				if done.Action.Kind == "core-releases" {
+				if done.Action.Kind == "app-update" || done.Action.Kind == "update-options" {
+					m.completeUpdate(done)
+				} else if done.Action.Kind == "core-releases" {
 					m.finishTask(done.Action)
 					if done.Page != nil {
 						m.showCoreReleases(done.Action, done.Page.Releases, done.Err)
@@ -214,8 +289,28 @@ func Run(ctx context.Context, b *app.Backend) (runErr error) {
 				}
 			}
 		}
+		if showUpdates && m.Loaded {
+			showUpdates = false
+			if action := m.Activate(app.Action{Kind: "update-open"}); action != nil && m.beginTask(*action) {
+				runner.submit(*action)
+			}
+		}
 		syncPage()
+		if watch := m.Modal != nil && m.Modal.Kind == "app-update"; watch != watchingUpdates {
+			watchingUpdates = watch
+			if watch {
+				updatePoll.Reset(time.Second)
+				updatePollChannel = updatePoll.C
+			} else {
+				updatePoll.Stop()
+				updatePollChannel = nil
+			}
+		}
 		redraw()
+	}
+	if m.UpdateRequest != nil {
+		m.UpdateRequest.ResumeCore = b.Manager.Owned()
+		return m.UpdateRequest
 	}
 	return nil
 }

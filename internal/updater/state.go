@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+	"verge-tui/internal/installation"
 	"verge-tui/internal/state"
 )
 
 type Options struct {
-	CheckMinutes int `json:"check_minutes"`
-	IdleMinutes  int `json:"idle_minutes"`
+	CheckMinutes int       `json:"check_minutes"`
+	IdleMinutes  int       `json:"idle_minutes"`
+	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 }
 
 func (o Options) Validate() error {
@@ -50,9 +52,12 @@ func (s Status) Available() bool {
 }
 
 type Request struct {
-	Version   string
-	Automatic bool
-	Configure *Options
+	Version         string
+	Automatic       bool
+	Configure       *Options
+	ConfigureFields map[string]string
+	ResumeCore      bool
+	RestartOnly     bool
 }
 
 func (r *Request) Error() string { return "application update requested" }
@@ -63,6 +68,7 @@ type Updater struct {
 }
 
 var ErrBusy = errors.New("another update operation is in progress")
+var ErrDeferred = errors.New("update postponed while the interface has pending edits or tasks")
 
 func (u Updater) directory() string { return filepath.Join(u.Store.Root, "updater") }
 
@@ -108,7 +114,24 @@ func (u Updater) Configure(options Options) error {
 	if err := os.MkdirAll(u.directory(), 0700); err != nil {
 		return err
 	}
+	options.UpdatedAt = time.Now().UTC()
 	return writeJSON(filepath.Join(u.directory(), "options.json"), options)
+}
+
+func (u Updater) ModifyOptions(change func(*Options) error) error {
+	lock, err := u.lock("configuration")
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	options, err := u.Options()
+	if err != nil {
+		return err
+	}
+	if err := change(&options); err != nil {
+		return err
+	}
+	return u.Configure(options)
 }
 
 func (u Updater) Status() (Status, error) {
@@ -122,7 +145,17 @@ func (u Updater) Status() (Status, error) {
 	if err != nil {
 		return s, err
 	}
-	s.Supported = installed(u.Store.Root)
+	s.Supported = false
+	if filepath.Base(u.Store.Root) == "data" {
+		if summary, discoverErr := installation.Discover(filepath.Dir(u.Store.Root)); discoverErr == nil && summary.State == "installed" {
+			s.Supported = true
+			if _, valid := versionNumbers(summary.Version); valid {
+				s.CurrentVersion = summary.Version
+			}
+		} else {
+			s.Supported = false
+		}
+	}
 	if !s.Available() {
 		s.Ready, s.IdleSince = false, time.Time{}
 		if s.Phase == "applying" || s.Phase == "ready" {

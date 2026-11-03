@@ -45,7 +45,7 @@ func runShared(args []string, b *app.Backend) error {
 	defer cancel()
 	switch args[0] {
 	case "tui":
-		return tui.Run(ctx, b)
+		return runTUI(ctx, b, args[1:])
 	case "env":
 		c, err := shellenv.ReadFile(shellenv.FilePath(b.Store))
 		if err != nil {

@@ -16,8 +16,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"verge-tui/internal/core"
 )
 
 func hashFile(file string) (string, error) {
@@ -39,7 +37,7 @@ func hashFile(file string) (string, error) {
 }
 
 func safeName(name string) bool {
-	return name != "" && name != "." && path.Clean(name) == name && !strings.HasPrefix(name, "/") && !strings.HasPrefix(name, "../") && !strings.ContainsAny(name, "\\\r\n\x00")
+	return name != "" && name != "." && name != ".." && path.Clean(name) == name && !strings.HasPrefix(name, "/") && !strings.HasPrefix(name, "../") && !strings.ContainsAny(name, "\\\r\n\x00")
 }
 
 // Extraction starts in a fresh private directory and accepts regular files and
@@ -285,7 +283,7 @@ func (u Updater) Prepare(ctx context.Context) (out Status, err error) {
 	defer os.RemoveAll(stage)
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
-	client, err := core.DownloadClient(ctx, u.Store)
+	client, err := u.client(ctx)
 	if err != nil {
 		return out, err
 	}

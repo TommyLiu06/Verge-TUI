@@ -117,7 +117,7 @@ func (m *Model) visibleFields() []Field {
 	return fields
 }
 func (m *Model) modalContentHeight() int {
-	return len(m.visibleFields())*2 + len(m.Modal.Choices)*m.choiceStep() + len(m.Modal.Body)
+	return len(m.visibleFields())*2 + len(m.Modal.Header)*2 + len(m.Modal.Choices)*m.choiceStep() + len(m.Modal.Body)
 }
 func (m *Model) modalViewport() int {
 	return max(1, min(m.FrameHeight()-4, max(9, 7+m.modalContentHeight()))-5)
@@ -134,10 +134,13 @@ func (m *Model) focusTargets() []Hit {
 		a := app.Action{Kind: "input", ID: f.Key}
 		hits = append(hits, Hit{Action: a, Key: Key(a)})
 	}
-	for _, c := range m.Modal.Choices {
+	for _, c := range append(append([]Choice(nil), m.Modal.Header...), m.Modal.Choices...) {
 		if c.Action.Kind == "copy-field" && m.fieldDisabled(c.Action.ID) {
 			continue
 		}
+		hits = append(hits, Hit{Action: c.Action, Key: Key(c.Action)})
+	}
+	for _, c := range m.Modal.Footer {
 		hits = append(hits, Hit{Action: c.Action, Key: Key(c.Action)})
 	}
 	if len(m.Modal.Fields) > 0 {
@@ -162,9 +165,14 @@ func (m *Model) revealFocus() {
 			pos = i*2 + 1
 		}
 	}
+	for i, c := range m.Modal.Header {
+		if m.Focus == Key(c.Action) {
+			pos = len(fields)*2 + i*2
+		}
+	}
 	for i, c := range m.Modal.Choices {
 		if m.Focus == Key(c.Action) {
-			pos = len(fields)*2 + len(m.Modal.Body) + i*m.choiceStep()
+			pos = len(fields)*2 + len(m.Modal.Header)*2 + len(m.Modal.Body) + i*m.choiceStep()
 		}
 	}
 	if pos < 0 {
@@ -179,7 +187,7 @@ func (m *Model) revealFocus() {
 }
 func (m *Model) moveFocus(dx, dy int) {
 	if m.Modal != nil {
-		if len(m.Modal.Fields)+len(m.Modal.Choices) == 0 {
+		if len(m.Modal.Fields)+len(m.Modal.Header)+len(m.Modal.Choices)+len(m.Modal.Footer) == 0 {
 			m.scroll(dy)
 			return
 		}

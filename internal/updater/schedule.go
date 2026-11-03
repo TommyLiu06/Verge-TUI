@@ -3,6 +3,8 @@ package updater
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"time"
 
 	"verge-tui/internal/controller"
@@ -26,6 +28,11 @@ func (w *idleWindow) observe(now time.Time, connections controller.Connections, 
 }
 
 func checkDue(s Status, now time.Time) bool {
+	// A pending verified automatic update must not keep generating proxy
+	// traffic from its own metadata checks and resetting its idle window.
+	if s.Ready && s.Available() && s.Options.IdleMinutes > 0 && s.Phase != "error" {
+		return false
+	}
 	if s.Options.CheckMinutes == 0 || now.Before(s.RetryAfter) {
 		return false
 	}
@@ -66,8 +73,18 @@ func (u Updater) AllowAutomatic(ctx context.Context, s Status) error {
 // Manual policies make no network requests. Connection polling starts only
 // after an automatic update has been downloaded and verified.
 func (u Updater) Run(ctx context.Context, apply func(context.Context, *Request) error) error {
-	if !installed(u.Store.Root) {
+	if filepath.Base(u.Store.Root) != "data" {
 		return nil
+	}
+	marker, err := os.Lstat(filepath.Join(filepath.Dir(u.Store.Root), ".verge-tui-install"))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !marker.Mode().IsRegular() {
+		return errors.New("invalid installation marker for automatic updates")
 	}
 	var leader interface{ Close() error }
 	for leader == nil {
@@ -97,6 +114,16 @@ func (u Updater) Run(ctx context.Context, apply func(context.Context, *Request) 
 		if err != nil {
 			return err
 		}
+		// A fresh installer can start the proxy service just before it records
+		// the public installation summary. Keep the scheduler alive for it.
+		if !s.Supported {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
+				continue
+			}
+		}
 		if s.Options != previous {
 			window = idleWindow{}
 			previous = s.Options
@@ -120,7 +147,7 @@ func (u Updater) Run(ctx context.Context, apply func(context.Context, *Request) 
 					latest, readErr := u.Status()
 					eligible := false
 					if readErr == nil && latest.Ready && latest.Release != nil && latest.Release.SHA256 == s.Release.SHA256 && latest.Options == s.Options {
-						if latest.IdleSince != since {
+						if !latest.IdleSince.Equal(since) {
 							latest.IdleSince = since
 							latest.IdleUpload, latest.IdleDownload = connections.UploadTotal, connections.DownloadTotal
 							readErr = u.save(latest)
@@ -136,14 +163,18 @@ func (u Updater) Run(ctx context.Context, apply func(context.Context, *Request) 
 					}
 					if eligible && !since.IsZero() && time.Since(since) >= time.Duration(s.Options.IdleMinutes)*time.Minute && s.Options.IdleMinutes > 0 {
 						if err := apply(ctx, &Request{Version: s.Release.Version, Automatic: true}); err != nil {
-							s.Phase, s.Error, s.RetryAfter = "error", err.Error(), time.Now().Add(15*time.Minute)
-							if err := u.save(s); err != nil {
+							if !errors.Is(err, ErrDeferred) {
+								s.Phase, s.Error, s.RetryAfter = "error", err.Error(), time.Now().Add(15*time.Minute)
+								if err := u.save(s); err != nil {
+									return err
+								}
+								window = idleWindow{}
+							}
+						} else {
+							if err := u.awaitApply(ctx); err != nil {
 								return err
 							}
 							window = idleWindow{}
-						} else {
-							<-ctx.Done()
-							return nil
 						}
 					}
 				}
@@ -158,4 +189,38 @@ func (u Updater) Run(ctx context.Context, apply func(context.Context, *Request) 
 		}
 	}
 	return nil
+}
+
+func (u Updater) awaitApply(ctx context.Context) error {
+	started := time.Now()
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			s, err := u.Status()
+			if err != nil || s.Phase == "error" {
+				return err
+			}
+			if time.Since(started) < 30*time.Second {
+				continue
+			}
+			lock, err := u.lock("operation")
+			if errors.Is(err, ErrBusy) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			s, err = u.Status()
+			if err == nil {
+				s.Phase, s.Error, s.RetryAfter = "error", "The independent updater exited before completing the update.", time.Now().Add(15*time.Minute)
+				err = u.save(s)
+			}
+			lock.Close()
+			return err
+		}
+	}
 }

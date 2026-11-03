@@ -31,11 +31,14 @@ func testRelease() Release {
 	return r
 }
 
-func testBundle(t *testing.T, extra *tar.Header, corrupt string, unlisted bool) ([]byte, Release) {
+func testBundle(t *testing.T, extra *tar.Header, corrupt string, unlisted bool, binary ...string) ([]byte, Release) {
 	t.Helper()
 	files := map[string]string{}
 	for _, name := range []string{"bin/verge-tui", "cores/mihomo", "install.sh", "uninstall.sh", "CORE_VERSION", "README.md", "LICENSE", "NOTICE.md", "DEPENDENCIES.txt", "geodata/manifest.json", "geodata/Country.mmdb", "geodata/GeoIP.dat", "geodata/GeoSite.dat", "shell/proxy.sh", "shell/fish/init.fish", "docs/install.md", "licenses/core-LICENSE", "img/home.png"} {
 		files[name] = "fixture " + name + "\n"
+	}
+	if len(binary) > 0 {
+		files["bin/verge-tui"] = binary[0]
 	}
 	var names []string
 	for name := range files {

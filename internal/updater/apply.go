@@ -15,14 +15,6 @@ import (
 	"verge-tui/internal/installation"
 )
 
-func installed(root string) bool {
-	if filepath.Base(root) != "data" {
-		return false
-	}
-	summary, err := installation.Discover(filepath.Dir(root))
-	return err == nil && summary.State == "installed"
-}
-
 func (u Updater) Apply(ctx context.Context, expected string, automatic bool, output io.Writer) (err error) {
 	lock, err := u.lock("operation")
 	if err != nil {
@@ -33,6 +25,13 @@ func (u Updater) Apply(ctx context.Context, expected string, automatic bool, out
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			s.Phase, s.Error = "error", err.Error()
+			s.RetryAfter = time.Now().Add(15 * time.Minute)
+		}
+		err = errors.Join(err, u.save(s))
+	}()
 	if !s.Supported || !s.Ready || !s.Available() || s.Release.Version != expected {
 		return errors.New("the requested verified update is no longer ready; check for updates again")
 	}
@@ -58,13 +57,6 @@ func (u Updater) Apply(ctx context.Context, expected string, automatic bool, out
 	if err := u.save(s); err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			s.Phase, s.Error = "error", err.Error()
-			s.RetryAfter = time.Now().Add(15 * time.Minute)
-		}
-		err = errors.Join(err, u.save(s))
-	}()
 	// Re-extract the hashed archive; never execute a previously extracted tree
 	// which could have changed between downloading and privilege elevation.
 	bundle, err := unpack(ctx, filepath.Join(u.directory(), "prepared.tar.gz"), stage, *s.Release)
@@ -91,6 +83,8 @@ func (u Updater) Apply(ctx context.Context, expected string, automatic bool, out
 	}
 	fmt.Fprintf(output, "Updating Verge-TUI to v%s...\n", expected)
 	command := exec.CommandContext(ctx, binary, "installation", "update", "--prefix", prefix)
+	command.Cancel = func() error { return command.Process.Signal(os.Interrupt) }
+	command.WaitDelay = 2 * time.Minute
 	command.Stdout, command.Stderr = output, output
 	if err := command.Run(); err != nil {
 		return err
@@ -121,7 +115,10 @@ func (u Updater) Launch(ctx context.Context, request *Request) error {
 	if c.InstallMode == "user" {
 		args = append(args, "--user")
 	}
-	args = append(args, "--", filepath.Join(filepath.Dir(u.Store.Root), "verge-tui"), "--data-dir", u.Store.Root, "update", "apply", "--version", request.Version, "--automatic")
+	// D-Bus keeps the executable path and '%' literal. Only argument values
+	// undergo environment expansion; '$$' preserves dollars without requiring
+	// the newer systemd-run --expand-environment option.
+	args = append(args, "--", filepath.Join(filepath.Dir(u.Store.Root), "verge-tui"), "--data-dir", strings.ReplaceAll(u.Store.Root, "$", "$$"), "update", "apply", "--version", request.Version, "--automatic")
 	data, err := exec.CommandContext(ctx, "systemd-run", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("could not start the independent updater: %w: %s", err, strings.TrimSpace(string(data)))

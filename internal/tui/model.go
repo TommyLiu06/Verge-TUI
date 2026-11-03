@@ -11,6 +11,7 @@ import (
 	"verge-tui/internal/controller"
 	"verge-tui/internal/core"
 	"verge-tui/internal/state"
+	"verge-tui/internal/updater"
 )
 
 const mouseWheelMask = tcell.WheelDown | tcell.WheelUp | tcell.WheelLeft | tcell.WheelRight
@@ -28,6 +29,8 @@ type Modal struct {
 	Section, ProfileID string
 	Fields             []Field
 	Choices            []Choice
+	Header             []Choice
+	Footer             []Choice
 	Body               []string
 	Scroll             int
 	RevealFocus        bool
@@ -36,6 +39,10 @@ type Modal struct {
 	ParentFocus        string
 }
 type Model struct {
+	AppUpdate         updater.Status
+	UpdateRequest     *updater.Request
+	UpdateInstalling  bool
+	UpdateNeedsAdmin  bool
 	CoreReleases      []core.ReleaseOption
 	CoreReleaseNext   int
 	CoreReleaseEpoch  int
@@ -96,6 +103,10 @@ type Model struct {
 func New(v app.View) *Model {
 	m := &Model{View: v, Collapsed: map[string]bool{}, TestURL: map[string]string{}, Cursors: map[string]int{}, NetworkTab: "system", Message: "Ready", ConnectionOrder: "Default", LogLevel: "All", Dark: darkTerminal()}
 	m.applyPreferences()
+	m.AppUpdate = v.Update
+	if m.AppUpdate.CurrentVersion == "" {
+		m.AppUpdate.CurrentVersion = v.Version
+	}
 	return m
 }
 func (m *Model) Input() *string {
@@ -338,6 +349,9 @@ func (m *Model) Handle(ev tcell.Event) *app.Action {
 	return nil
 }
 func (m *Model) Activate(a app.Action) *app.Action {
+	if handled, action := m.updateAction(a); handled {
+		return action
+	}
 	if handled, action := m.pageAction(a); handled {
 		return action
 	}
@@ -526,6 +540,8 @@ func (m *Model) submit() *app.Action {
 	switch m.Modal.Kind {
 	case "profile-info-save":
 		return m.submitProfileInfo(values)
+	case "update-options":
+		return m.applyUpdateOptions(values)
 	case "settings-save", "preferences-save":
 		section, profileID, kind := m.Modal.Section, m.Modal.ProfileID, m.Modal.Kind
 		m.Modal = nil
@@ -575,6 +591,9 @@ func (m *Model) Complete(v app.View, a app.Action, err error) {
 			m.Latencies = nil
 		}
 		m.View = v
+		if v.Update.CurrentVersion != "" {
+			m.AppUpdate = v.Update
+		}
 	}
 	for _, update := range m.Latencies {
 		m.setDelay(update)

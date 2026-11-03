@@ -60,7 +60,11 @@ func (c *Client) request(ctx context.Context, method, path string, input any) (*
 }
 
 func (c *Client) Call(ctx context.Context, method, path string, input, output any) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	return c.CallWithTimeout(ctx, method, path, input, output, 5*time.Minute)
+}
+
+func (c *Client) CallWithTimeout(ctx context.Context, method, path string, input, output any, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	resp, err := c.request(ctx, method, path, input)
 	if err != nil {

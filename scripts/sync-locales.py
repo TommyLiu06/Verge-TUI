@@ -42,6 +42,7 @@ for a,v in aliases.items():
 for label in ['debug','info','warning','error','silent']:
  key=f'settings.sections.clash.form.options.logLevel.{label}'
  index[en[key]]=key
+index['New Version v{{version}}']='settings.modals.update.title'
 for label, key in {
  'Proxy Host': 'settings.modals.sysproxy.fields.proxyHost',
  'Always use Default Bypass': 'settings.modals.sysproxy.fields.alwaysUseDefaultBypass',

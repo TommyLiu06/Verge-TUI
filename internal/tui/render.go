@@ -301,7 +301,11 @@ func (m *Model) homeSystem(f *Frame, r Rect) {
 			mode = m.tr("Administrator + Service Mode")
 		}
 	}
-	lines := []string{m.tr("OS Info: ") + m.View.OS, m.tr("Auto Launch: service controlled"), m.tr("Running Mode: ") + mode, m.tr("Last Check Update: -"), m.tr("TUI Version: ") + m.View.Version}
+	lastCheck := "-"
+	if !m.AppUpdate.LastChecked.IsZero() {
+		lastCheck = m.AppUpdate.LastChecked.Local().Format("2006-01-02 15:04")
+	}
+	lines := []string{m.tr("OS Info: ") + m.View.OS, m.tr("Auto Launch: service controlled"), m.tr("Running Mode: ") + mode, m.tr("Last Check Update") + ": " + lastCheck, m.tr("TUI Version: ") + m.View.Version}
 	for i, line := range lines {
 		f.Line(r.X+2, r.Y+3+i, r.W-4, line, f.Theme.Card.Foreground(f.Theme.Muted))
 	}
@@ -512,6 +516,10 @@ func (m *Model) modal(f *Frame) {
 		}
 		y++
 	}
+	for _, choice := range modal.Header {
+		f.Button(Rect{r.X + 2, y, r.W - 4, 1}, choice.Label, choice.Action, false)
+		y += 2
+	}
 	for i, line := range modal.Body {
 		if modal.Kind != "viewer" && modal.Title != "Proxy Environment" {
 			line = m.tr(line)
@@ -534,6 +542,9 @@ func (m *Model) modal(f *Frame) {
 		f.Button(Rect{r.X + 2, y + i*m.choiceStep(), r.W - 4, 1}, label, choice.Action, selected)
 	}
 	f.Clip = Rect{0, 0, f.W, f.H}
+	for i, choice := range modal.Footer {
+		f.Button(Rect{r.X + r.W - 12*(len(modal.Footer)+1-i), r.Y + r.H - 2, 11, 1}, m.tr(choice.Label), choice.Action, choice.Action.Kind == "update-install")
+	}
 	if len(modal.Fields) > 0 {
 		f.Button(Rect{r.X + r.W - 24, r.Y + r.H - 2, 11, 1}, m.tr("Save"), app.Action{Kind: "submit"}, true)
 	}

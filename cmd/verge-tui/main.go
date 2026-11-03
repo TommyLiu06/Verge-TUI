@@ -22,9 +22,10 @@ import (
 	"verge-tui/internal/shellenv"
 	"verge-tui/internal/state"
 	"verge-tui/internal/tui"
+	"verge-tui/internal/updater"
 )
 
-const version = "0.1.18"
+const version = "0.1.19"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -50,6 +51,9 @@ func run(args []string) error {
 	if len(args) > 0 && args[0] == "version" {
 		fmt.Println(version)
 		return nil
+	}
+	if len(args) > 0 && args[0] == "update" {
+		return runUpdateCommand(*root, args[1:])
 	}
 	if len(args) > 0 && args[0] == "env" {
 		f := flag.NewFlagSet("env", flag.ContinueOnError)
@@ -327,7 +331,7 @@ func run(args []string) error {
 	case "tui":
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
-		return tui.Run(ctx, app.New(s, version))
+		return runTUI(ctx, app.New(s, version), args[1:])
 	case "preview":
 		f := flag.NewFlagSet("preview", flag.ContinueOnError)
 		page := f.String("page", "home", "home, proxies, profiles, connections, rules, logs or settings")
@@ -488,7 +492,13 @@ func run(args []string) error {
 	case "run":
 		ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
-		return runManaged(ctx, m, s)
+		err := runManaged(ctx, m, s)
+		var request *updater.Request
+		if errors.As(err, &request) {
+			request.Automatic = false
+			return finishUpdateRequest(ctx, s.Root, request, "run")
+		}
+		return err
 	case "service":
 		f := flag.NewFlagSet("service", flag.ContinueOnError)
 		mode := f.String("mode", "user", "user or system")

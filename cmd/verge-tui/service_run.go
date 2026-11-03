@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 
 	"verge-tui/internal/app"
 	"verge-tui/internal/core"
 	"verge-tui/internal/management"
 	"verge-tui/internal/state"
+	"verge-tui/internal/updater"
 )
 
 func runManaged(ctx context.Context, m *core.Manager, s *state.Store) error {
@@ -36,10 +38,34 @@ func runManaged(ctx context.Context, m *core.Manager, s *state.Store) error {
 		serverDone = server.Done
 	}
 	fmt.Println("Managed core running")
-	return watchManaged(ctx, m, &mu, serverDone)
+	requests := make(chan *updater.Request, 1)
+	var workers sync.WaitGroup
+	defer func() { cancel(); workers.Wait() }()
+	workers.Go(func() {
+		u := updater.Updater{Store: s, Version: version}
+		err := u.Run(ctx, func(ctx context.Context, request *updater.Request) error {
+			if os.Getenv("INVOCATION_ID") != "" {
+				return u.Launch(ctx, request)
+			}
+			select {
+			case requests <- request:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+		if err != nil && ctx.Err() == nil {
+			fmt.Fprintln(os.Stderr, "Automatic updates:", err)
+		}
+	})
+	return watchManaged(ctx, m, &mu, serverDone, requests)
 }
 
-func watchManaged(ctx context.Context, m *core.Manager, mu *sync.RWMutex, serverDone <-chan error) error {
+func watchManaged(ctx context.Context, m *core.Manager, mu *sync.RWMutex, serverDone <-chan error, updates ...<-chan *updater.Request) error {
+	var requests <-chan *updater.Request
+	if len(updates) > 0 {
+		requests = updates[0]
+	}
 	for {
 		mu.RLock()
 		done := m.Done()
@@ -47,6 +73,8 @@ func watchManaged(ctx context.Context, m *core.Manager, mu *sync.RWMutex, server
 		select {
 		case <-ctx.Done():
 			return nil
+		case request := <-requests:
+			return request
 		case err := <-serverDone:
 			return fmt.Errorf("system management server stopped: %v", err)
 		case err := <-done:

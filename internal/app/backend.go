@@ -17,6 +17,7 @@ import (
 	"verge-tui/internal/profile"
 	"verge-tui/internal/shellenv"
 	"verge-tui/internal/state"
+	"verge-tui/internal/updater"
 )
 
 type View struct {
@@ -33,6 +34,7 @@ type View struct {
 	Preferences state.Preferences
 	CoreOptions CoreOptions
 	DataRoot    string
+	Update      updater.Status
 }
 type Action struct {
 	Kind, ID, Node, Value string
@@ -116,6 +118,7 @@ func (b *Backend) Load(ctx context.Context) (View, error) {
 			v.Settings.Mode = "rule"
 		}
 		v.Desktop = b.Desktop.Read(ctx, v.Settings)
+		v.Version = b.Version
 		preferences, loadErr := state.ReadPreferences(b.preferencesRoot())
 		v.Preferences = preferences
 		return v, errors.Join(err, loadErr)
@@ -126,6 +129,10 @@ func (b *Backend) Load(ctx context.Context) (View, error) {
 		return v, err
 	}
 	v.Settings = c
+	v.Update, err = (updater.Updater{Store: b.Store, Version: b.Version}).Status()
+	if err != nil {
+		v.Update.CurrentVersion, v.Update.Error = b.Version, err.Error()
+	}
 	v.DataRoot = b.Store.Root
 	v.Preferences, err = state.ReadPreferences(b.preferencesRoot())
 	if err != nil {
@@ -163,6 +170,9 @@ func (b *Backend) Load(ctx context.Context) (View, error) {
 	return v, err
 }
 func (b *Backend) Execute(ctx context.Context, a Action) error {
+	if a.Kind == "update-options" {
+		return b.saveUpdateOptions(a.Fields)
+	}
 	if a.Kind == "preferences-save" {
 		if a.ID == "system-proxy" {
 			return b.saveSystemProxy(ctx, a.Fields)

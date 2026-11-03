@@ -33,6 +33,8 @@ type taskRunner struct {
 	ctx               context.Context
 	normal, delay     chan task
 	preferences       chan task
+	appUpdates        chan task
+	updateStatus      chan task
 	preferencesEpoch  atomic.Uint64
 	results           chan result
 	workers           sync.WaitGroup
@@ -43,9 +45,13 @@ type taskRunner struct {
 func newTaskRunner(ctx context.Context, b taskBackend) *taskRunner {
 	r := &taskRunner{ctx: ctx, normal: make(chan task, maxPendingTasks), delay: make(chan task, 1), results: make(chan result, app.DelayConcurrency)}
 	r.preferences = make(chan task, maxPendingTasks)
+	r.appUpdates = make(chan task, maxPendingTasks)
+	r.updateStatus = make(chan task, maxPendingTasks)
 	r.workers.Go(func() { r.work(b, r.normal) })
 	r.workers.Go(func() { r.work(b, r.delay) })
 	r.workers.Go(func() { r.work(b, r.preferences) })
+	r.workers.Go(func() { r.work(b, r.appUpdates) })
+	r.workers.Go(func() { r.work(b, r.updateStatus) })
 	return r
 }
 func (r *taskRunner) submit(a app.Action) {
@@ -60,6 +66,10 @@ func (r *taskRunner) submit(a app.Action) {
 		job.Context, r.delayCancel = context.WithCancel(r.ctx)
 		r.DelayID = job.ID
 		r.delay <- job
+	} else if a.Kind == "app-update" && a.ID == "status" || a.Kind == "update-options" {
+		r.updateStatus <- job
+	} else if a.Kind == "app-update" {
+		r.appUpdates <- job
 	} else if privatePreference(a) {
 		r.preferences <- job
 	} else {
@@ -85,6 +95,14 @@ func (r *taskRunner) work(b taskBackend, jobs <-chan task) {
 			done := result{TaskID: job.ID, Action: job.Action}
 			a, ctx := job.Action, job.Context
 			switch a.Kind {
+			case "app-update":
+				data, err := b.ReadPage(ctx, "app-update", a.ID)
+				done.Page, done.Err = &data, err
+			case "update-options":
+				done.Err = b.Execute(ctx, a)
+				data, err := b.ReadPage(ctx, "app-update", "status")
+				done.Page = &data
+				done.Err = errors.Join(done.Err, err)
 			case "core-releases":
 				data, err := b.ReadPage(ctx, "core-releases", a.ID)
 				done.Page, done.Err = &data, err
@@ -206,7 +224,18 @@ func (m *Model) beginTask(a app.Action) bool {
 	}
 	m.Tasks[taskKey(a)] = a
 	m.Busy = true
-	m.Message = a.Kind
+	if a.Kind != "app-update" || a.ID != "status" {
+		m.Message = a.Kind
+	}
+	if a.Kind == "app-update" && a.ID == "check" {
+		m.Message = "Checking for Updates..."
+	}
+	if a.Kind == "app-update" && a.ID == "download" {
+		m.Message = "Downloading..."
+	}
+	if a.Kind == "update-options" {
+		m.Message = "Custom Update Policy"
+	}
 	if a.Kind == "core-releases" {
 		m.Message = "Loading official mihomo releases..."
 	}

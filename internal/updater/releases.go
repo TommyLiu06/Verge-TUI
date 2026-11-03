@@ -161,7 +161,24 @@ func readRelease(ctx context.Context, client *http.Client, endpoint string) (Rel
 			out.Checksum = asset.URL
 		}
 	}
+	if out.Download == "" {
+		return out, fmt.Errorf("no offline update package is available for %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
 	return out, out.validate()
+}
+
+func (u Updater) client(ctx context.Context) (*http.Client, error) {
+	client, err := core.DownloadClient(ctx, u.Store)
+	if err != nil {
+		return nil, err
+	}
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if req.URL.Scheme != "https" || req.URL.User != nil || len(via) >= 10 {
+			return errors.New("refusing an insecure or excessive update redirect")
+		}
+		return nil
+	}
+	return client, nil
 }
 
 func (u Updater) Check(ctx context.Context) (out Status, err error) {
@@ -187,7 +204,7 @@ func (u Updater) Check(ctx context.Context) (out Status, err error) {
 	}()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	client, err := core.DownloadClient(ctx, u.Store)
+	client, err := u.client(ctx)
 	if err != nil {
 		return out, err
 	}

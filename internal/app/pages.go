@@ -20,6 +20,7 @@ import (
 	"verge-tui/internal/core"
 	"verge-tui/internal/profile"
 	"verge-tui/internal/state"
+	"verge-tui/internal/updater"
 )
 
 type ProfileDocument struct {
@@ -32,6 +33,7 @@ type PageData struct {
 	Rules       controller.Rules
 	Document    *ProfileDocument
 	Releases    *core.ReleasePage
+	Update      *updater.Status
 }
 
 func revision(data []byte) string {
@@ -41,7 +43,31 @@ func revision(data []byte) string {
 func (b *Backend) ReadPage(ctx context.Context, kind, id string) (PageData, error) {
 	var out PageData
 	if b.Remote != nil {
+		if kind == "app-update" && id == "download" {
+			err := b.Remote.CallWithTimeout(ctx, "GET", "/data/app-update?id=download", nil, &out, 16*time.Minute)
+			return out, err
+		}
 		err := b.Remote.Call(ctx, "GET", "/data/"+url.PathEscape(kind)+"?id="+url.QueryEscape(id), nil, &out)
+		return out, err
+	}
+	if kind == "app-update" {
+		u := updater.Updater{Store: b.Store, Version: b.Version}
+		var status updater.Status
+		var err error
+		switch id {
+		case "status":
+			status, err = u.Status()
+		case "check":
+			status, err = u.Check(ctx)
+		case "download":
+			status, err = u.Prepare(ctx)
+		default:
+			return out, errors.New("unknown update operation")
+		}
+		if errors.Is(err, updater.ErrBusy) {
+			status, err = u.Status()
+		}
+		out.Update = &status
 		return out, err
 	}
 	if kind == "core-releases" {

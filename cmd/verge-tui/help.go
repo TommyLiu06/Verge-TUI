@@ -22,6 +22,7 @@ Commands:
   run              Keep the managed core running in the foreground; used by systemd
   core             Install, import, list or select managed mihomo versions
   profile          Import, create, list or select profiles
+  update           Check, download, configure or apply application updates from GitHub
   env              Print shell exports for the proxy; does not change the parent shell
   env-file         Write proxy.env beside the data directory
   shell            Install/uninstall PATH configuration and verge-on/off/status functions
@@ -65,6 +66,12 @@ Run 'verge-tui COMMAND --help' for command options and examples.
 `
 
 var helpTopics = map[string]string{
+	"update":                     "Usage: verge-tui update status | check | download | apply --version VERSION | configure [options]\n\nCheck official TommyLiu06/Verge-TUI stable GitHub releases and verify offline bundles.\nThe running managed proxy is used for checks and downloads.\nUpdates preserve profiles, preferences, credentials and the selected mihomo core.\nUse Settings > Check for Updates for the complete download, authorization and restart flow.\nAutomatic policies run in the managed service, or while the TUI is open without a service.\nBoth policies default to Manual. System updates and policy changes require root.\n",
+	"update status":              "Usage: verge-tui update status\n\nPrint cached release, download and automatic-update policy state as JSON.\nDoes not contact GitHub.\n",
+	"update check":               "Usage: verge-tui update check\n\nCheck the latest stable official GitHub release and cache its metadata.\nThe published asset must include a SHA256 digest and matching checksum file.\n",
+	"update download":            "Usage: verge-tui update download\n\nDownload the checked newer release, verify its SHA256 and all bundled files.\nDoes not stop the proxy or apply the update. Use the TUI to update and restart.\n",
+	"update apply":               "Usage: verge-tui update apply --version VERSION [--automatic]\n\nApply a previously downloaded, verified version to this installation.\nA foreground-owned core must already be stopped. System installations require root.\nThe original service state is restored; installation failures roll back.\n--automatic also checks the saved policy and idle connections immediately before replacement.\n",
+	"update configure":           "Usage: verge-tui update configure [--check-minutes N] [--idle-minutes N]\n\n--check-minutes: 0 = Manual; 1-10080 = automatic check interval.\n--idle-minutes: 0 = Manual; 1-1440 = continuous idle period before applying an update.\nThese installation-wide settings persist across sessions; system changes require root.\nTraffic, active connections or a failed connection probe restart the idle period.\n",
 	"core available":             "Usage: verge-tui core available\n\nList compatible verified release assets from MetaCubeX/mihomo on GitHub.\nIncludes stable and compatible Alpha releases; follows official pagination.\nUses the running managed proxy automatically; otherwise honors proxy environment variables.\nThe TUI loads pages only when opening Install Core or choosing Load More/Refresh.\n",
 	"shell info":                 "Usage: verge-tui shell info [--user UID]\n\nReport the existing registered configuration path and shell type.\nInspecting another account requires root. Does not initialize application data.\n",
 	"installation account":       "Usage: verge-tui installation account --user UID\n\nRead the initiating account name and home for a sudo system installation.\nThis helper does not register functions or modify account files.\n",
@@ -131,7 +138,7 @@ func printHelp(args []string, out io.Writer) (bool, error) {
 		}
 		if strings.HasPrefix(arg, "-") {
 			switch arg {
-			case "--bin-dir", "--user", "--shell", "--rc-file", "--page", "--width", "--height", "--mode", "--install-mode", "--mixed-port", "--api-port", "--prefix", "--source-dir", "--core-file":
+			case "--bin-dir", "--user", "--shell", "--rc-file", "--page", "--width", "--height", "--mode", "--install-mode", "--mixed-port", "--api-port", "--prefix", "--source-dir", "--core-file", "--check-minutes", "--idle-minutes", "--version":
 				i++
 			}
 			continue

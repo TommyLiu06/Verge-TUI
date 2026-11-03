@@ -101,6 +101,7 @@ func (m *Model) settings(f *Frame, x, y, width int) int {
 			{"Keyboard Shortcuts", "View", app.Action{Kind: "settings-help"}},
 		}},
 		{"Verge Advanced Setting", []settingRow{
+			{"Check for Updates", "Check", app.Action{Kind: "update-open"}},
 			{"Runtime Config", "View", app.Action{Kind: "settings-view", ID: "runtime"}},
 			{"Configuration Directory", "View", app.Action{Kind: "settings-info", ID: "config-dir"}},
 			{"Core Directory", "View", app.Action{Kind: "settings-info", ID: "core-dir"}},
@@ -411,6 +412,11 @@ func (m *Model) optionList(key string) {
 func (m *Model) choiceSelected(action app.Action) bool {
 	var current string
 	switch action.Kind {
+	case "update-options":
+		current = strconv.Itoa(m.AppUpdate.Options.CheckMinutes)
+		if action.ID == "idle" {
+			current = strconv.Itoa(m.AppUpdate.Options.IdleMinutes)
+		}
 	case "preferences-save":
 		switch action.ID {
 		case "theme":
