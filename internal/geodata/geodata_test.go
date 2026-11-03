@@ -9,6 +9,7 @@ import (
 	"verge-tui/internal/core"
 	"verge-tui/internal/profile"
 	"verge-tui/internal/state"
+	"verge-tui/internal/testutil"
 )
 
 func testSource(t *testing.T) (string, string) {
@@ -22,7 +23,7 @@ func testSource(t *testing.T) (string, string) {
 
 func TestRealGeodataProvisionRepairAndOfflineProfileSwitch(t *testing.T) {
 	source, binary := testSource(t)
-	s, err := state.Open(filepath.Join(t.TempDir(), "data"))
+	s, err := state.Open(filepath.Join(testutil.Dir(t), "data"))
 	if err != nil {
 		t.Fatal(err)
 	}
