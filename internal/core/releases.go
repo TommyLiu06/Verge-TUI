@@ -20,6 +20,11 @@ import (
 const releasesAPI = "https://api.github.com/repos/MetaCubeX/mihomo/releases"
 const releasesPerPage = 20
 
+// DownloadClient uses the running managed proxy, including user credentials.
+func DownloadClient(ctx context.Context, s *state.Store) (*http.Client, error) {
+	return downloadClient(ctx, s)
+}
+
 type ReleaseOption struct {
 	Tag, ID    string
 	Prerelease bool
