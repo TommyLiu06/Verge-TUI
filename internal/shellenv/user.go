@@ -12,7 +12,7 @@ import (
 
 // The root installer delegates registration to the initiating account instead
 // of writing an untrusted user rc with root permissions.
-func InstallAsUser(executable, root string, uid int, shell, rc string) error {
+func InstallAsUser(executable, root string, uid int, shell, rc string, refresh ...bool) error {
 	if os.Geteuid() != 0 {
 		return errors.New("registering another user's shell requires root")
 	}
@@ -37,6 +37,9 @@ func InstallAsUser(executable, root string, uid int, shell, rc string) error {
 		groups = append(groups, uint32(n))
 	}
 	cmd := registrationCommand(executable, root, uint32(uid), uint32(gid), groups, u.HomeDir, u.Username, shell, rc, os.Environ())
+	if len(refresh) > 0 && refresh[0] {
+		cmd.Args = append(cmd.Args, "--refresh")
+	}
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
 	return cmd.Run()
 }

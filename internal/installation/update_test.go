@@ -413,6 +413,81 @@ func TestUpdateRollsBackMalformedShellRC(t *testing.T) {
 	}
 }
 
+func additionalShells(t *testing.T, f *updateFixture) []string {
+	t.Helper()
+	executable := filepath.Join(f.prefix, "verge-tui")
+	zshRC := filepath.Join(filepath.Dir(f.rc), "zsh", ".zshrc")
+	fishRC := filepath.Join(filepath.Dir(f.rc), "fish", "config.fish")
+	put(t, zshRC, "# Existing Zsh settings\n")
+	put(t, fishRC, "# Existing fish settings\n")
+	if _, err := shellenv.RegisterShell(f.store, executable, zshRC, "zsh"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := shellenv.RegisterShell(f.store, executable, fishRC, "fish"); err != nil {
+		t.Fatal(err)
+	}
+	fishLoader := filepath.Join(filepath.Dir(fishRC), "conf.d", "verge-tui.fish")
+	// Complete owned blocks can be refreshed; user content remains intact.
+	put(t, zshRC, strings.ReplaceAll(content(t, zshRC), "shell/proxy.sh", "shell/old-proxy.sh"))
+	put(t, fishLoader, strings.ReplaceAll(content(t, fishLoader), "fish/init.fish", "fish/old-init.fish"))
+	return []string{zshRC, fishRC, fishLoader}
+}
+
+func TestUpdateRefreshesAllShellRegistrationsWithoutExplicitRC(t *testing.T) {
+	f := newUpdate(t, "user", "active", false)
+	paths := additionalShells(t, f)
+	login := filepath.Join(filepath.Dir(f.rc), ".bash_profile")
+	put(t, login, "# User login settings\n")
+	if err := f.update(""); err != nil {
+		t.Fatal(err)
+	}
+	if got := content(t, paths[0]); strings.Contains(got, "old-proxy.sh") || !strings.HasPrefix(got, "# Existing Zsh settings\n") || strings.Count(got, "# >>> verge-tui") != 1 {
+		t.Fatal("Zsh registration was not refreshed independently", got)
+	}
+	if got := content(t, paths[2]); strings.Contains(got, "old-init.fish") || !strings.Contains(got, "fish/init.fish") || strings.Count(got, "# >>> verge-tui") != 1 {
+		t.Fatal("fish loader was not refreshed", got)
+	}
+	if content(t, paths[1]) != "# Existing fish settings\n" {
+		t.Fatal("updating fish changed config.fish")
+	}
+	if got := content(t, login); !strings.HasPrefix(got, "# User login settings\n") || strings.Count(got, "# >>> verge-tui") != 1 {
+		t.Fatal("Bash login registration did not follow the active profile", got)
+	}
+	if err := shellenv.Remove(f.store); err != nil {
+		t.Fatal(err)
+	}
+	if content(t, paths[0]) != "# Existing Zsh settings\n" || content(t, paths[1]) != "# Existing fish settings\n" || content(t, login) != "# User login settings\n" {
+		t.Fatal("updated shell registrations could not be removed without altering user content")
+	}
+	if _, err := os.Stat(paths[2]); !os.IsNotExist(err) {
+		t.Fatal("uninstall retained the updated fish loader")
+	}
+}
+
+func TestUpdateRollbackRestoresEveryShellAndNewLoginCandidate(t *testing.T) {
+	f := newUpdate(t, "user", "active", false)
+	paths := additionalShells(t, f)
+	login := filepath.Join(filepath.Dir(f.rc), ".bash_profile")
+	put(t, login, "# Original login settings\n")
+	paths = append(paths, f.rc, filepath.Join(filepath.Dir(f.rc), ".profile"), login, filepath.Join(f.store.Root, "shell-integration.json"))
+	before := map[string]string{}
+	for _, path := range paths {
+		before[path] = content(t, path)
+	}
+	f.failedReadiness = 1
+	if err := f.update(""); err == nil || !strings.Contains(err.Error(), "original installation restored") {
+		t.Fatalf("expected readiness rollback after refreshing all shells: %v", err)
+	}
+	for path, original := range before {
+		if content(t, path) != original {
+			t.Fatalf("rollback did not restore %s", path)
+		}
+	}
+	if f.active != "active" || content(t, filepath.Join(f.prefix, "verge-tui")) != "old executable" {
+		t.Fatal("shell rollback did not restore the running installation")
+	}
+}
+
 func TestUpdateRefusesChangedServiceAndForegroundCore(t *testing.T) {
 	f := newUpdate(t, "system", "active", false)
 	put(t, f.unit, "foreign service")

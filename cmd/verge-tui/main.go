@@ -25,7 +25,7 @@ import (
 	"verge-tui/internal/updater"
 )
 
-const version = "0.1.19"
+const version = "0.1.20"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -229,6 +229,7 @@ func run(args []string) error {
 		shell := f.String("shell", "", "bash, zsh or fish (defaults to the current shell)")
 		uid := f.Int("user", -1, "root installer only: register as the initiating UID")
 		all := f.Bool("all", false, "remove all registered users' functions (uninstallation)")
+		refresh := f.Bool("refresh", false, "refresh all existing registrations (installer updates)")
 		if err := f.Parse(args[2:]); err != nil {
 			return err
 		}
@@ -248,7 +249,7 @@ func run(args []string) error {
 			fmt.Printf("%s\n%s\n", path, kind)
 			return nil
 		case "uninstall", "remove":
-			if *rc != "" || *shell != "" || *uid != -1 {
+			if *rc != "" || *shell != "" || *uid != -1 || *refresh {
 				return errors.New("shell uninstall uses this user's registered rc; --rc-file is only valid for shell install")
 			}
 			if *all {
@@ -260,12 +261,19 @@ func run(args []string) error {
 				return errors.New("--all is only valid for shell uninstall")
 			}
 			if *uid >= 0 && *uid != os.Geteuid() {
-				return shellenv.InstallAsUser(executable, abs, *uid, *shell, *rc)
+				return shellenv.InstallAsUser(executable, abs, *uid, *shell, *rc, *refresh)
 			}
-			if *rc == "" {
-				*rc, err = shellenv.RegisteredRC(s)
+			if *refresh {
+				registered, err := shellenv.RegisteredRC(s)
 				if err != nil {
 					return err
+				}
+				if registered != "" {
+					if err := shellenv.RefreshRegistrations(s, executable); err != nil {
+						return err
+					}
+					fmt.Println("Refreshed all registered Bash, Zsh and fish loaders.")
+					return nil
 				}
 			}
 			if *shell == "" {
@@ -273,6 +281,12 @@ func run(args []string) error {
 					*shell = shellenv.CurrentShell()
 				} else {
 					*shell = shellenv.RegisteredShell(s, *rc)
+				}
+			}
+			if *rc == "" {
+				*rc, err = shellenv.RegisteredRCForShell(s, *shell)
+				if err != nil {
+					return err
 				}
 			}
 			if *rc == "" {

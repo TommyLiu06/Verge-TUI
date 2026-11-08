@@ -344,8 +344,8 @@ finish_registration() {
     app_bin="$prefix/verge-tui"
     "$app_bin" installation record --prefix "$prefix" --bin-dir "$bin_dir"
     if [ "$shell_choice" != none ]; then
-        if [ "$updating" = yes ] && [ -z "$requested_rc" ]; then
-            "$app_bin" shell install --user "$registration_uid"
+        if [ "$updating" = yes ]; then
+            "$app_bin" shell install --refresh --user "$registration_uid" --shell "$shell_choice" --rc-file "$rc_file"
         else
             "$app_bin" shell install --shell "$shell_choice" --rc-file "$rc_file" --user "$registration_uid"
         fi

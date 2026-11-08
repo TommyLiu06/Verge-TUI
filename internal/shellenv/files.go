@@ -1,7 +1,6 @@
 package shellenv
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -130,25 +129,20 @@ func ManagedPaths(s *state.Store, executable, rc, shell string) ([]string, error
 	for _, file := range files {
 		paths = append(paths, file.Path)
 	}
+	regs, err := loadRegistrations(s, registrationPath(s))
+	if err != nil {
+		return nil, err
+	}
 	var reg registration
-	data, err := os.ReadFile(registrationPath(s))
-	if err == nil {
-		if err := json.Unmarshal(data, &reg); err != nil {
-			return nil, err
+	for _, item := range regs {
+		if registrationShell(item) == NormalizeShell(shell) {
+			reg = item
 		}
-		if reg.ID != blockID(s) {
-			return nil, errors.New("invalid shell registration")
-		}
-		for _, path := range append(append([]string(nil), reg.Files...), reg.ExtraRCs...) {
-			if !filepath.IsAbs(path) || strings.ContainsAny(path, "\r\n\x00") {
-				return nil, errors.New("invalid managed shell path")
-			}
+		for _, path := range append(append([]string(nil), item.Files...), item.ExtraRCs...) {
 			if !containsPath(paths, path) {
 				paths = append(paths, path)
 			}
 		}
-	} else if !os.IsNotExist(err) {
-		return nil, err
 	}
 	login, _, err := loginCandidate(rc, shell, reg)
 	if err != nil {
@@ -174,32 +168,25 @@ func containsPath(paths []string, path string) bool {
 }
 
 func RegisteredShell(s *state.Store, rc string) string {
-	data, err := os.ReadFile(registrationPath(s))
+	resolved, err := resolveRCPath(rc)
 	if err == nil {
-		var reg registration
-		if json.Unmarshal(data, &reg) == nil && reg.Shell != "" {
-			return reg.Shell
+		if regs, err := loadRegistrations(s, registrationPath(s)); err == nil {
+			for _, reg := range regs {
+				if reg.RC == resolved {
+					return registrationShell(reg)
+				}
+			}
 		}
 	}
 	return inferShell(rc)
 }
 
 func RegisteredRC(s *state.Store) (string, error) {
-	data, err := os.ReadFile(registrationPath(s))
-	if os.IsNotExist(err) {
-		return "", nil
-	}
-	if err != nil {
+	regs, err := loadRegistrations(s, registrationPath(s))
+	if err != nil || len(regs) == 0 {
 		return "", err
 	}
-	var reg registration
-	if err := json.Unmarshal(data, &reg); err != nil {
-		return "", err
-	}
-	if reg.ID != blockID(s) || !filepath.IsAbs(reg.RC) {
-		return "", errors.New("invalid shell registration")
-	}
-	return reg.RC, nil
+	return regs[0].RC, nil
 }
 
 func RegisteredConfig(s *state.Store, uid int) (string, string, error) {
@@ -217,26 +204,9 @@ func RegisteredConfig(s *state.Store, uid int) (string, string, error) {
 	if uid != int(info.Sys().(*syscall.Stat_t).Uid) {
 		path = filepath.Join(state.ShellUsersPath(s), strconv.Itoa(uid)+".json")
 	}
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return "", "", nil
-	}
-	if err != nil {
+	regs, err := loadRegistrations(s, path)
+	if err != nil || len(regs) == 0 {
 		return "", "", err
 	}
-	var reg registration
-	if err := json.Unmarshal(data, &reg); err != nil {
-		return "", "", err
-	}
-	if reg.ID != blockID(s) || !filepath.IsAbs(reg.RC) || strings.ContainsAny(reg.RC, "\r\n\x00") {
-		return "", "", errors.New("invalid shell registration")
-	}
-	shell := reg.Shell
-	if shell == "" {
-		shell = inferShell(reg.RC)
-	}
-	if !Supported(shell) {
-		return "", "", errors.New("invalid registered shell")
-	}
-	return reg.RC, shell, nil
+	return regs[0].RC, registrationShell(regs[0]), nil
 }

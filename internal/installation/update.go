@@ -268,6 +268,12 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 	// Backup generated files and the rc before any writes, including ownership.
 	snapshots := []snapshot{}
 	paths := []string{shellenv.FilePath(s), filepath.Join(s.Root, "shell-integration.json")}
+	registrationUpdate, err := shellenv.BeginRegistrationUpdate(s, filepath.Join(x.Prefix, "verge-tui"))
+	if err != nil {
+		return err
+	}
+	defer registrationUpdate.Close()
+	paths = append(paths, registrationUpdate.Paths...)
 	if rc != "" {
 		if _, err := os.Lstat(rc); err == nil {
 			resolved, err := filepath.EvalSymlinks(rc)
@@ -285,7 +291,12 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 		}
 		paths = append(paths, managed...)
 	}
+	seenPaths := map[string]bool{}
 	for _, path := range paths {
+		if seenPaths[path] {
+			continue
+		}
+		seenPaths[path] = true
 		shot, err := capture(path)
 		if err != nil {
 			return err
@@ -410,10 +421,8 @@ func update(ctx context.Context, bundle, prefix, rc, systemPath string, uid int,
 	if err := shellenv.Write(s); err != nil {
 		return err
 	}
-	if rc != "" {
-		if _, err := shellenv.Register(s, filepath.Join(x.Prefix, "verge-tui"), rc); err != nil {
-			return err
-		}
+	if err := registrationUpdate.Refresh(rc); err != nil {
+		return err
 	}
 	if err := ctx.Err(); err != nil {
 		return err

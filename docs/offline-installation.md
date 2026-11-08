@@ -57,7 +57,7 @@ The installer displays **verge-tui update**, the detected mode, current core, de
 
 Updates replace the application, uninstaller, documentation and licenses, while preserving subscriptions, selected profile and core, every managed core version, credentials, ports, proxy mode, TUN settings and any GNOME proxy backup. Missing or invalid geography databases are provisioned from the offline bundle; valid existing databases are retained. Geography changes are included in the update transaction and rolled back if the update fails. The bundled core is used for fresh installations; updating the application does not replace or select it. Use `core import` and `core use` separately to change the core.
 
-Existing service configuration and enablement are preserved. A running service is stopped for replacement and restarted afterward; a stopped service stays stopped. Foreground cores must be stopped first, and an open TUI should be closed before updating. Updates refresh the proxy env and re-register the initiating user's existing shell configuration without duplicates. Registration is a separate user-owned step after application replacement; a registration failure reports an error without rolling back an already successful application update. `--shell none` skips rc changes and keeps any existing registration. Service or installation mode changes are refused during updates.
+Existing service configuration and enablement are preserved. A running service is stopped for replacement and restarted afterward; a stopped service stays stopped. Foreground cores must be stopped first, and an open TUI should be closed before updating. Updates refresh the proxy env and every registered Bash, Zsh and fish entry belonging to the installation owner, with all affected rc and login files included in rollback. The initiating user's registrations in a system installation are refreshed separately with that user's UID/GID after application replacement. A failure in that separate step reports an error without rolling back an already successful application update. `--shell none` keeps existing registrations and skips adding an initiating-user registration. Service or installation mode changes are refused during updates.
 
 Failed replacement or service startup restores the previous application files, generated env and shell integration, and restarts a previously running service. If rollback itself fails, the installer reports the error and retains recovery files in the installation directory. Externally modified service units, moved installations, symlinked installation files and unrelated directories are rejected. Updates and uninstallation require the formal installation marker written by the installer; directories without this marker are rejected.
 
@@ -71,7 +71,7 @@ If a profile still needs other resources, such as an ASN database or remote prov
 
 ## Shell proxy functions
 
-The package includes static Bash/Zsh and fish scripts, copied into `<prefix>/shell/` during installation and replaced during updates. The installer prepares `<prefix>/proxy.env`; `shell install` only registers references to these scripts. It detects the parent shell, falling back to `$SHELL`. Bash uses `$HOME/.bashrc`; Zsh uses `${ZDOTDIR:-$HOME}/.zshrc`. They receive only a short marked reference to `<prefix>/shell/proxy.sh`. fish registers `${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/verge-tui.fish` with a reference to `<prefix>/shell/fish/init.fish`. This initializes the context and adds `<prefix>/shell/fish/functions` to `fish_function_path` for native autoloading; `config.fish` is unchanged. The displayed configuration path lets you check this before confirming. Override with `--shell bash|zsh|fish --rc-file /absolute/path`, or use `--shell none` to skip registration. dash/ash/ksh and other unsupported shells are not registered.
+The package includes static Bash/Zsh and fish scripts, copied into `<prefix>/shell/` during installation and replaced during updates. The installer prepares `<prefix>/proxy.env`; `shell install` only registers references to these scripts. It detects the current parent shell, falling back to `$SHELL`. Registration from Bash does not override later Zsh or fish detection: each supported shell has its own entry, and its previously selected custom rc is reused. Bash uses `$HOME/.bashrc`; Zsh uses `${ZDOTDIR:-$HOME}/.zshrc`. They receive only a short marked reference to `<prefix>/shell/proxy.sh`. fish registers `${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/verge-tui.fish` with a reference to `<prefix>/shell/fish/init.fish`. This initializes the context and adds `<prefix>/shell/fish/functions` to `fish_function_path` for native autoloading; `config.fish` is unchanged. The displayed configuration path lets you check this before confirming. Override with `--shell bash|zsh|fish --rc-file /absolute/path`, or use `--shell none` to skip registration. dash/ash/ksh and other unsupported shells are not registered.
 
 Open a new shell, or source the rc printed after installation, then use:
 
@@ -91,13 +91,13 @@ User-mode env files have mode `0600`; passwords never appear in the rc block. Sy
 /opt/verge-tui/verge-tui shell install
 ```
 
-The command detects the current shell (including `ZDOTDIR`) and prints the rc to source. Override detection with `--shell bash|zsh|fish --rc-file /absolute/path`. Open a new shell or source the printed file before invoking the functions. To remove the calling user's registered functions:
+The command detects the current shell (including `ZDOTDIR`) and prints the rc to source. Bash, Zsh and fish registrations coexist for the same user. Override detection with `--shell bash|zsh|fish`; `--rc-file /absolute/path` selects a custom rc for that shell. Installer updates use `shell install --refresh` to refresh every registered entry without choosing a new shell from the installer process. Open a new shell or source the printed file before invoking the functions. To remove the calling user's registered functions:
 
 ```sh
 /opt/verge-tui/verge-tui shell uninstall
 ```
 
-Registrations are separate for each user; removing your functions leaves other users' rc files alone. Uninstallation removes all registered blocks, running ordinary users' cleanup with their own UID/GID. Existing rc ownership and permissions are preserved, including symlinked rc files. Loaded functions in already-open shells remain until explicitly unset or the shell exits.
+Registrations are separate for each user and shell; `shell uninstall` removes all registered Bash, Zsh and fish loaders for the calling user while leaving other users' rc files alone. Uninstallation removes all registered blocks, running ordinary users' cleanup with their own UID/GID. Existing rc ownership and permissions are preserved, including symlinked rc files. Loaded functions in already-open shells remain until explicitly unset or the shell exits.
 
 Rerunning the installer can also register functions for an account that has not registered them yet. To register functions manually, for example in Zsh:
 
@@ -107,7 +107,7 @@ Rerunning the installer can also register functions for an account that has not 
 . "${ZDOTDIR:-$HOME}/.zshrc"
 ```
 
-Repeated registration updates the owned files without duplicate PATH entries. Existing unrelated fish function files are refused. User-level shell removal deletes only its loader, preserving bundled scripts for other users. Full uninstallation removes the installation's bundled scripts after removing all registered loaders. fish uses session variables rather than persistent universal variables. For a one-time export without registering functions:
+Repeated registration refreshes the selected shell without changing the other registered shells or adding duplicate PATH entries. Existing unrelated fish function files are refused. User-level shell removal deletes only its loader, preserving bundled scripts for other users. Full uninstallation removes the installation's bundled scripts after removing all registered loaders. fish uses session variables rather than persistent universal variables. For a one-time export without registering functions:
 
 ```sh
 eval "$("$HOME/.local/share/verge-tui/verge-tui" env)"
@@ -192,7 +192,7 @@ sh scripts/package.sh /absolute/path/to/mihomo v1.19.32 /absolute/path/to/geodat
 
 The geodata directory must contain Country.mmdb, GeoIP.dat and GeoSite.dat matching the hashes in `packaging/geodata/manifest.json`. The default directory is `.local/geodata-source`. The source release URLs are moving `latest` URLs; keep the verified snapshot files, or explicitly update the manifest when choosing a newer snapshot. Packaging verifies all hashes and tests all three formats with the supplied core before creating an archive.
 
-The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-0.1.18-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer and publication workflow are deferred.
+The script builds a static Linux amd64 TUI using the project Go wrapper. It makes `dist/verge-tui-VERSION-linux-amd64.tar.gz` and an archive checksum, without downloading assets or installing a service. The online GitHub installer is deferred.
 
 User-mode shell integration adds the executable directory to PATH without duplicates. System mode leaves PATH unchanged and uses the system command link. Function implementations are bundled under `<prefix>/shell/`; registration writes only loading references. Shell removal deletes user loaders; full uninstallation also removes the bundled files. Source the printed Bash/Zsh rc or fish `conf.d` file for the current session. fish functions are autoloaded by name.
 

@@ -3,7 +3,6 @@ package shellenv
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -125,7 +124,7 @@ func registerAt(s *state.Store, executable, rc, metaPath string) (string, error)
 	return registerShellAt(s, executable, rc, inferShell(rc), metaPath)
 }
 
-func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (string, error) {
+func registerOne(s *state.Store, executable, rc, shell string, old registration, save func(registration) error) (string, error) {
 	originalRC := rc
 	shell = NormalizeShell(shell)
 	if !Supported(shell) {
@@ -150,20 +149,6 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 		}
 		rc = resolved
 	} else if err != nil && !os.IsNotExist(err) {
-		return "", err
-	}
-	var old registration
-	if data, err := os.ReadFile(metaPath); err == nil {
-		if err := json.Unmarshal(data, &old); err != nil {
-			return "", err
-		}
-		if old.ID != blockID(s) {
-			return "", errors.New("invalid shell integration record")
-		}
-		if old.RC != rc || old.Shell != "" && old.Shell != shell {
-			return "", errors.New("shell integration is already registered in another rc file; remove it first")
-		}
-	} else if !os.IsNotExist(err) {
 		return "", err
 	}
 	for _, path := range old.Files {
@@ -226,8 +211,7 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 			pending.ExtraRCs = append(pending.ExtraRCs, path)
 		}
 	}
-	meta, _ := json.Marshal(pending)
-	if err := state.Write(metaPath, meta, 0600); err != nil {
+	if err := save(pending); err != nil {
 		return "", err
 	}
 	for _, file := range files {
@@ -258,8 +242,7 @@ func registerShellAt(s *state.Store, executable, rc, shell, metaPath string) (st
 			}
 		}
 	}
-	meta, _ = json.Marshal(reg)
-	if err := state.Write(metaPath, meta, 0600); err != nil {
+	if err := save(reg); err != nil {
 		return "", err
 	}
 	return rc, nil
@@ -268,21 +251,7 @@ func Remove(s *state.Store) error {
 	return removeAt(s, registrationPath(s))
 }
 
-func removeAt(s *state.Store, metaPath string) error {
-	data, err := os.ReadFile(metaPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	var reg registration
-	if err := json.Unmarshal(data, &reg); err != nil {
-		return err
-	}
-	if reg.ID != blockID(s) || !filepath.IsAbs(reg.RC) {
-		return errors.New("invalid shell integration record")
-	}
+func removeOne(s *state.Store, reg registration) error {
 	extraChanges, err := prepareExtraRCRemoval(reg)
 	if err != nil {
 		return err
@@ -318,7 +287,7 @@ func removeAt(s *state.Store, metaPath string) error {
 			return err
 		}
 	}
-	return os.Remove(metaPath)
+	return nil
 }
 
 // RemoveAll is used by uninstallation. Each user's record is removed by a
@@ -352,6 +321,9 @@ func removeAll(s *state.Store, uid int, cleanup func(uint32, uint32) error) erro
 			return err
 		}
 		stat := info.Sys().(*syscall.Stat_t)
+		if registrationLockEntry(entry.Name(), info) {
+			continue
+		}
 		if !info.Mode().IsRegular() || entry.Name() != strconv.Itoa(int(stat.Uid))+".json" {
 			return errors.New("invalid per-user shell registration")
 		}
