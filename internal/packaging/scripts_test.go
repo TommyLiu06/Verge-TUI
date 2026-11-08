@@ -755,6 +755,100 @@ func TestInstallerUpdatesExistingInstallationAfterConfirmation(t *testing.T) {
 	f.run(t, "uninstall.sh", "", true, "--purge")
 }
 
+func TestInstallerUpdatesAndUninstallsAllRegisteredShells(t *testing.T) {
+	f := setup(t, "no", "no")
+	f.env = append(f.env, "HOME="+f.root, "SHELL=/bin/bash")
+	loginRC := filepath.Join(f.root, ".profile")
+	write(t, loginRC, "# Existing user login configuration\n", 0644)
+	f.run(t, "install.sh", "", true, "--yes", "--no-service")
+	binary := filepath.Join(f.prefix, "verge-tui")
+	s := &state.Store{Root: filepath.Join(f.prefix, "data")}
+	zshRC := filepath.Join(f.root, "zsh", ".zshrc")
+	fishRC := filepath.Join(f.root, "fish", "config.fish")
+	userContent := map[string]string{
+		f.rc:    "# Existing user configuration\n",
+		loginRC: "# Existing user login configuration\n",
+		zshRC:   "# Existing Zsh configuration\n",
+		fishRC:  "# Existing fish configuration\n",
+	}
+	for _, entry := range []struct{ shell, rc string }{{"zsh", zshRC}, {"fish", fishRC}} {
+		if err := os.MkdirAll(filepath.Dir(entry.rc), 0700); err != nil {
+			t.Fatal(err)
+		}
+		write(t, entry.rc, userContent[entry.rc], 0644)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		cmd := exec.CommandContext(ctx, binary, "shell", "install", "--shell", entry.shell, "--rc-file", entry.rc)
+		cmd.Env = f.env
+		out, err := cmd.CombinedOutput()
+		cancel()
+		if err != nil {
+			t.Fatalf("register installed %s integration: %v\n%s", entry.shell, err, out)
+		}
+	}
+	fishLoader := filepath.Join(filepath.Dir(fishRC), "conf.d", "verge-tui.fish")
+	entries := []struct{ shell, rc, loader, script string }{
+		{"bash", f.rc, f.rc, filepath.Join(f.prefix, "shell", "proxy.sh")},
+		{"zsh", zshRC, zshRC, filepath.Join(f.prefix, "shell", "proxy.sh")},
+		{"fish", fishRC, fishLoader, filepath.Join(f.prefix, "shell", "fish", "init.fish")},
+	}
+	loaders := map[string]string{}
+	for _, entry := range entries {
+		loaders[entry.loader] = read(t, entry.loader)
+	}
+	assertRegistered := func(t *testing.T) {
+		t.Helper()
+		for _, entry := range entries {
+			rc, err := shellenv.RegisteredRCForShell(s, entry.shell)
+			if err != nil || rc != entry.rc {
+				t.Fatalf("%s registration: got %q, want %q (%v)", entry.shell, rc, entry.rc, err)
+			}
+			loader := read(t, entry.loader)
+			if loader != loaders[entry.loader] || strings.Count(loader, "# >>> verge-tui ") != 1 || strings.Count(loader, "# <<< verge-tui ") != 1 || !strings.Contains(loader, entry.script) || !strings.Contains(loader, binary) || !strings.Contains(loader, s.Root) {
+				t.Fatalf("%s loader is missing, stale or duplicated:\n%s", entry.shell, loader)
+			}
+			if read(t, entry.script) != read(t, filepath.Join(f.bundle, "shell", strings.TrimPrefix(entry.script, filepath.Join(f.prefix, "shell")+string(filepath.Separator)))) {
+				t.Fatalf("%s loader does not reference the bundled shell script", entry.shell)
+			}
+		}
+		if read(t, fishRC) != userContent[fishRC] || strings.Count(read(t, loginRC), "# >>> verge-tui ") != 1 {
+			t.Fatal("shell registration changed fish user content or duplicated the Bash login entry")
+		}
+	}
+	assertRegistered(t)
+	for _, update := range []struct {
+		name string
+		args []string
+	}{
+		{"default-rc", []string{"--yes", "--no-service", "--shell", "bash"}},
+		{"explicit-bash-rc", []string{"--yes", "--no-service", "--shell", "bash", "--rc-file", f.rc}},
+	} {
+		t.Run(update.name, func(t *testing.T) {
+			// Complete owned loaders remain refreshable when their previous
+			// script references need replacement during an application update.
+			write(t, zshRC, strings.ReplaceAll(loaders[zshRC], "shell/proxy.sh", "shell/obsolete-proxy.sh"), 0644)
+			write(t, fishLoader, strings.ReplaceAll(loaders[fishLoader], "fish/init.fish", "fish/obsolete-init.fish"), 0644)
+			out := f.run(t, "install.sh", "", true, update.args...)
+			if !strings.Contains(out, "Updated in") {
+				t.Fatal(out)
+			}
+			assertRegistered(t)
+		})
+	}
+	f.run(t, "uninstall.sh", "", true, "--purge")
+	for path, want := range userContent {
+		if got := read(t, path); got != want {
+			t.Fatalf("uninstall changed user content in %s:\n%s", path, got)
+		}
+	}
+	absent(t, fishLoader)
+	absent(t, f.prefix)
+	for _, action := range []string{"enable", "disable", "start", "stop"} {
+		if strings.Contains(read(t, f.log), action) {
+			t.Fatalf("no-service installation requested service action %q", action)
+		}
+	}
+}
+
 func TestInstallerUpdatesForegroundInstallationAndAddsShellFunctions(t *testing.T) {
 	f := setup(t, "no", "no")
 	f.run(t, "install.sh", "", true, "--yes", "--shell", "none")
