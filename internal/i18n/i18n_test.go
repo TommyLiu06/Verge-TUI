@@ -13,7 +13,7 @@ func TestUpstreamLanguagesAndFallback(t *testing.T) {
 		if catalog(language) == nil || Names[language] == "" {
 			t.Fatal("missing language", language)
 		}
-		for _, label := range []string{"Home", "Profiles", "Language", "Save", "Theme", "Default Follow Terminal"} {
+		for _, label := range []string{"Home", "Profiles", "Language", "Save", "Theme", "Default Follow Terminal", "DNS Listen"} {
 			if catalog(language)[label] == "" {
 				t.Fatalf("missing %s in %s", label, language)
 			}

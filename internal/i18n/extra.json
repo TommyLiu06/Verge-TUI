@@ -57,7 +57,8 @@
     "Downloaded Version": "Downloaded Version",
     "New Version": "New Version",
     "Enable Auto Check Updates before Auto Download Updates.": "Enable Auto Check Updates before Auto Download Updates.",
-    "Enable Auto Download Updates before Auto Update.": "Enable Auto Download Updates before Auto Update."
+    "Enable Auto Download Updates before Auto Update.": "Enable Auto Download Updates before Auto Update.",
+    "Leave DNS Listen empty to inherit the profile's DNS listen address.": "Leave DNS Listen empty to inherit the profile's DNS listen address."
   },
   "ru": {
     "Theme": "Тема",
@@ -204,7 +205,8 @@
     "Downloaded Version": "已下载版本",
     "New Version": "有新版本",
     "Enable Auto Check Updates before Auto Download Updates.": "请先开启自动检查更新，再开启自动下载更新。",
-    "Enable Auto Download Updates before Auto Update.": "请先开启自动下载更新，再开启自动更新。"
+    "Enable Auto Download Updates before Auto Update.": "请先开启自动下载更新，再开启自动更新。",
+    "Leave DNS Listen empty to inherit the profile's DNS listen address.": "将 DNS 监听地址留空以继承配置文件中的地址。"
   },
   "fa": {
     "Theme": "پوسته",

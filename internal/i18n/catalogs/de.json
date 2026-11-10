@@ -238,5 +238,6 @@
   "Downloaded Version": "Heruntergeladene Version",
   "New Version": "Neue Version",
   "Enable Auto Check Updates before Auto Download Updates.": "Aktivieren Sie zuerst die automatische Updateprüfung und dann automatische Downloads.",
-  "Enable Auto Download Updates before Auto Update.": "Aktivieren Sie zuerst automatische Downloads und dann automatische Updates."
+  "Enable Auto Download Updates before Auto Update.": "Aktivieren Sie zuerst automatische Downloads und dann automatische Updates.",
+  "DNS Listen": "DNS-Lauschangabe"
 }

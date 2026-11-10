@@ -238,5 +238,6 @@
   "Downloaded Version": "Versi yang diunduh",
   "New Version": "Versi baru",
   "Enable Auto Check Updates before Auto Download Updates.": "Aktifkan pemeriksaan otomatis sebelum mengaktifkan unduhan otomatis.",
-  "Enable Auto Download Updates before Auto Update.": "Aktifkan unduhan otomatis sebelum mengaktifkan pembaruan otomatis."
+  "Enable Auto Download Updates before Auto Update.": "Aktifkan unduhan otomatis sebelum mengaktifkan pembaruan otomatis.",
+  "DNS Listen": "DNS Listen"
 }

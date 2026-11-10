@@ -27,6 +27,7 @@ func DefaultTun() TunSettings {
 
 type DNSSettings struct {
 	Enabled            bool     `json:"enabled"`
+	Listen             string   `json:"listen,omitempty"`
 	Mode               string   `json:"mode"`
 	IPv6               bool     `json:"ipv6"`
 	Nameservers        []string `json:"nameservers"`
@@ -36,5 +37,5 @@ type DNSSettings struct {
 }
 
 func DefaultDNS() DNSSettings {
-	return DNSSettings{Mode: "fake-ip", Nameservers: []string{"https://1.1.1.1/dns-query", "https://dns.alidns.com/dns-query"}, DefaultNameservers: []string{"1.1.1.1", "223.5.5.5"}, FakeIPRange: "198.18.0.1/16"}
+	return DNSSettings{Listen: ":53", Mode: "fake-ip", Nameservers: []string{"https://1.1.1.1/dns-query", "https://dns.alidns.com/dns-query"}, DefaultNameservers: []string{"1.1.1.1", "223.5.5.5"}, FakeIPRange: "198.18.0.1/16"}
 }

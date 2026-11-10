@@ -276,9 +276,12 @@ func RuntimeDocument(c state.Settings, doc map[string]any) ([]byte, error) {
 		dns["enable"], dns["enhanced-mode"], dns["ipv6"] = true, override.Mode, override.IPv6
 		dns["nameserver"], dns["default-nameserver"], dns["fallback"] = override.Nameservers, override.DefaultNameservers, override.Fallback
 		dns["fake-ip-range"] = override.FakeIPRange
+		if c.InstallMode == "system" && strings.TrimSpace(override.Listen) != "" {
+			dns["listen"] = strings.TrimSpace(override.Listen)
+		}
 		doc["dns"] = dns
 	}
-	if dns, ok := doc["dns"].(map[string]any); ok {
+	if dns, ok := doc["dns"].(map[string]any); ok && c.InstallMode != "system" {
 		delete(dns, "listen")
 	}
 	if c.Tun && c.InstallMode == "system" {

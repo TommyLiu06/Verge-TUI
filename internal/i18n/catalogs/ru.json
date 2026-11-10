@@ -238,5 +238,6 @@
   "Downloaded Version": "Загруженная версия",
   "New Version": "Новая версия",
   "Enable Auto Check Updates before Auto Download Updates.": "Сначала включите автопроверку обновлений, затем автозагрузку.",
-  "Enable Auto Download Updates before Auto Update.": "Сначала включите автозагрузку обновлений, затем автообновление."
+  "Enable Auto Download Updates before Auto Update.": "Сначала включите автозагрузку обновлений, затем автообновление.",
+  "DNS Listen": "Прослушивание DNS"
 }

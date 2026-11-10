@@ -238,5 +238,6 @@
   "Downloaded Version": "다운로드한 버전",
   "New Version": "새 버전",
   "Enable Auto Check Updates before Auto Download Updates.": "먼저 자동 업데이트 확인을 켠 후 자동 다운로드를 켜세요.",
-  "Enable Auto Download Updates before Auto Update.": "먼저 자동 다운로드를 켠 후 자동 업데이트를 켜세요."
+  "Enable Auto Download Updates before Auto Update.": "먼저 자동 다운로드를 켠 후 자동 업데이트를 켜세요.",
+  "DNS Listen": "DNS 리슨"
 }

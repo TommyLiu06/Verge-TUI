@@ -271,6 +271,9 @@ func (m *Model) settingsForm(section string) {
 			dns = state.DefaultDNS()
 		}
 		fields = []Field{optionField("mode", "Enhanced Mode", dns.Mode, "fake-ip", "redir-host"), booleanField("ipv6", "DNS IPv6", dns.IPv6), {Key: "nameservers", Label: "Nameservers (comma separated)", Text: strings.Join(dns.Nameservers, ", ")}, {Key: "default-nameservers", Label: "Default Nameservers (comma separated)", Text: strings.Join(dns.DefaultNameservers, ", ")}, {Key: "fallback", Label: "Fallback Nameservers (comma separated)", Text: strings.Join(dns.Fallback, ", ")}, {Key: "fake-ip-range", Label: "Fake IP Range", Text: dns.FakeIPRange}}
+		if c.InstallMode == "system" {
+			fields = append([]Field{{Key: "listen", Label: "DNS Listen", Text: dns.Listen}}, fields...)
+		}
 	case "language":
 		m.preferenceList("language", p.Language)
 		return
@@ -289,6 +292,9 @@ func (m *Model) settingsForm(section string) {
 	m.openSettingsForm(title, kind, section, fields)
 	if section == "dns" {
 		m.Modal.Body = []string{"Applies to the active profile. Saving enables DNS Overwrite."}
+		if c.InstallMode == "system" {
+			m.Modal.Body = append(m.Modal.Body, "Leave DNS Listen empty to inherit the profile's DNS listen address.")
+		}
 	}
 	if section == "system-proxy" {
 		address := m.View.Desktop.Address

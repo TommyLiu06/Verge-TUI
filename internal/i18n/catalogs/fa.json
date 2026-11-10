@@ -238,5 +238,6 @@
   "Downloaded Version": "نسخه دریافت‌شده",
   "New Version": "نسخه جدید",
   "Enable Auto Check Updates before Auto Download Updates.": "پیش از دریافت خودکار، بررسی خودکار به‌روزرسانی را فعال کنید.",
-  "Enable Auto Download Updates before Auto Update.": "پیش از به‌روزرسانی خودکار، دریافت خودکار را فعال کنید."
+  "Enable Auto Download Updates before Auto Update.": "پیش از به‌روزرسانی خودکار، دریافت خودکار را فعال کنید.",
+  "DNS Listen": "DNS Listen"
 }

@@ -238,5 +238,6 @@
   "Downloaded Version": "ダウンロード済みバージョン",
   "New Version": "新しいバージョン",
   "Enable Auto Check Updates before Auto Download Updates.": "先に更新の自動確認を有効にしてください。",
-  "Enable Auto Download Updates before Auto Update.": "先に更新の自動ダウンロードを有効にしてください。"
+  "Enable Auto Download Updates before Auto Update.": "先に更新の自動ダウンロードを有効にしてください。",
+  "DNS Listen": "DNS監視アドレス"
 }

@@ -2,7 +2,8 @@
 
 Reference checkout: `.reference/clash-verge-rev` (shallow clone, excluded from this repository).
 Upstream: https://github.com/clash-verge-rev/clash-verge-rev
-Commit: `d01f43cc783a9dbd05f064b79ea3ce39dcbfce16`.
+Original interface reference commit: `d01f43cc783a9dbd05f064b79ea3ce39dcbfce16`.
+Reference checkout updated to `389dddf51204984e91a9769c3dee08db2eeefbb2` (2026-11-10); DNS listen inheritance and overwrite behavior were checked against this revision.
 
 | Requested feature | Upstream source | TUI behavior |
 | --- | --- | --- |
@@ -39,6 +40,8 @@ This implementation recreates the requested structure in terminal cells. It does
 Settings expose working terminal-compatible controls, not placeholder switches. Service auto-launch is controlled by systemd; only root administers the system service. Directory controls show paths rather than opening desktop windows. Theme selection changes the interface while leaving latency colors independent; Default Follow Terminal preserves the terminal foreground/background. Modern colors are inspired by the official [VS Code dark](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json) and [light](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/light_modern.json) palettes. DNS overwrites are profile scoped and preserve original YAML. The external TCP controller is disabled by default; its address and required secret are editable. A Unix socket in the private runtime directory keeps internal control available. Controller changes restart the managed core. Other desktop-specific controls, PAC mode, proxy guard, Web UI, tunnel management, backups, startup scripts are omitted. Supported core fields follow the [mihomo general configuration](https://wiki.metacubex.one/en/config/general/), [TUN configuration](https://wiki.metacubex.one/en/config/inbound/tun/) and [DNS configuration](https://wiki.metacubex.one/en/config/dns/); the application validates changes with the selected managed core before applying them.
 
 Regenerate the trimmed translation catalogs from the pinned reference checkout with `python3 scripts/sync-locales.py`. The script uses only the Python standard library; catalogs are embedded in the executable, with no translation downloads at runtime.
+
+System-mode DNS listening follows the upstream [DNS merge](https://github.com/clash-verge-rev/clash-verge-rev/blob/389dddf51204984e91a9769c3dee08db2eeefbb2/src-tauri/src/enhance/mod.rs#L754-L797) and [DNS Listen field](https://github.com/clash-verge-rev/clash-verge-rev/blob/389dddf51204984e91a9769c3dee08db2eeefbb2/src/components/setting/mods/dns-viewer.tsx#L634-L644): disabled overwrite preserves the profile's listen address; enabled overwrite replaces it only when the field is nonempty. The form starts with the upstream `:53` default for a new overwrite. User mode retains its stricter listener policy and always removes `dns.listen` from the generated runtime document.
 
 System Proxy uses the pinned SysproxyViewer Linux default bypass list. Custom entries support hostnames (including `.example.com` and `*.example.com`), IP addresses, CIDRs, and host/IP entries with an optional port, following the [GIO ignore-hosts format](https://docs.gtk.org/gio/property.SimpleProxyResolver.ignore-hosts.html). It does not add polling, PAC scripts or proxy-guard timers.
 

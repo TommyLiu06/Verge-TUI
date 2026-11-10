@@ -306,6 +306,10 @@ func (b *Backend) saveSettings(ctx context.Context, a Action) error {
 			if c.Current == "" || c.Current != a.Node {
 				return errors.New("the active profile changed; reopen DNS settings")
 			}
+			listen, hasListen := a.Fields["listen"]
+			if hasListen && c.InstallMode != "system" {
+				return errors.New("DNS listening requires a system installation")
+			}
 			dns, ok := c.Engine.DNS[c.Current]
 			if !ok {
 				dns = state.DefaultDNS()
@@ -327,6 +331,19 @@ func (b *Backend) saveSettings(ctx context.Context, a Action) error {
 				dns.Nameservers, dns.DefaultNameservers, dns.Fallback = list(a.Fields["nameservers"]), list(a.Fields["default-nameservers"]), list(a.Fields["fallback"])
 				if len(dns.Nameservers) == 0 || len(dns.DefaultNameservers) == 0 {
 					return errors.New("nameservers and default nameservers are required")
+				}
+				if hasListen {
+					dns.Listen = strings.TrimSpace(listen)
+					if dns.Listen != "" {
+						_, portText, parseErr := net.SplitHostPort(dns.Listen)
+						if parseErr != nil {
+							return errors.New("enter a DNS listen address and port")
+						}
+						port, parseErr := strconv.Atoi(portText)
+						if parseErr != nil || port < 1 || port > 65535 {
+							return errors.New("DNS listen port must be between 1 and 65535")
+						}
+					}
 				}
 			}
 			if c.Engine.DNS == nil {

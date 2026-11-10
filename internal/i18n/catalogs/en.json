@@ -238,5 +238,7 @@
   "Downloaded Version": "Downloaded Version",
   "New Version": "New Version",
   "Enable Auto Check Updates before Auto Download Updates.": "Enable Auto Check Updates before Auto Download Updates.",
-  "Enable Auto Download Updates before Auto Update.": "Enable Auto Download Updates before Auto Update."
+  "Enable Auto Download Updates before Auto Update.": "Enable Auto Download Updates before Auto Update.",
+  "DNS Listen": "DNS Listen",
+  "Leave DNS Listen empty to inherit the profile's DNS listen address.": "Leave DNS Listen empty to inherit the profile's DNS listen address."
 }

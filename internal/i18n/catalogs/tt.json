@@ -238,5 +238,6 @@
   "Downloaded Version": "Йөкләнгән версия",
   "New Version": "Яңа версия",
   "Enable Auto Check Updates before Auto Download Updates.": "Автоматик йөкләү алдыннан яңартуларны автоматик тикшерүне кабызыгыз.",
-  "Enable Auto Download Updates before Auto Update.": "Автоматик яңарту алдыннан автоматик йөкләүне кабызыгыз."
+  "Enable Auto Download Updates before Auto Update.": "Автоматик яңарту алдыннан автоматик йөкләүне кабызыгыз.",
+  "DNS Listen": "DNS Listen"
 }

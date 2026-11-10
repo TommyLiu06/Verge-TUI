@@ -238,5 +238,6 @@
   "Downloaded Version": "İndirilen sürüm",
   "New Version": "Yeni sürüm",
   "Enable Auto Check Updates before Auto Download Updates.": "Otomatik indirmeden önce otomatik güncelleme denetimini etkinleştirin.",
-  "Enable Auto Download Updates before Auto Update.": "Otomatik güncellemeden önce otomatik indirmeyi etkinleştirin."
+  "Enable Auto Download Updates before Auto Update.": "Otomatik güncellemeden önce otomatik indirmeyi etkinleştirin.",
+  "DNS Listen": "DNS Dinleme"
 }

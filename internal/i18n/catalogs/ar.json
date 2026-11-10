@@ -238,5 +238,6 @@
   "Downloaded Version": "الإصدار الذي تم تنزيله",
   "New Version": "إصدار جديد",
   "Enable Auto Check Updates before Auto Download Updates.": "فعّل التحقق التلقائي من التحديثات قبل التنزيل التلقائي.",
-  "Enable Auto Download Updates before Auto Update.": "فعّل التنزيل التلقائي قبل التحديث التلقائي."
+  "Enable Auto Download Updates before Auto Update.": "فعّل التنزيل التلقائي قبل التحديث التلقائي.",
+  "DNS Listen": "DNS Listen"
 }
