@@ -235,6 +235,16 @@ func (m *Model) updatePollingInterval() time.Duration {
 
 func (m *Model) completeUpdate(done result) {
 	m.finishTask(done.Action)
+	if message := taskMessage(done.Action); message != "" && m.Message == message {
+		switch {
+		case done.Err != nil:
+			m.Message = "Error: " + done.Err.Error()
+		case done.Action.Kind == "update-options":
+			m.Message = "Settings saved"
+		default:
+			m.Message = "Ready"
+		}
+	}
 	if done.Page != nil && done.Page.Update != nil && done.Page.Update.CurrentVersion != "" {
 		m.AppUpdate = *done.Page.Update
 	}

@@ -223,21 +223,9 @@ func (m *Model) beginTask(a app.Action) bool {
 		m.Tasks = make(map[string]app.Action)
 	}
 	m.Tasks[taskKey(a)] = a
-	m.Busy = true
-	if a.Kind != "app-update" || a.ID != "status" {
-		m.Message = a.Kind
-	}
-	if a.Kind == "app-update" && a.ID == "check" {
-		m.Message = "Checking for Updates..."
-	}
-	if a.Kind == "app-update" && a.ID == "download" {
-		m.Message = "Downloading..."
-	}
-	if a.Kind == "update-options" {
-		m.Message = "Custom Update Policy"
-	}
-	if a.Kind == "core-releases" {
-		m.Message = "Loading official mihomo releases..."
+	m.refreshBusy()
+	if message := taskMessage(a); message != "" {
+		m.Message = message
 	}
 	if a.Kind == "delay" {
 		m.DelayActive = true
@@ -246,7 +234,37 @@ func (m *Model) beginTask(a app.Action) bool {
 	}
 	return true
 }
-func (m *Model) finishTask(a app.Action) { delete(m.Tasks, taskKey(a)); m.Busy = len(m.Tasks) > 0 }
+func taskMessage(a app.Action) string {
+	switch a.Kind {
+	case "app-update":
+		switch a.ID {
+		case "status":
+			return ""
+		case "check":
+			return "Checking for Updates..."
+		case "download":
+			return "Downloading..."
+		}
+	case "update-options":
+		return "Custom Update Policy"
+	case "core-releases":
+		return "Loading official mihomo releases..."
+	}
+	return a.Kind
+}
+func (m *Model) refreshBusy() {
+	m.Busy = false
+	for _, pending := range m.Tasks {
+		if taskMessage(pending) != "" {
+			m.Busy = true
+			return
+		}
+	}
+}
+func (m *Model) finishTask(a app.Action) {
+	delete(m.Tasks, taskKey(a))
+	m.refreshBusy()
+}
 func (m *Model) cancelDelay() {
 	m.finishTask(app.Action{Kind: "delay"})
 	m.DelayActive = false
